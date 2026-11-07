@@ -37,6 +37,7 @@ function ActorRig.new(folder,components)
  function api:impulse(name,value) assert(not dead,'actor is destroyed'); actor:impulse(name,value) end
  function api:step(dt)
   assert(not dead,'actor is destroyed')
+  adapter:validate()
   local result=actor:step({},dt)
   adapter:apply(result[1].value)
   return result[1].value

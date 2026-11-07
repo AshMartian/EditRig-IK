@@ -19,13 +19,18 @@ function JointAdapter.new(bindings, options)
  local release=if options.ownership then options.ownership:acquire((function() local joints={} for _,e in ipairs(entries) do table.insert(joints,e.joint) end return joints end)()) else function() end
  local dead=false
  local api={}
- function api:apply(angles)
+ function api:validate()
   assert(not dead, 'adapter is destroyed')
+  for _,e in ipairs(entries) do
+   assert(e.joint.Transform:FuzzyEq(e.last,1e-5), 'transform changed by another writer: '..e.name)
+  end
+ end
+ function api:apply(angles)
+  self:validate()
   assert(type(angles)=='table','angles must be a table')
   local targets={}
   for i,e in ipairs(entries) do
    assert(finite(angles[e.name]), 'missing or invalid angle for '..e.name)
-   assert(e.joint.Transform:FuzzyEq(e.last,1e-5), 'transform changed by another writer: '..e.name)
    targets[i]=e.original*CFrame.fromAxisAngle(e.axis,angles[e.name])
   end
   for i,e in ipairs(entries) do
