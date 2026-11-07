@@ -22,6 +22,13 @@ result=controller:step(.5)
 assert(not result.moving and result.solve.converged and (result.target-Vector3.new(1.1,.9,0)).Magnitude<1e-4)
 assert(#controller:destroy()==0)
 assert(not pcall(function() controller:step(.1) end))
+def:SetAttribute('MaxSpeedDegrees',1)
+local limited=FootstepChain.new({exclusive=true,start=Vector3.new(1,1,0),up=Vector3.yAxis,height=.1,duration=1},components)
+local limitedResult=limited:step(.1)
+assert(limitedResult.solve.motionLimited,'footstep must forward dt to the authored chain speed cap')
+local actualEndpoint=(a.CFrame*j1.C0*j1.Transform*j1.C1:Inverse()*j2.C0*j2.Transform*j2.C1:Inverse()):PointToWorldSpace(tip.Position)
+assert((limitedResult.solve.endpointWorld-actualEndpoint).Magnitude<1e-5,'multi-joint diagnostics must match the applied pose')
+limited:destroy()
 assert(not pcall(function() FootstepChain.new({exclusive=true,start=Vector3.zero,up=Vector3.yAxis,height=.1,duration=0},components) end))
 local root=Instance.new('Bone'); root.Parent=a
 local child=Instance.new('Bone'); child.CFrame=CFrame.new(1,0,0); child.Parent=root

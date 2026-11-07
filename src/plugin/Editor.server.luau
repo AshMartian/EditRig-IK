@@ -428,6 +428,7 @@ local iterationsField=chainNumberField('Maximum CCD iterations','30')
 local toleranceField=chainNumberField('Target tolerance (studs)','0.01')
 local maxStepField=chainNumberField('Maximum correction per iteration (degrees)','180')
 local gainField=chainNumberField('Correction gain (greater than 0 to 1)','1')
+local speedField=chainNumberField('Max joint speed (degrees/s; 0 = off)','0')
 local chainStatus=label('No chain selections yet.',55)
 local chainFeedback: TextLabel
 local firstJoint: Instance?=nil
@@ -460,14 +461,16 @@ chainButton('Load selected chain settings').MouseButton1Click:Connect(function()
     toleranceField.Text=tostring(settings.tolerance)
     maxStepField.Text=tostring(settings.maxStepDegrees)
     gainField.Text=tostring(settings.gain)
+    speedField.Text=tostring(settings.maxSpeedDegrees)
     chainFeedback.Text='Loaded '..definition:GetFullName()..'. Keep it selected to save changes.'
 end)
 chainButton('Save settings to selected chain').MouseButton1Click:Connect(function()
     local definition=selectedOne()
     if not loadedChain or definition~=loadedChain then chainFeedback.Text='Select the loaded chain and load its settings before saving.'; return end
-    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=tonumber(maxStepField.Text),gain=tonumber(gainField.Text)}
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=tonumber(maxStepField.Text),gain=tonumber(gainField.Text),maxSpeedDegrees=tonumber(speedField.Text)}
     if not options.maxStepDegrees then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
     if not options.gain then chainFeedback.Text='Enter a correction gain.'; return end
+    if not options.maxSpeedDegrees then chainFeedback.Text='Enter a maximum speed, or 0 to disable it.'; return end
     local ok,settings=pcall(ChainBuilder.validateSettings,options)
     if not ok then chainFeedback.Text='Invalid settings: '..tostring(settings); return end
     local valid,err=pcall(ChainBuilder.readSettings,definition)
@@ -571,7 +574,9 @@ chainButton('Create idle IK chain definition').MouseButton1Click:Connect(functio
     if not maxStep then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
     local gain=tonumber(gainField.Text)
     if not gain then chainFeedback.Text='Enter a correction gain.'; return end
-    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep,gain=gain,pole=pole}
+    local speed=tonumber(speedField.Text)
+    if not speed then chainFeedback.Text='Enter a maximum speed, or 0 to disable it.'; return end
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep,gain=gain,maxSpeedDegrees=speed,pole=pole}
     local ok,definition=pcall(ChainBuilder.create,model,first,last,tip,chainName.Text,options)
     if not ok then chainFeedback.Text='Cannot create chain: '..tostring(definition); return end
     ChangeHistoryService:SetWaypoint('Before create EditRig IK chain')

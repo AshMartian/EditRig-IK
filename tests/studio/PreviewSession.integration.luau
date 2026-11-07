@@ -17,6 +17,7 @@ for _,joint in ipairs({j1,j2}) do
 end
 local folder=Instance.new('Folder'); folder.Name='EditRigIKChains'; folder.Parent=model
 local definition=ChainBuilder.new(Config).create(model,j1,j2,tip,'Leg'); definition.Parent=folder
+definition:SetAttribute('MaxSpeedDegrees',90) -- static preview deliberately shows the final solve
 local view=Instance.new('ViewportFrame')
 local engine=Solver.new(Limits)
 local session=PreviewSession.new(definition,view,{createChain=function(def)

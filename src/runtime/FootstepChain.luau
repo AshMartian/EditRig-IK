@@ -25,7 +25,7 @@ function FootstepChain.new(options,components)
   pending=nil
   local p=output.position
   local target=Vector3.new(p[1],p[2],p[3])
-  local result=chain:solve(target)
+  local result=chain:solve(target,{dt=dt})
   return {target=target,moving=output.moving,progress=output.progress,solve=result}
  end
  function api:destroy()

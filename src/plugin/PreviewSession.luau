@@ -99,7 +99,7 @@ function PreviewSession.new(definition,viewport,components)
   function api:solveOffset(offset)
    assert(not dead,'preview is closed')
    assert(typeof(offset)=='Vector3' and finite(offset.X) and finite(offset.Y) and finite(offset.Z),'preview offset must be finite')
-   local solved=chain:solve(start+offset)
+   local solved=chain:solve(start+offset,{maxAngularSpeed=0})
    updateParts()
    targetMarker.Position=start+offset
    endpointMarker.Position=solved.endpointWorld

@@ -10,7 +10,9 @@ function ChainBuilder.new(Config)
   assert(type(maxStepDegrees)=='number' and maxStepDegrees==maxStepDegrees and maxStepDegrees>0 and maxStepDegrees<=180,'maximum correction must be greater than 0 and at most 180 degrees')
   local gain=if options.gain==nil then 1 else options.gain
   assert(type(gain)=='number' and gain==gain and gain>0 and gain<=1,'correction gain must be greater than 0 and at most 1')
-  return {iterations=options.iterations,tolerance=options.tolerance,maxStepDegrees=maxStepDegrees,gain=gain}
+  local maxSpeedDegrees=if options.maxSpeedDegrees==nil then 0 else options.maxSpeedDegrees
+  assert(type(maxSpeedDegrees)=='number' and maxSpeedDegrees==maxSpeedDegrees and maxSpeedDegrees>=0 and maxSpeedDegrees<=3600,'maximum speed must be 0 to 3600 degrees per second')
+  return {iterations=options.iterations,tolerance=options.tolerance,maxStepDegrees=maxStepDegrees,gain=gain,maxSpeedDegrees=maxSpeedDegrees}
  end
  local function checkDefinition(definition)
   assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a supported chain definition')
@@ -20,7 +22,7 @@ function ChainBuilder.new(Config)
  end
  function api.readSettings(definition)
   checkDefinition(definition)
-  return api.validateSettings({iterations=definition:GetAttribute('Iterations'),tolerance=definition:GetAttribute('Tolerance'),maxStepDegrees=definition:GetAttribute('MaxStepDegrees'),gain=definition:GetAttribute('CorrectionGain')})
+  return api.validateSettings({iterations=definition:GetAttribute('Iterations'),tolerance=definition:GetAttribute('Tolerance'),maxStepDegrees=definition:GetAttribute('MaxStepDegrees'),gain=definition:GetAttribute('CorrectionGain'),maxSpeedDegrees=definition:GetAttribute('MaxSpeedDegrees')})
  end
  function api.writeSettings(definition,options)
   checkDefinition(definition)
@@ -29,6 +31,7 @@ function ChainBuilder.new(Config)
   definition:SetAttribute('Tolerance',settings.tolerance)
   definition:SetAttribute('MaxStepDegrees',settings.maxStepDegrees)
   definition:SetAttribute('CorrectionGain',settings.gain)
+  definition:SetAttribute('MaxSpeedDegrees',settings.maxSpeedDegrees)
  end
  function api.prepareLimitRefresh(definition)
   checkDefinition(definition)
@@ -133,6 +136,7 @@ function ChainBuilder.new(Config)
   folder:SetAttribute('Iterations',options.iterations); folder:SetAttribute('Tolerance',options.tolerance)
   folder:SetAttribute('MaxStepDegrees',options.maxStepDegrees)
   folder:SetAttribute('CorrectionGain',options.gain)
+  folder:SetAttribute('MaxSpeedDegrees',options.maxSpeedDegrees)
   local endpointRef=Instance.new('ObjectValue'); endpointRef.Name='Endpoint'; endpointRef.Value=endpoint; endpointRef.Parent=folder
   if pole then local poleRef=Instance.new('ObjectValue'); poleRef.Name='Pole'; poleRef.Value=pole; poleRef.Parent=folder end
   local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=folder

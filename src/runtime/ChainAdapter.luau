@@ -7,9 +7,19 @@ local function validVector(v)
 end
 local function vector(v) return {v.X,v.Y,v.Z} end
 local function quaternion(cf)
- local axis,angle=cf.Rotation:ToAxisAngle()
- local s=math.sin(angle/2)
- return {axis.X*s,axis.Y*s,axis.Z*s,math.cos(angle/2)}
+ local _,_,_,m00,m01,m02,m10,m11,m12,m20,m21,m22=cf:GetComponents()
+ local x,y,z,w
+ local trace=m00+m11+m22
+ if trace>0 then
+  local s=math.sqrt(trace+1)*2; w=.25*s; x=(m21-m12)/s; y=(m02-m20)/s; z=(m10-m01)/s
+ elseif m00>m11 and m00>m22 then
+  local s=math.sqrt(1+m00-m11-m22)*2; w=(m21-m12)/s; x=.25*s; y=(m01+m10)/s; z=(m02+m20)/s
+ elseif m11>m22 then
+  local s=math.sqrt(1+m11-m00-m22)*2; w=(m02-m20)/s; x=(m01+m10)/s; y=.25*s; z=(m12+m21)/s
+ else
+  local s=math.sqrt(1+m22-m00-m11)*2; w=(m10-m01)/s; x=(m02+m20)/s; y=(m12+m21)/s; z=.25*s
+ end
+ return {x,y,z,w}
 end
 local function frame(q) return CFrame.new(0,0,0,q[1],q[2],q[3],q[4]) end
 function ChainAdapter.new(joints,endpointLocal,options,solver)
@@ -71,6 +81,11 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   local relative=root:PointToObjectSpace(target)
   assert(type(solveOptions)=='table','solver options required')
   local solverOptions=table.clone(solveOptions)
+  local speed,dt=solverOptions.maxAngularSpeed,solverOptions.dt
+  if speed~=nil then
+   assert(finite(speed) and speed>0 and finite(dt) and dt>=0 and finite(speed*dt),'speed cap requires positive finite maxAngularSpeed and nonnegative finite dt')
+  else assert(dt==nil,'dt requires maxAngularSpeed') end
+  solverOptions.maxAngularSpeed=nil; solverOptions.dt=nil
   if solverOptions.pole~=nil then
    assert(validVector(solverOptions.pole),'pole must be a finite world-space Vector3')
    solverOptions.pole=vector(root:PointToObjectSpace(solverOptions.pole))
@@ -87,8 +102,32 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   end
   local result=solver.solve(data,vector(relative),solverOptions)
   local output={}
-  for i,q in ipairs(result.rotations) do output[i]=frame(q) end
-  for i,e in ipairs(entries) do e.joint.Transform=output[i]; e.last=e.joint.Transform; e.written=true end
+  local motionLimited=false
+  for i,q in ipairs(result.rotations) do
+   local destination=frame(q)
+   if speed then
+    local delta=quaternion(entries[i].last:Inverse()*destination)
+    local angle=2*math.atan2(math.sqrt(delta[1]^2+delta[2]^2+delta[3]^2),math.abs(delta[4]))
+    local cap=speed*dt
+    if angle>cap+1e-10 then destination=entries[i].last:Lerp(destination,cap/angle); motionLimited=true end
+   end
+   output[i]=destination
+  end
+  for i,e in ipairs(entries) do e.joint.Transform=output[i]; e.last=e.joint.Transform; e.written=true; output[i]=e.last end
+  if motionLimited then
+   result.solverError=result.error; result.solverConverged=result.converged
+   local position=Vector3.zero; local orientation=CFrame.identity
+   for i,jointData in ipairs(data.joints) do
+    orientation=orientation*frame(jointData.rest)*output[i]
+    local offset=jointData.offset
+    position+=orientation:VectorToWorldSpace(Vector3.new(offset[1],offset[2],offset[3]))
+    result.rotations[i]=quaternion(output[i])
+   end
+   result.endpoint=vector(position); result.error=(relative-position).Magnitude
+   result.converged=result.error<=solverOptions.tolerance
+   if result.status~='outsideReach' then result.status=if result.converged then 'converged' else 'notConverged' end
+  end
+  result.motionLimited=motionLimited
   result.endpointWorld=root:PointToWorldSpace(Vector3.new(result.endpoint[1],result.endpoint[2],result.endpoint[3]))
   return result
  end
