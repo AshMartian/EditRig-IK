@@ -48,7 +48,7 @@ local selectedLabel = label('Select one Motor6D or Bone in Explorer.', 38)
 local notice = label('Prototype: saves settings and idle definitions. No animation starts automatically.', 42)
 notice.TextColor3 = Color3.fromRGB(255, 204, 111)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}}) do
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
@@ -98,6 +98,7 @@ local status = label('', 65)
 local current: Instance? = nil
 local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees'}
 local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90}
+local driveAttrs = {control='EditRigIK_Control',impulse='EditRigIK_Impulse',frequency='EditRigIK_Frequency'}
 local function refresh()
     local items = Selection:Get()
     local item = if #items == 1 then items[1] else nil
@@ -105,8 +106,9 @@ local function refresh()
         current = item
         selectedLabel.Text = item.ClassName .. ': ' .. item:GetFullName()
         for key, box in pairs(fields) do
-            local value = item:GetAttribute(attrs[key])
-            box.Text = tostring(if value ~= nil then value else defaults[key])
+            local value = item:GetAttribute(attrs[key] or driveAttrs[key])
+            local fallback = defaults[key] or (if key=='control' then item.Name elseif key=='impulse' then item.Name..'Impulse' else 4)
+            box.Text = tostring(if value ~= nil then value else fallback)
         end
         status.Text = ''
     else
@@ -123,8 +125,13 @@ apply.MouseButton1Click:Connect(function()
     if not item or not item.Parent then status.Text = 'Select a valid joint first.'; return end
     local ok, result = pcall(Config.validate, {kind=fields.kind.Text, axis=string.upper(fields.axis.Text), lower=tonumber(fields.lower.Text), upper=tonumber(fields.upper.Text), swing=tonumber(fields.swing.Text)})
     if not ok then status.Text = 'Invalid settings: ' .. tostring(result); return end
+    local frequency=tonumber(fields.frequency.Text)
+    if not frequency then status.Text='Enter a damping frequency.'; return end
+    local driveOk,drive=pcall(Config.validateDrive,{control=fields.control.Text,impulse=fields.impulse.Text,frequency=frequency},item.Name)
+    if not driveOk then status.Text='Invalid control settings: '..tostring(drive); return end
     ChangeHistoryService:SetWaypoint('Before EditRig IK limit metadata')
     for key, name in pairs(attrs) do item:SetAttribute(name, result[key]) end
+    for key, name in pairs(driveAttrs) do item:SetAttribute(name, drive[key]) end
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
     status.Text = 'Saved to ' .. item.Name .. '. Recreate the actor definition to include changes.'

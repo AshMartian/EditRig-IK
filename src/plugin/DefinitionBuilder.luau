@@ -14,7 +14,8 @@ function DefinitionBuilder.new(Config)
     local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees')})
     assert(config.kind=='Hinge','direct-control actor currently supports hinge limits only: '..joint.Name)
     assert(config.lower<=0 and config.upper>=0,'hinge limits must include zero: '..joint.Name)
-    table.insert(entries,{joint=joint,config=config})
+    local drive=Config.validateDrive({control=joint:GetAttribute('EditRigIK_Control'),impulse=joint:GetAttribute('EditRigIK_Impulse'),frequency=joint:GetAttribute('EditRigIK_Frequency')},joint.Name)
+    table.insert(entries,{joint=joint,config=config,drive=drive})
    end
   end
   assert(#entries>0,'no configured joints found; save hinge settings on a Motor6D or Bone first')
@@ -27,8 +28,8 @@ function DefinitionBuilder.new(Config)
    ref.Name=entry.joint.Name; ref.Value=entry.joint
    ref:SetAttribute('Kind',entry.config.kind); ref:SetAttribute('Axis',entry.config.axis)
    ref:SetAttribute('LowerDegrees',entry.config.lower); ref:SetAttribute('UpperDegrees',entry.config.upper)
-   ref:SetAttribute('Control',entry.joint.Name); ref:SetAttribute('Impulse',entry.joint.Name..'Impulse')
-   ref:SetAttribute('Frequency',4); ref.Parent=folder
+   ref:SetAttribute('Control',entry.drive.control); ref:SetAttribute('Impulse',entry.drive.impulse)
+   ref:SetAttribute('Frequency',entry.drive.frequency); ref.Parent=folder
   end
   return folder
  end

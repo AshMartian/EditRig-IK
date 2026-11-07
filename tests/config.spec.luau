@@ -5,4 +5,8 @@ assert(not pcall(function() Config.validate({kind='Hinge', axis='Y', lower=30, u
 assert(not pcall(function() Config.validate({kind='Ball', axis='X', lower=-30, upper=30, swing=181}) end))
 assert(not pcall(function() Config.validate({kind='Hinge', axis='banana', lower=-30, upper=30, swing=70}) end))
 assert(not pcall(function() Config.validate({kind='Hinge', axis='X', lower=0/0, upper=30, swing=70}) end))
+local defaults=Config.validateDrive({},'Jaw')
+assert(defaults.control=='Jaw' and defaults.impulse=='JawImpulse' and defaults.frequency==4)
+assert(not pcall(function() Config.validateDrive({frequency=0},'Jaw') end))
+assert(not pcall(function() Config.validateDrive({impulse=string.rep('x',129)},'Jaw') end))
 print('configuration tests passed')
