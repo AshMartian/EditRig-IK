@@ -27,6 +27,7 @@ function InputBindings.new(actor)
   assert(not dead,'input bindings are destroyed'); checkAction(action)
   assert(nameValid(control) and finite(value) and value>=-1 and value<=1,'invalid control or hold value')
   assert(not controls[control],'control already has a hold binding')
+  if type(actor.validateControl)=='function' then actor:validateControl(control,value) end
   local state=action:GetState(); assert(type(state)=='boolean','Bool action state unavailable')
   actor:setControl(control,if state then value else 0)
   local active=state
@@ -56,6 +57,7 @@ function InputBindings.new(actor)
    assert(type(value)=='table' and #value==3 and finite(value[1]) and finite(value[2]) and finite(value[3]),'impulse must be a finite number or three-number vector')
    payload={value[1],value[2],value[3]}
   end
+  if type(actor.validateImpulse)=='function' then actor:validateImpulse(impulse,payload) end
   local handle
   local connections={}
   connections[1]=action.Pressed:Connect(function() actor:impulse(impulse,payload) end)
@@ -77,7 +79,10 @@ function InputBindings.new(actor)
     assert((route=='Hold' or route=='Impulse') and nameValid(control) and finite(value),'invalid input profile action')
     if route=='Hold' then
      assert(value>=-1 and value<=1 and not controls[control] and not seen[control],'invalid or duplicate hold control')
+     if type(actor.validateControl)=='function' then actor:validateControl(control,value) end
      seen[control]=true
+    elseif type(actor.validateImpulse)=='function' then
+     actor:validateImpulse(control,value)
     end
     table.insert(planned,{action=action,route=route,control=control,value=value})
    end

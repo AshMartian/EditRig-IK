@@ -42,16 +42,22 @@ function ActorRig.new(folder,components)
  end
  function api:listControls() return list(controls) end
  function api:listImpulses() return list(impulses) end
- function api:setControl(name,value)
+ function api:validateControl(name,value)
   assert(not dead,'actor is destroyed'); assert(controls[name],'unknown actor control: '..tostring(name))
-  assert(finite(value),'joint control must be a finite number'); actor:setControl(name,value)
+  assert(finite(value),'joint control must be a finite number')
+ end
+ function api:validateImpulse(name,value)
+  assert(not dead,'actor is destroyed'); assert(impulses[name],'unknown actor impulse: '..tostring(name))
+  assert(finite(value),'joint impulse must be a finite scalar')
+ end
+ function api:setControl(name,value)
+  self:validateControl(name,value); actor:setControl(name,value)
  end
  function api:clearControl(name)
   assert(not dead,'actor is destroyed'); assert(controls[name],'unknown actor control: '..tostring(name)); actor:clearControl(name)
  end
  function api:impulse(name,value)
-  assert(not dead,'actor is destroyed'); assert(impulses[name],'unknown actor impulse: '..tostring(name))
-  assert(finite(value),'joint impulse must be a finite scalar'); actor:impulse(name,value)
+  self:validateImpulse(name,value); actor:impulse(name,value)
  end
  function api:step(dt)
   assert(not dead,'actor is destroyed')
