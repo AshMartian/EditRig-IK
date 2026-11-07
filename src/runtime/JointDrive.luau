@@ -20,9 +20,10 @@ function JointDrive.new(options)
  local behavior={}
  function behavior.step(_,dt,signals)
   assert(finite(dt) and dt>=0, 'invalid delta time')
-  local output={}
-  for _,state in ipairs(states) do
+  local output,nextStates={},{}
+  for index,state in ipairs(states) do
    local b=state.binding
+   local offset,velocity=state.offset,state.velocity
    local value=signals.values[b.control]
    if value==nil then value=0 end
    assert(finite(value),'joint control must be a finite number')
@@ -30,19 +31,24 @@ function JointDrive.new(options)
    for _,imp in ipairs(signals.impulses) do
     if b.impulse and imp.name==b.impulse then
      assert(finite(imp.value),'joint impulse must be a finite scalar')
-     state.velocity=math.clamp(state.velocity+math.clamp(imp.value,-100,100),-100,100)
+     velocity=math.clamp(velocity+math.clamp(imp.value,-100,100),-100,100)
     end
    end
    -- Analytic critically damped response; frequency is angular frequency in 1/s.
    local w=b.frequency
    local decay=if w*dt>700 then 0 else math.exp(-w*dt)
-   if decay==0 then state.offset=0; state.velocity=0 else
-    local temp=state.velocity+w*state.offset
-    state.offset=(state.offset+temp*dt)*decay
-    state.velocity=(state.velocity-w*temp*dt)*decay
+   if decay==0 then offset=0; velocity=0 else
+    local temp=velocity+w*offset
+    offset=(offset+temp*dt)*decay
+    velocity=(velocity-w*temp*dt)*decay
    end
    local target=if value>=0 then value*b.upper else -value*b.lower
-   output[b.name]=math.clamp(target+state.offset,b.lower,b.upper)
+   output[b.name]=math.clamp(target+offset,b.lower,b.upper)
+   nextStates[index]={offset=offset,velocity=velocity}
+  end
+  for index,state in ipairs(states) do
+   state.offset=nextStates[index].offset
+   state.velocity=nextStates[index].velocity
   end
   return output
  end
