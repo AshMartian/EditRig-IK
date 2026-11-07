@@ -1,6 +1,15 @@
 --!strict
 -- Prepare an inert, editable InputContext from an actor definition.
 local InputProfileBuilder={}
+function InputProfileBuilder.validateAmount(kind,route,value)
+ assert(kind=='Hinge' or kind=='Ball','invalid joint kind')
+ assert(route=='Hold' or route=='Impulse','invalid input route')
+ if value==nil then value=1 end
+ assert(type(value)=='number' and value==value and math.abs(value)<math.huge,'input value must be finite')
+ local limit=if route=='Impulse' then 100 elseif kind=='Hinge' then 1 else math.pi
+ assert(value>=-limit and value<=limit,'input value is out of range')
+ return value
+end
 function InputProfileBuilder.validateKey(value)
  assert(value==nil or type(value)=='string','key must be a KeyCode name')
  local name=if value then string.match(value,'^%s*(.-)%s*$') else ''
@@ -20,7 +29,7 @@ function InputProfileBuilder.create(definition)
   keys[keyName]=id
   local group=groups[id]
   if not group then group={route=route,control=control,keys={},value=value}; groups[id]=group
-  else assert(group.value==value,'shared action has incompatible joint axes or types: '..control) end
+  else assert(group.value==value,'shared action has incompatible axes, types, or values: '..control) end
   group.keys[keyName]=true
  end
  for _,ref in ipairs(definition:GetChildren()) do
@@ -28,17 +37,21 @@ function InputProfileBuilder.create(definition)
   assert(joint and (joint:IsA('Motor6D') or joint:IsA('Bone')) and joint:IsDescendantOf(definition.Parent),'invalid actor joint reference')
   local holdKey=InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_HoldKey'))
   local impulseKey=InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_ImpulseKey'))
-  if ref:GetAttribute('Kind')=='Ball' then
+  local kind=ref:GetAttribute('Kind') or 'Hinge'
+  assert(kind=='Hinge' or kind=='Ball','invalid actor joint kind')
+  local holdValue=InputProfileBuilder.validateAmount(kind,'Hold',joint:GetAttribute('EditRigIK_HoldValue'))
+  local impulseValue=InputProfileBuilder.validateAmount(kind,'Impulse',joint:GetAttribute('EditRigIK_ImpulseValue'))
+  if kind=='Ball' then
    local axis=ref:GetAttribute('Axis')
    local axes={X=Vector3.xAxis,Y=Vector3.yAxis,Z=Vector3.zAxis}
    assert((holdKey=='' and impulseKey=='') or axes[axis],'ball-joint input needs a valid axis')
    if axes[axis] then
-    add('Hold',ref:GetAttribute('Control'),holdKey,axes[axis])
-    add('Impulse',ref:GetAttribute('Impulse'),impulseKey,axes[axis])
+    add('Hold',ref:GetAttribute('Control'),holdKey,axes[axis]*holdValue)
+    add('Impulse',ref:GetAttribute('Impulse'),impulseKey,axes[axis]*impulseValue)
    end
   else
-   add('Hold',ref:GetAttribute('Control'),holdKey,1)
-   add('Impulse',ref:GetAttribute('Impulse'),impulseKey,1)
+   add('Hold',ref:GetAttribute('Control'),holdKey,holdValue)
+   add('Impulse',ref:GetAttribute('Impulse'),impulseKey,impulseValue)
   end
  end
  local ordered={}

@@ -10,12 +10,18 @@ local function ref(name,joint)
 end
 ref('A',a); ref('B',b)
 local context=InputProfileBuilder.create(definition)
+assert(not pcall(function() InputProfileBuilder.validateAmount('Hinge','Hold',1.1) end),'hinge hold range must be checked')
+assert(not pcall(function() InputProfileBuilder.validateAmount('Ball','Hold',math.pi+1) end),'ball hold range must be checked')
+assert(not pcall(function() InputProfileBuilder.validateAmount('Ball','Impulse',math.huge) end),'nonfinite impulses must be rejected')
 assert(context.Parent==nil and context:IsA('InputContext') and not context.Enabled,'template must be detached and disabled')
 local actions=context:GetChildren(); assert(#actions==2,'shared route should group keys')
 local hold,impulse
 for _,action in ipairs(actions) do if action:GetAttribute('Route')=='Hold' then hold=action else impulse=action end end
 assert(hold:GetAttribute('Control')=='Bite' and #hold:GetChildren()==2,'hold action must capture both keys')
 assert(impulse:GetAttribute('Control')=='Snap' and #impulse:GetChildren()==1,'impulse action must capture key')
+b:SetAttribute('EditRigIK_HoldValue',-.5)
+assert(not pcall(function() InputProfileBuilder.create(definition) end),'shared action with different values must be rejected')
+b:SetAttribute('EditRigIK_HoldValue',nil)
 b:SetAttribute('EditRigIK_HoldKey','Q')
 assert(not pcall(function() InputProfileBuilder.create(definition) end),'conflicting key routes must be rejected')
 b:SetAttribute('EditRigIK_HoldKey','')
