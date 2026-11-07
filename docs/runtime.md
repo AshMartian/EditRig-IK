@@ -65,3 +65,21 @@ A gameplay input handler can call `actor:setControl('JawOpen', 1)` when a button
 `IK.JointAdapter.new(bindings, {exclusive=true})` captures each `Motor6D.Transform` or `Bone.Transform` and applies angles relative to that captured transform around the configured local `Vector3` axis. Call `adapter:apply(actor:step(input, dt)[1].value)` when this is the first behavior result. It validates all inputs and detects an externally changed transform before writing. `adapter:destroy()` restores transforms it last wrote, leaves externally changed transforms alone, and returns their names. Ownership checks use a tolerance and are not a lock; the caller must ensure no Animator, IKControl, script or other adapter writes the same transforms and must choose appropriate scheduling. There is no automatic arbitration or editor connection yet. Avoid enabling this on Dino Auto's IK-driven legs without first resolving ownership.
 
 In Studio Edit mode, isolated tests created unparented Motor6D and Bone instances, exercised controls, an impulse, application and restoration, and checked that external changes are reported without being overwritten. These checks do not establish behavior in an animated or networked actor, skinned mesh deformation, a packaged module, or a playtest.
+
+## Creating an idle direct-control actor
+
+In the prototype editor, save hinge metadata on each Motor6D or Bone, then select their containing Model and press **Create direct-control actor from selected model**. The builder requires unique configured joint names and ranges that contain zero; it rejects ball limits and unknown metadata versions. It creates an `EditRigIKActor` folder of ObjectValue references and an editable `EditRigIKController` ModuleScript in the model. It does not replace existing objects of those names. The definition is a snapshot: after changing joint metadata, remove or rename the old generated folder and controller before creating a new one. The plugin package and UI have not yet been tested as installed Studio plugins.
+
+Place the separately built `EditRigIKRuntime` ModuleScript in ReplicatedStorage. From a script running on the intended side, after ensuring no Animator, IKControl or other writer owns the configured joints:
+
+```lua
+local controller = require(model.EditRigIKController)
+local actor = controller.start({exclusive = true})
+actor:setControl('Jaw', 0.5)          -- named after the configured joint
+actor:impulse('JawImpulse', 1.0)     -- angular velocity, radians/second
+-- Call actor:step(dt) from your chosen update loop.
+-- Disconnect that loop first when the actor is no longer needed.
+local conflicts = controller.stop() -- restores transforms it still owns
+```
+
+`exclusive = true` is the caller's assertion, not an automatic lock. The actor does not connect an update event, stop itself on model removal, solve IK, assign network ownership or replicate input. Its controls are local to the environment requiring the controller. An error during `step` can occur after behavior state and impulse queues advance; handle errors and shut down deliberately rather than retrying blindly. The generated definition copies limit values; it does not watch the source joint attributes. Tests used unparented fixture models with source modules, not an animated avatar, a skinned mesh, the installed plugin UI, or the packaged runtime.

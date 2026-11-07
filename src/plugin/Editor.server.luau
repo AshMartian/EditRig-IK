@@ -3,11 +3,15 @@
 local Selection = game:GetService('Selection')
 local ChangeHistoryService = game:GetService('ChangeHistoryService')
 local Config = require(script.Config)
+local Builder = require(script.DefinitionBuilder).new(Config)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKJointLimits', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 320, 430, 260, 350))
 widget.Title = 'EditRig IK — prototype'
-local root = Instance.new('Frame')
+local root = Instance.new('ScrollingFrame')
+root.AutomaticCanvasSize = Enum.AutomaticSize.Y
+root.CanvasSize = UDim2.new()
+root.ScrollBarThickness = 6
 root.Size = UDim2.fromScale(1, 1)
 root.BackgroundColor3 = Color3.fromRGB(37, 39, 45)
 root.Parent = widget
@@ -59,7 +63,16 @@ apply.Text = 'Save limit metadata'
 apply.Font = Enum.Font.SourceSansBold
 apply.TextSize = 16
 apply.Parent = root
-local status = label('', 48)
+local createActor = Instance.new('TextButton')
+createActor.Size = UDim2.new(1, 0, 0, 32)
+createActor.BackgroundColor3 = Color3.fromRGB(61, 109, 172)
+createActor.TextColor3 = Color3.new(1,1,1)
+createActor.Text = 'Create direct-control actor from selected model'
+createActor.Font = Enum.Font.SourceSansBold
+createActor.TextSize = 15
+createActor.TextWrapped = true
+createActor.Parent = root
+local status = label('', 65)
 local current: Instance? = nil
 local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees'}
 local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90}
@@ -92,5 +105,23 @@ apply.MouseButton1Click:Connect(function()
     for key, name in pairs(attrs) do item:SetAttribute(name, result[key]) end
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
-    status.Text = 'Saved to ' .. item.Name .. '. Runtime support is not implemented.'
+    status.Text = 'Saved to ' .. item.Name .. '. Recreate the actor definition to include changes.'
+end)
+
+createActor.MouseButton1Click:Connect(function()
+    local selection=Selection:Get()
+    local model=if #selection==1 then selection[1] else nil
+    if not model or not model:IsA('Model') then status.Text='Select one model in Explorer to create an actor.'; return end
+    if model:FindFirstChild('EditRigIKActor') or model:FindFirstChild('EditRigIKController') then
+        status.Text='Actor or controller already exists. Remove or rename the existing objects before creating another.'; return
+    end
+    local ok,definition=pcall(Builder.create,model)
+    if not ok then status.Text='Cannot create actor: '..tostring(definition); return end
+    local controller=script.GeneratedController:Clone()
+    controller.Name='EditRigIKController'
+    ChangeHistoryService:SetWaypoint('Before create EditRig IK actor')
+    definition.Parent=model
+    controller.Parent=model
+    ChangeHistoryService:SetWaypoint('Create EditRig IK actor')
+    status.Text='Created idle direct-control actor. Install the runtime and start it explicitly from a script.'
 end)
