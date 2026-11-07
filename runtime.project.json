@@ -1,17 +1,30 @@
 {
   "name": "EditRigIKRuntime",
   "tree": {
-    "$className": "DataModel",
-    "EditRigIKRuntime": {
-      "$path": "src/runtime/Runtime.luau",
-      "ChainDefinition": { "$path": "src/runtime/ChainDefinition.luau" },
-      "ChainAdapter": { "$path": "src/runtime/ChainAdapter.luau" },
-      "ActorRig": { "$path": "src/runtime/ActorRig.luau" },
-      "JointAdapter": { "$path": "src/runtime/JointAdapter.luau" },
-      "JointDrive": { "$path": "src/runtime/JointDrive.luau" },
-      "Actor": { "$path": "src/runtime/Actor.luau" },
-      "Limits": { "$path": "src/shared/Limits.luau" },
-      "Solver": { "$path": "src/shared/Solver.luau" }
+    "$path": "src/runtime/Runtime.luau",
+    "ChainDefinition": {
+      "$path": "src/runtime/ChainDefinition.luau"
+    },
+    "ChainAdapter": {
+      "$path": "src/runtime/ChainAdapter.luau"
+    },
+    "ActorRig": {
+      "$path": "src/runtime/ActorRig.luau"
+    },
+    "JointAdapter": {
+      "$path": "src/runtime/JointAdapter.luau"
+    },
+    "JointDrive": {
+      "$path": "src/runtime/JointDrive.luau"
+    },
+    "Actor": {
+      "$path": "src/runtime/Actor.luau"
+    },
+    "Limits": {
+      "$path": "src/shared/Limits.luau"
+    },
+    "Solver": {
+      "$path": "src/shared/Solver.luau"
     }
   }
 }
