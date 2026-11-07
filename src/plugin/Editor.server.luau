@@ -236,6 +236,22 @@ createActor.MouseButton1Click:Connect(function()
     ChangeHistoryService:SetWaypoint('Create EditRig IK actor')
     status.Text='Created idle direct-control actor. Install the runtime and start it explicitly from a script.'
 end)
+local refreshActor=Instance.new('TextButton')
+refreshActor.Size=UDim2.new(1,0,0,32); refreshActor.BackgroundColor3=Color3.fromRGB(61,109,172)
+refreshActor.TextColor3=Color3.new(1,1,1); refreshActor.Text='Refresh selected model actor settings'
+refreshActor.Font=Enum.Font.SourceSansBold; refreshActor.TextSize=15; order(refreshActor); refreshActor.Parent=root
+refreshActor.MouseButton1Click:Connect(function()
+    local items=Selection:Get()
+    local model=if #items==1 then items[1] else nil
+    if not model or not model:IsA('Model') then status.Text='Select one model containing an actor.'; return end
+    local folder=model:FindFirstChild('EditRigIKActor')
+    local ok,err=pcall(Builder.prepareRefresh,folder)
+    if not ok then status.Text='Cannot refresh actor: '..tostring(err); return end
+    ChangeHistoryService:SetWaypoint('Before refresh EditRig IK actor')
+    Builder.refresh(folder)
+    ChangeHistoryService:SetWaypoint('Refresh EditRig IK actor')
+    status.Text='Existing bindings refreshed. Restart active actor; newly configured joints are not added.'
+end)
 
 -- Select each item in Explorer, then capture it explicitly so selection order
 -- never decides chain direction.
