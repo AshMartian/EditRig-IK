@@ -108,6 +108,29 @@ The coordinator provides `actor:setControl(name, value)`, `actor:clearControl(na
 A gameplay input handler can call `actor:setControl('JawOpen', 1)` when a button is pressed and `actor:setControl('JawOpen', 0)` when released. A behavior must explicitly consume that name and implement the joint response. `JointDrive` accepts scalar angular-velocity impulses; other behaviors may define other message formats. These messages are not Roblox physics impulses. An eventual authoring flow will define the mapping and units. Network replication and authorization are not supplied.
 
 
+## Generating an input template
+
+For a hinge joint, enter a named control or impulse and optionally a Roblox `KeyCode` name (for example `E` or `ButtonA`) in the joint editor, then save the joint. Create or refresh the model's actor definition before choosing **Create disabled input template for model**. The template is a disabled `EditRigIKInputTemplate` under the model; keys for the same named action are grouped. A key assigned to different actions is rejected. Existing templates are never overwritten: remove or rename an old template deliberately before regenerating it. This is a snapshot, so refresh and regenerate after changing mappings. The generated template has keyboard/gamepad bindings, not touch buttons.
+
+For a local player, clone the template beneath that player's `PlayerScripts`, bind it while disabled, then enable it after the actor is ready:
+
+```lua
+local context = model.EditRigIKInputTemplate:Clone()
+context.Parent = game.Players.LocalPlayer:WaitForChild("PlayerScripts")
+local inputs = IK.InputBindings.new(actor)
+local profile = inputs:bindProfile(context)
+context.Enabled = true
+
+-- During shutdown, disconnect the actor update loop first:
+context.Enabled = false
+profile:destroy()
+inputs:destroy()
+context:Destroy()
+-- Then stop or destroy the actor.
+```
+
+A template does not start the actor or establish network authority. Coordinate the actor update loop and any Animator, IKControl, or other joint writers; decide explicitly how the server validates and replicates player actions. Binding a hold initializes its named control to zero. This path has been exercised using scriptable input in Studio, but real device input and multiplayer have not yet been verified.
+
 ## Binding Roblox InputActions
 
 `IK.InputBindings.new(actor)` connects existing Bool `InputAction` instances to the actor's named controls. The action's `InputContext` and `InputBinding` objects still define the actual keyboard, gamepad, or GUI inputs. Set those up on the client using Roblox's [Input Action System](https://create.roblox.com/docs/input/input-action-system). For example, in a LocalScript after starting the actor:

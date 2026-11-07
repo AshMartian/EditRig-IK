@@ -11,6 +11,7 @@ local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
 local RuntimeInstaller = require(script.RuntimeInstaller)
+local InputProfileBuilder = require(script.InputProfileBuilder)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -87,7 +88,7 @@ inspect.MouseButton1Click:Connect(function()
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'impulseKey','Impulse KeyCode (optional)'}}) do
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
@@ -177,8 +178,9 @@ local axisUpdate=RunService.Heartbeat:Connect(function()
 end)
 plugin.Unloading:Connect(function() axisUpdate:Disconnect(); hideAxes() end)
 local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees'}
-local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90}
+local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90,holdKey='',impulseKey=''}
 local driveAttrs = {control='EditRigIK_Control',impulse='EditRigIK_Impulse',frequency='EditRigIK_Frequency'}
+local inputAttrs = {holdKey='EditRigIK_HoldKey',impulseKey='EditRigIK_ImpulseKey'}
 local function refresh()
     local items = Selection:Get()
     local item = if #items == 1 then items[1] else nil
@@ -186,7 +188,7 @@ local function refresh()
         current = item
         selectedLabel.Text = item.ClassName .. ': ' .. item:GetFullName()
         for key, box in pairs(fields) do
-            local value = item:GetAttribute(attrs[key] or driveAttrs[key])
+            local value = item:GetAttribute(attrs[key] or driveAttrs[key] or inputAttrs[key])
             local fallback = defaults[key] or (if key=='control' then item.Name elseif key=='impulse' then item.Name..'Impulse' else 4)
             box.Text = tostring(if value ~= nil then value else fallback)
         end
@@ -209,9 +211,12 @@ apply.MouseButton1Click:Connect(function()
     if not frequency then status.Text='Enter a damping frequency.'; return end
     local driveOk,drive=pcall(Config.validateDrive,{control=fields.control.Text,impulse=fields.impulse.Text,frequency=frequency},item.Name)
     if not driveOk then status.Text='Invalid control settings: '..tostring(drive); return end
+    local keysOk,holdKey,impulseKey=pcall(function() return InputProfileBuilder.validateKey(fields.holdKey.Text),InputProfileBuilder.validateKey(fields.impulseKey.Text) end)
+    if not keysOk then status.Text='Invalid input key: '..tostring(holdKey); return end
     ChangeHistoryService:SetWaypoint('Before EditRig IK limit metadata')
     for key, name in pairs(attrs) do item:SetAttribute(name, result[key]) end
     for key, name in pairs(driveAttrs) do item:SetAttribute(name, drive[key]) end
+    item:SetAttribute(inputAttrs.holdKey,holdKey); item:SetAttribute(inputAttrs.impulseKey,impulseKey)
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
     status.Text = 'Saved to ' .. item.Name .. '. Recreate the actor definition to include changes.'
@@ -251,6 +256,26 @@ refreshActor.MouseButton1Click:Connect(function()
     Builder.refresh(folder)
     ChangeHistoryService:SetWaypoint('Refresh EditRig IK actor')
     status.Text='Existing bindings refreshed. Restart active actor; newly configured joints are not added.'
+end)
+local createInput=Instance.new('TextButton')
+createInput.Size=UDim2.new(1,0,0,32); createInput.BackgroundColor3=Color3.fromRGB(61,109,172)
+createInput.TextColor3=Color3.new(1,1,1); createInput.Text='Create disabled input template for model'
+createInput.Font=Enum.Font.SourceSansBold; createInput.TextSize=15; order(createInput); createInput.Parent=root
+createInput.MouseButton1Click:Connect(function()
+    local items=Selection:Get()
+    local model=if #items==1 then items[1] else nil
+    if not model or not model:IsA('Model') then status.Text='Select a model containing an actor.'; return end
+    if model:FindFirstChild('EditRigIKInputTemplate') then status.Text='Input template already exists; rename it before creating another.'; return end
+    local ok,context=pcall(InputProfileBuilder.create,model:FindFirstChild('EditRigIKActor'))
+    if not ok then status.Text='Cannot create input template: '..tostring(context); return end
+    local inserted,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before create EditRig IK input template')
+        assert(not model:FindFirstChild('EditRigIKInputTemplate'),'input template already exists')
+        context.Parent=model
+        ChangeHistoryService:SetWaypoint('Create EditRig IK input template')
+    end)
+    if not inserted then context:Destroy(); status.Text='Cannot create input template: '..tostring(err); return end
+    status.Text='Disabled input template created. Clone under the local player, bind, then enable explicitly.'
 end)
 
 -- Select each item in Explorer, then capture it explicitly so selection order

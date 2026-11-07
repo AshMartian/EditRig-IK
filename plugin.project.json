@@ -35,6 +35,9 @@
     "RuntimeInstaller": {
       "$path": "src/plugin/RuntimeInstaller.luau"
     },
+    "InputProfileBuilder": {
+      "$path": "src/plugin/InputProfileBuilder.luau"
+    },
     "RuntimeBundle": {
       "$path": "src/runtime/Runtime.luau",
       "ChainDefinition": {"$path": "src/runtime/ChainDefinition.luau"},

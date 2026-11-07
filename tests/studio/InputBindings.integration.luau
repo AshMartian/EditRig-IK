@@ -40,5 +40,16 @@ holdInput:Fire(true); task.wait()
 hold:Destroy(); task.wait(); actor:step(3)
 assert(motor.Transform:FuzzyEq(CFrame.identity,.001),'destroying an action must release its held control')
 second:destroy()
+local profile=Instance.new('InputContext'); profile.Enabled=false
+local profileAction=Instance.new('InputAction'); profileAction.Type=Enum.InputActionType.Bool
+profileAction:SetAttribute('Route','Hold'); profileAction:SetAttribute('Control','Bite'); profileAction:SetAttribute('Value',.5); profileAction.Parent=profile
+local profileInput=Instance.new('InputBinding'); profileInput.Type=Enum.InputBindingType.Scriptable; profileInput.Parent=profileAction
+local manager=InputBindings.new(actor)
+local profileHandle=manager:bindProfile(profile)
+profile.Enabled=true; profileInput:Fire(true); task.wait(); actor:step(3)
+assert(motor.Transform:FuzzyEq(CFrame.Angles(0,0,math.pi/4),.001),'profile must route its named control')
+profileHandle:destroy(); actor:step(3)
+assert(motor.Transform:FuzzyEq(CFrame.identity,.001),'closing profile must release controls')
+manager:destroy(); profile:Destroy()
 actor:destroy(); context:Destroy(); model:Destroy()
 return 'InputAction bindings drive and release an authored joint'

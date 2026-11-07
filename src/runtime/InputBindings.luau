@@ -66,6 +66,40 @@ function InputBindings.new(actor)
   handle=manage(connections,function() end)
   return handle
  end
+ function api:bindProfile(context)
+  assert(not dead,'input bindings are destroyed')
+  assert(typeof(context)=='Instance' and context:IsA('InputContext') and not context.Enabled,'expected a disabled InputContext')
+  local planned,seen={},{}
+  for _,action in ipairs(context:GetChildren()) do
+   if action:IsA('InputAction') then
+    checkAction(action)
+    local route,control,value=action:GetAttribute('Route'),action:GetAttribute('Control'),action:GetAttribute('Value')
+    assert((route=='Hold' or route=='Impulse') and nameValid(control) and finite(value),'invalid input profile action')
+    if route=='Hold' then
+     assert(value>=-1 and value<=1 and not controls[control] and not seen[control],'invalid or duplicate hold control')
+     seen[control]=true
+    end
+    table.insert(planned,{action=action,route=route,control=control,value=value})
+   end
+  end
+  assert(#planned>0,'input profile contains no actions')
+  local handles={}
+  local ok,err=pcall(function()
+   for _,entry in ipairs(planned) do
+    local handle=if entry.route=='Hold' then api:bindHold(entry.action,entry.control,entry.value) else api:bindImpulse(entry.action,entry.control,entry.value)
+    table.insert(handles,handle)
+   end
+  end)
+  if not ok then for _,handle in ipairs(handles) do pcall(function() handle:destroy() end) end; error(err) end
+  local closed=false
+  return {destroy=function()
+   if closed then return end
+   closed=true
+   local errors={}
+   for _,handle in ipairs(handles) do local success,message=pcall(function() handle:destroy() end); if not success then table.insert(errors,tostring(message)) end end
+   if #errors>0 then error(table.concat(errors,'; ')) end
+  end}
+ end
  function api:destroy()
   if dead then return end
   dead=true
