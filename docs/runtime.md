@@ -180,6 +180,7 @@ A template does not start the actor or establish network authority. Coordinate t
 local inputs = IK.InputBindings.new(actor)
 inputs:bindHold(actions.Bite, 'Jaw', 1)       -- 1 while held; 0 when released
 inputs:bindImpulse(actions.Snap, 'JawImpulse', 1) -- once on each press
+inputs:bindAxis(actions.LookLeft, actions.LookRight, 'HeadYaw', 0.7)
 -- In the chosen update loop: actor:step(dt)
 -- On cleanup, disconnect the loop and then:
 inputs:destroy()
@@ -187,6 +188,8 @@ controller.stop()
 ```
 
 `bindHold` synchronizes an already-held action immediately and accepts a scalar in `[-1, 1]` or a finite three-number vector. It resets an active control to scalar or vector zero on release or cleanup. `bindImpulse` sends a finite scalar or three-number vector only on a new press; its meaning is defined by the receiving behavior. For configured joint actors, binding validates route names and payload types before connecting actions; a whole profile is checked before any of its holds initializes a control. A general actor without validation methods keeps its own message semantics. Both return an individual handle with `destroy()`. A binding closes if its action is destroyed or changes away from Bool; one manager rejects duplicate hold bindings for the same control. Other managers and scripts can still write that control, so the caller must coordinate them. Destroy bindings before destroying the actor. This does not create input actions or UI, connect the actor update loop, authorize server actions, or replicate input. A Studio fixture used scriptable InputBindings; actual keyboard, gamepad, touch and multiplayer behavior remain unverified.
+
+`bindAxis(negativeAction, positiveAction, control, value)` accepts two distinct Bool actions and a scalar or three-number vector with the same limits as `bindHold`. It synchronizes both current states: negative alone sends `-value`, positive alone sends `value`, and both or neither send zero. It claims the control within the manager just like a hold, and releases it if the handle or either action is destroyed or either action changes type. It does not create or configure the actions, and generated input profiles do not yet expose paired axes in the editor. Studio scriptable-input fixtures covered a Motor6D and Bone; real devices and multiplayer remain unverified.
 
 ## Experimental direct joint control
 

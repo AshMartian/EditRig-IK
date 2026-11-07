@@ -62,6 +62,35 @@ function InputBindings.new(actor)
   controls[control]=handle
   return handle
  end
+ function api:bindAxis(negativeAction,positiveAction,control,value)
+  assert(not dead,'input bindings are destroyed'); checkAction(negativeAction); checkAction(positiveAction)
+  assert(negativeAction~=positiveAction,'axis actions must be distinct')
+  assert(nameValid(control),'invalid control name')
+  local positive,neutral=holdValues(value)
+  local negative=if type(positive)=='table' then {-positive[1],-positive[2],-positive[3]} else -positive
+  assert(not controls[control],'control already has a hold binding')
+  if type(actor.validateControl)=='function' then actor:validateControl(control,positive); actor:validateControl(control,negative) end
+  local negDown,posDown=negativeAction:GetState(),positiveAction:GetState()
+  assert(type(negDown)=='boolean' and type(posDown)=='boolean','Bool action state unavailable')
+  local function update()
+   actor:setControl(control,copyValue(if negDown==posDown then neutral elseif negDown then negative else positive))
+  end
+  update()
+  local handle
+  local connections={}
+  connections[1]=negativeAction.StateChanged:Connect(function(state) negDown=state==true; update() end)
+  connections[2]=positiveAction.StateChanged:Connect(function(state) posDown=state==true; update() end)
+  connections[3]=negativeAction.Destroying:Connect(function() if handle then handle:destroy() end end)
+  connections[4]=positiveAction.Destroying:Connect(function() if handle then handle:destroy() end end)
+  connections[5]=negativeAction:GetPropertyChangedSignal('Type'):Connect(function() if handle and negativeAction.Type~=Enum.InputActionType.Bool then handle:destroy() end end)
+  connections[6]=positiveAction:GetPropertyChangedSignal('Type'):Connect(function() if handle and positiveAction.Type~=Enum.InputActionType.Bool then handle:destroy() end end)
+  handle=manage(connections,function()
+   controls[control]=nil
+   if negDown~=posDown then actor:setControl(control,copyValue(neutral)) end
+  end)
+  controls[control]=handle
+  return handle
+ end
  function api:bindImpulse(action,impulse,value)
   assert(not dead,'input bindings are destroyed'); checkAction(action)
   assert(nameValid(impulse),'invalid impulse name')
