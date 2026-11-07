@@ -243,12 +243,14 @@ apply.MouseButton1Click:Connect(function()
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
     status.Text = 'Saved to ' .. item.Name .. '. Refresh actor and chain snapshots to use the changes.'
 end)
+local function batchValues()
+    local weight=tonumber(fields.weight.Text)
+    assert(weight,'enter a joint influence')
+    return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=weight,control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,impulseKey=fields.impulseKey.Text}
+end
 applyBatch.MouseButton1Click:Connect(function()
     local items=Selection:Get()
-    local weight=tonumber(fields.weight.Text)
-    if not weight then status.Text='Enter a joint influence.'; return end
-    local settings={kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=weight,control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,impulseKey=fields.impulseKey.Text}
-    local ok,entries=pcall(JointBatch.prepare,items,settings,Config,InputProfileBuilder)
+    local ok,entries=pcall(function() return JointBatch.prepare(items,batchValues(),Config,InputProfileBuilder) end)
     if not ok then status.Text='Cannot apply joint settings: '..tostring(entries); return end
     local saved,err=pcall(function()
         ChangeHistoryService:SetWaypoint('Before batch EditRig IK settings')
@@ -381,6 +383,8 @@ local firstJoint: Instance?=nil
 local lastJoint: Instance?=nil
 local endpoint: Instance?=nil
 local pole: Instance?=nil
+local capturedControl: Instance?=nil
+local capturedChain: any=nil
 local function refreshChainStatus()
     chainStatus.Text='Root: '..(if firstJoint then firstJoint.Name else '—')..'  |  End: '..(if lastJoint then lastJoint.Name else '—')..'  |  Endpoint: '..(if endpoint then endpoint.Name else '—')..'  |  Pole: '..(if pole then pole.Name else 'none')
 end
@@ -434,7 +438,8 @@ end)
 chainButton('Capture chain from selected IKControl').MouseButton1Click:Connect(function()
     local item=selectedOne()
     local ok,result=pcall(ChainDiscovery.inspect,item)
-    if not ok then firstJoint=nil; lastJoint=nil; endpoint=nil; pole=nil; refreshChainStatus(); chainFeedback.Text='Cannot discover chain: '..tostring(result); return end
+    if not ok then capturedControl=nil; capturedChain=nil; firstJoint=nil; lastJoint=nil; endpoint=nil; pole=nil; refreshChainStatus(); chainFeedback.Text='Cannot discover chain: '..tostring(result); return end
+    capturedControl=item; capturedChain=result
     firstJoint=result.joints[1]; lastJoint=result.joints[#result.joints]
     endpoint=result.endpoint; pole=result.pole
     chainName.Text=string.sub(item.Name,1,64)
@@ -443,15 +448,29 @@ chainButton('Capture chain from selected IKControl').MouseButton1Click:Connect(f
     refreshChainStatus()
     chainFeedback.Text=string.format('Found %d joints; %d need limit metadata. %s Existing IKControl remains active; offsets are not copied. Custom solver is position-only.',#result.joints,missing,if endpoint then 'Endpoint captured.' else 'Select an endpoint attachment.')
 end)
+chainButton('Apply joint settings to captured IK chain').MouseButton1Click:Connect(function()
+    local ok,entries=pcall(function()
+        local joints=ChainDiscovery.verifyCapture(capturedControl,capturedChain)
+        return JointBatch.prepare(joints,batchValues(),Config,InputProfileBuilder)
+    end)
+    if not ok then chainFeedback.Text='Cannot apply captured settings: '..tostring(entries); return end
+    local saved,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before configure captured IKControl chain')
+        JointBatch.apply(entries)
+        ChangeHistoryService:SetWaypoint('Configure captured IKControl chain')
+    end)
+    if not saved then chainFeedback.Text='Cannot apply captured settings: '..tostring(err); return end
+    chainFeedback.Text='Saved '..#entries..' joints. Review limits and axes; existing IKControl is unchanged.'
+end)
 chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the root.'; return end
-    firstJoint=item; refreshChainStatus()
+    capturedControl=nil; capturedChain=nil; firstJoint=item; refreshChainStatus()
 end)
 chainButton('Set end joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the end.'; return end
-    lastJoint=item; refreshChainStatus()
+    capturedControl=nil; capturedChain=nil; lastJoint=item; refreshChainStatus()
 end)
 chainButton('Set endpoint attachment from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()

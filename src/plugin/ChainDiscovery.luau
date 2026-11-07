@@ -72,4 +72,13 @@ function ChainDiscovery.inspect(control)
  else error('only BasePart and Bone roots are supported') end
  return {model=model,joints=path,endpoint=endpoint,pole=pole}
 end
+function ChainDiscovery.verifyCapture(control,capture)
+ assert(type(capture)=='table' and type(capture.joints)=='table','capture an IKControl chain first')
+ local current=ChainDiscovery.inspect(control)
+ assert(current.model==capture.model and #current.joints==#capture.joints,'IKControl chain changed; capture it again')
+ for i,joint in ipairs(current.joints) do
+  assert(joint==capture.joints[i],'IKControl chain changed; capture it again')
+ end
+ return current.joints
+end
 return ChainDiscovery
