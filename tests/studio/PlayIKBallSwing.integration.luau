@@ -46,7 +46,10 @@ for _,case in ipairs({
    local free=measure(); hinge.Enabled=true; local limited=measure()
    assert(math.abs(free)>45,'unconstrained pose must bend enough to test limits')
    assert(math.abs(math.abs(limited)-20)<1,'generated ball must constrain swing to 20 degrees')
-   return string.format('%s direction %+d: free=%+.2f limited=%+.2f degrees',case.name,direction,free,limited)
+   elbow:SetAttribute('EditRigIK_SwingDegrees',12); builder.refresh(builder.prepareRefresh(elbow))
+   local refreshed=measure()
+   assert(math.abs(math.abs(refreshed)-12)<1,'refreshed ball must constrain swing to 12 degrees')
+   return string.format('%s direction %+d: free=%+.2f limited=%+.2f refreshed=%+.2f degrees',case.name,direction,free,limited,refreshed)
   end,debug.traceback)
   if track then track:Stop(0); track:Destroy() end
   animation:Destroy(); sequence:Destroy(); rig:Destroy(); assert(ok,result); table.insert(results,result)
