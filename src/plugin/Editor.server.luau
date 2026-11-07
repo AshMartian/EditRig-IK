@@ -92,7 +92,7 @@ inspect.MouseButton1Click:Connect(function()
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (hinge)'}, {'impulseKey','Impulse KeyCode (hinge)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'impulseKey','Impulse KeyCode (optional)'}}) do
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
@@ -119,6 +119,7 @@ for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','
     box.Parent = row
     fields[entry[1]] = box
 end
+label('Ball keys use the selected axis: hold 1 radian; impulse 1 radian/second.',35)
 local apply = Instance.new('TextButton')
 apply.Size = UDim2.new(1, 0, 0, 32)
 apply.BackgroundColor3 = Color3.fromRGB(61, 109, 172)
