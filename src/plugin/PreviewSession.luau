@@ -32,10 +32,41 @@ function PreviewSession.new(definition,viewport,components)
   for _,ref in ipairs(ordered) do assert(ref:IsA('ObjectValue') and type(ref:GetAttribute('Order'))=='number','invalid preview joint reference') end
   table.sort(ordered,function(a,b) return a:GetAttribute('Order')<b:GetAttribute('Order') end)
   chain=components.createChain(copy)
+  local adjacency,chainJoints={},{}
+  for _,ref in ipairs(ordered) do chainJoints[ref.Value]=true end
+  local function addEdge(from,to,relative)
+   local edges=adjacency[from] or {}; adjacency[from]=edges
+   table.insert(edges,{part=to,relative=relative})
+  end
+  for _,item in ipairs(clone:GetDescendants()) do
+   if (item:IsA('JointInstance') or item:IsA('WeldConstraint')) and not chainJoints[item] and item.Enabled then
+    local p0,p1=item.Part0,item.Part1
+    if p0 and p1 and p0~=p1 and p0:IsDescendantOf(clone) and p1:IsDescendantOf(clone) then
+     local relative=p0.CFrame:ToObjectSpace(p1.CFrame)
+     addEdge(p0,p1,relative); addEdge(p1,p0,relative:Inverse())
+    end
+   end
+  end
   local function updateParts()
+   local visited,queue={},{}
    for _,ref in ipairs(ordered) do
     local joint=ref.Value
-    if joint:IsA('Motor6D') then joint.Part1.CFrame=joint.Part0.CFrame*joint.C0*joint.Transform*joint.C1:Inverse() end
+    if joint:IsA('Motor6D') then
+     visited[joint.Part0]=true; visited[joint.Part1]=true
+     joint.Part1.CFrame=joint.Part0.CFrame*joint.C0*joint.Transform*joint.C1:Inverse()
+     table.insert(queue,joint.Part1)
+    end
+   end
+   local index=1
+   while index<=#queue do
+    local part=queue[index]; index+=1
+    for _,edge in ipairs(adjacency[part] or {}) do
+     if not visited[edge.part] then
+      visited[edge.part]=true
+      edge.part.CFrame=part.CFrame*edge.relative
+      table.insert(queue,edge.part)
+     end
+    end
    end
   end
   updateParts()

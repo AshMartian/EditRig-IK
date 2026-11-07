@@ -4,6 +4,12 @@ local b=Instance.new('Part'); b.Name='Mid'; b.CFrame=CFrame.new(1,0,0); b.Parent
 local c=Instance.new('Part'); c.Name='Tip'; c.CFrame=CFrame.new(2,0,0); c.Parent=model
 local j1=Instance.new('Motor6D'); j1.Name='Root'; j1.Part0=a; j1.Part1=b; j1.Parent=a
 local j2=Instance.new('Motor6D'); j2.Name='Elbow'; j2.Part0=b; j2.Part1=c; j2.C0=CFrame.new(1,0,0); j2.Parent=b
+local branch=Instance.new('Part'); branch.Name='Branch'; branch.CFrame=c.CFrame*CFrame.new(0,1,0); branch.Parent=model
+local branchJoint=Instance.new('Motor6D'); branchJoint.Name='BranchJoint'; branchJoint.Part0=c; branchJoint.Part1=branch; branchJoint.C0=CFrame.new(0,1,0); branchJoint.Parent=c
+local accessory=Instance.new('Part'); accessory.Name='Accessory'; accessory.CFrame=branch.CFrame*CFrame.new(0,0,.4); accessory.Parent=model
+local weld=Instance.new('WeldConstraint'); weld.Part0=branch; weld.Part1=accessory; weld.Parent=branch
+local loose=Instance.new('Part'); loose.Name='Loose'; loose.CFrame=CFrame.new(5,5,5); loose.Parent=model
+local disabled=Instance.new('WeldConstraint'); disabled.Part0=c; disabled.Part1=loose; disabled.Enabled=false; disabled.Parent=c
 local tip=Instance.new('Attachment'); tip.Position=Vector3.xAxis; tip.Parent=c
 for _,joint in ipairs({j1,j2}) do
  joint:SetAttribute('EditRigIK_SchemaVersion',1); joint:SetAttribute('EditRigIK_Kind','Ball'); joint:SetAttribute('EditRigIK_Axis','Z')
@@ -19,6 +25,11 @@ end})
 local result=session:solveOffset(Vector3.new(-1,1,0))
 assert(result.converged and result.error<.02)
 assert(session:solveOffset(Vector3.new(-.9,1,0)).converged,'preview must accept repeated solves')
+local previewRig=view:FindFirstChildOfClass('WorldModel'):FindFirstChild('Rig')
+local previewTip=previewRig:FindFirstChild('Tip'); local previewBranch=previewRig:FindFirstChild('Branch'); local previewAccessory=previewRig:FindFirstChild('Accessory')
+assert(previewBranch.CFrame:FuzzyEq(previewTip.CFrame*CFrame.new(0,1,0),1e-5),'branch Motor6D must follow the preview chain')
+assert(previewAccessory.CFrame:FuzzyEq(previewBranch.CFrame*CFrame.new(0,0,.4),1e-5),'welded accessory must follow the preview branch')
+assert(previewRig:FindFirstChild('Loose').CFrame:FuzzyEq(CFrame.new(5,5,5),1e-5),'disabled constraints must not move parts')
 assert(j1.Transform:FuzzyEq(CFrame.identity,1e-5) and j2.Transform:FuzzyEq(CFrame.identity,1e-5),'source joints must never move')
 assert(b.CFrame:FuzzyEq(CFrame.new(1,0,0),1e-5) and c.CFrame:FuzzyEq(CFrame.new(2,0,0),1e-5),'source parts must never move')
 assert(view:FindFirstChildOfClass('WorldModel') and view.CurrentCamera,'preview must have its own world and camera')
