@@ -1,0 +1,8 @@
+local Config = require('../src/shared/Config')
+local config = Config.validate({kind='Hinge', axis='Y', lower=-45, upper=90, swing=70})
+assert(config.lower == -45 and config.upper == 90)
+assert(not pcall(function() Config.validate({kind='Hinge', axis='Y', lower=30, upper=-30, swing=70}) end))
+assert(not pcall(function() Config.validate({kind='Ball', axis='X', lower=-30, upper=30, swing=181}) end))
+assert(not pcall(function() Config.validate({kind='Hinge', axis='banana', lower=-30, upper=30, swing=70}) end))
+assert(not pcall(function() Config.validate({kind='Hinge', axis='X', lower=0/0, upper=30, swing=70}) end))
+print('configuration tests passed')

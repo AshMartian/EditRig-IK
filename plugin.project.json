@@ -1,0 +1,10 @@
+{
+  "name": "EditRigIK",
+  "tree": {
+    "$className": "DataModel",
+    "EditRigIK": {
+      "$path": "src/plugin/Editor.server.luau",
+      "Config": { "$path": "src/shared/Config.luau" }
+    }
+  }
+}
