@@ -3,6 +3,26 @@
 local DefinitionBuilder={}
 function DefinitionBuilder.new(Config)
  local api={}
+ local function actorFolder(folder)
+  assert(typeof(folder)=='Instance' and folder:IsA('Folder') and folder.Name=='EditRigIKActor' and folder:GetAttribute('EditRigIK_ActorSchemaVersion')==1 and folder.Parent and folder.Parent:IsA('Model'),'select a supported actor definition')
+ end
+ local function actorModes(baseMode,limitMode)
+  assert(baseMode=='fixed' or baseMode=='animated','invalid actor base mode')
+  assert(limitMode=='offset' or limitMode=='absolute','invalid actor limit mode')
+ end
+ function api.readActorOptions(folder)
+  actorFolder(folder)
+  local baseMode=folder:GetAttribute('EditRigIK_BaseMode'); if baseMode==nil then baseMode='fixed' end
+  local limitMode=folder:GetAttribute('EditRigIK_LimitMode'); if limitMode==nil then limitMode='offset' end
+  actorModes(baseMode,limitMode)
+  return {baseMode=baseMode,limitMode=limitMode}
+ end
+ function api.writeActorOptions(folder,options)
+  actorFolder(folder); assert(type(options)=='table','actor options required')
+  actorModes(options.baseMode,options.limitMode)
+  folder:SetAttribute('EditRigIK_BaseMode',options.baseMode)
+  folder:SetAttribute('EditRigIK_LimitMode',options.limitMode)
+ end
  local function readJoint(joint)
   assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'unsupported or missing joint metadata: '..joint.Name)
   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees')})

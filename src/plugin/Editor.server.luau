@@ -327,6 +327,46 @@ addActorJoints.MouseButton1Click:Connect(function()
     if not saved then status.Text='Cannot add joints: '..tostring(count); return end
     status.Text='Added '..count..' joints. Restart the actor and regenerate input templates if needed.'
 end)
+label('Actor modes: animated accepts external joint writes; absolute can change the animation pose.',45)
+local function actorModeField(caption,default)
+    local row=Instance.new('Frame'); row.Size=UDim2.new(1,0,0,30); row.BackgroundTransparency=1; order(row); row.Parent=root
+    local title=Instance.new('TextLabel'); title.Size=UDim2.new(.53,0,1,0); title.BackgroundTransparency=1
+    title.TextColor3=Color3.new(1,1,1); title.TextXAlignment=Enum.TextXAlignment.Left; title.Font=Enum.Font.SourceSans; title.TextSize=16; title.Text=caption; title.Parent=row
+    local box=Instance.new('TextBox'); box.Position=UDim2.new(.53,0,0,0); box.Size=UDim2.new(.47,0,1,0)
+    box.BackgroundColor3=Color3.fromRGB(60,63,72); box.TextColor3=Color3.new(1,1,1); box.Font=Enum.Font.SourceSans; box.TextSize=16
+    box.ClearTextOnFocus=false; box.Text=default; box.Parent=row
+    return box
+end
+local actorBase=actorModeField('Base: fixed / animated','fixed')
+local actorLimit=actorModeField('Limits: offset / absolute','offset')
+local loadedActor=nil
+local function actorOptionButton(title)
+    local item=Instance.new('TextButton'); item.Size=UDim2.new(1,0,0,32); item.BackgroundColor3=Color3.fromRGB(61,109,172)
+    item.TextColor3=Color3.new(1,1,1); item.Text=title; item.Font=Enum.Font.SourceSansBold; item.TextSize=15; order(item); item.Parent=root
+    return item
+end
+actorOptionButton('Load selected model actor modes').MouseButton1Click:Connect(function()
+    loadedActor=nil
+    local items=Selection:Get(); local model=if #items==1 then items[1] else nil
+    local folder=if model and model:IsA('Model') then model:FindFirstChild('EditRigIKActor') else nil
+    local ok,result=pcall(Builder.readActorOptions,folder)
+    if not ok then status.Text='Cannot load actor modes: '..tostring(result); return end
+    loadedActor=folder; actorBase.Text=result.baseMode; actorLimit.Text=result.limitMode
+    status.Text='Actor modes loaded. Absolute limits may change the animation pose.'
+end)
+actorOptionButton('Save loaded actor modes').MouseButton1Click:Connect(function()
+    local items=Selection:Get(); local model=if #items==1 then items[1] else nil
+    if not loadedActor or not model or not model:IsA('Model') or loadedActor.Parent~=model or model:FindFirstChild('EditRigIKActor')~=loadedActor then
+        status.Text='Select the same model and load its actor modes before saving.'; return
+    end
+    local ok,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before EditRig IK actor modes')
+        Builder.writeActorOptions(loadedActor,{baseMode=actorBase.Text,limitMode=actorLimit.Text})
+        ChangeHistoryService:SetWaypoint('EditRig IK actor modes')
+    end)
+    if not ok then status.Text='Cannot save actor modes: '..tostring(err); return end
+    status.Text='Actor modes saved. Restart active actors to apply them.'
+end)
 local createInput=Instance.new('TextButton')
 createInput.Size=UDim2.new(1,0,0,32); createInput.BackgroundColor3=Color3.fromRGB(61,109,172)
 createInput.TextColor3=Color3.new(1,1,1); createInput.Text='Create disabled input template for model'

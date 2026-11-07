@@ -244,6 +244,8 @@ local conflicts = controller.stop()
 
 ### Experimental animation overlay
 
+To save these modes on an actor, select its model, use **Load selected model actor modes**, edit the two values, then use **Save loaded actor modes** while the same model is selected. Valid base values are `fixed` and `animated`; valid limit values are `offset` and `absolute`. Existing actors without saved options use `fixed` and `offset`. An explicit `controller.run` option overrides the corresponding saved value. Restart an active actor to use changed settings. The installed runtime must include this feature; an older runtime already in the place will not read the saved modes. These editor controls have not been tested interactively.
+
 For a deliberately coordinated Animator, a newly started direct-control actor can opt into an animated base:
 
 ```lua
