@@ -1,5 +1,5 @@
 --!strict
--- Experimental test helper only. Rotated-frame behavior is not verified; do not install on a live rig.
+-- Explicitly prepare Roblox IKControl hinge geometry without changing the rig.
 local IKHingeBuilder={}
 function IKHingeBuilder.new(Config)
  local api={}

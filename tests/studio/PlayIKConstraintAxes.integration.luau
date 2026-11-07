@@ -1,4 +1,4 @@
--- Run on a disposable Play server. Load support/IKHingeBuilderProbe and Config first.
+-- Run on a disposable Play server. Load IKHingeBuilder and Config first.
 -- Each axis and direction starts with a fresh rig.
 local run=game:GetService('RunService'); assert(run:IsRunning() and run:IsServer(),'Play server required')
 local results={}

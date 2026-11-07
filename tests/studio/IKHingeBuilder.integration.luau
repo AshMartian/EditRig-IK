@@ -14,6 +14,12 @@ assert(constraint.Attachment0.CFrame:FuzzyEq(motor.C0*CFrame.Angles(0,0,math.pi/
 assert(constraint.Attachment1.CFrame:FuzzyEq(motor.C1*CFrame.Angles(0,0,math.pi/2),1e-5),'attachment1 must align axis in joint frame')
 assert(not pcall(builder.prepare,motor),'must reject an existing constraint on the same parts')
 constraint.Attachment0:Destroy(); constraint.Attachment1:Destroy(); constraint:Destroy()
+for _,bounds in ipairs({{80,100},{-100,-80}}) do
+ motor:SetAttribute('EditRigIK_LowerDegrees',bounds[1]); motor:SetAttribute('EditRigIK_UpperDegrees',bounds[2])
+ local h=builder.apply(builder.prepare(motor))
+ assert(h.LowerAngle==bounds[1] and h.UpperAngle==bounds[2],'limits outside the default interval must not be clamped during construction')
+ h.Attachment0:Destroy(); h.Attachment1:Destroy(); h:Destroy()
+end
 local stale=builder.prepare(motor); motor.C0=CFrame.new(2,0,0)
 assert(not pcall(builder.apply,stale),'must reject changed joint geometry')
 assert(#a:GetChildren()==1 and #b:GetChildren()==0,'stale preparation must not leave partial objects')

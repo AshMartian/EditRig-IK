@@ -1,5 +1,5 @@
--- Run on a disposable Play server. Load support/IKHingeBuilderProbe and Config first.
--- Rotated rest frames: report outcomes without assuming the limiting cause.
+-- Run on a disposable Play server. Load IKHingeBuilder and Config first.
+-- Check the actual attachment frames as well as IK node-frame projections.
 local run=game:GetService('RunService'); assert(run:IsRunning() and run:IsServer(),'Play server required')
 local results={}
 for _,case in ipairs({
@@ -41,10 +41,16 @@ for _,case in ipairs({
     assert(ik:GetChainCount()>=2,'IK chain was not built')
     local relative=rest:Inverse()*ik:GetNodeWorldCFrame(1):Inverse()*ik:GetNodeWorldCFrame(2)*rest
     local axis,angle=relative:ToAxisAngle()
-    return math.deg(angle*axis:Dot(case.axis))
+    local a0,a1=hinge.Attachment0,hinge.Attachment1
+    local attachmentRelative=a0.WorldCFrame:ToObjectSpace(a1.WorldCFrame)
+    local attachmentAxis,attachmentAngle=attachmentRelative:ToAxisAngle()
+    return math.deg(angle*axis:Dot(case.axis)),math.deg(attachmentAngle*attachmentAxis.X),a0.WorldAxis:Dot(a1.WorldAxis)
    end
-   local free=measure(); hinge.Enabled=true; local limited=measure()
-   return string.format('%s direction %+d: free=%+.2f limited=%+.2f degrees, projected bound %s',case.name,direction,free,limited,if limited>=-11 and limited<=36 then 'within' else 'outside')
+   local free=measure(); hinge.Enabled=true; local limited,actual,alignment=measure()
+   assert(alignment>.999,'generated hinge attachment axes must align')
+   assert(actual>=-10.5 and actual<=35.5,'actual attachment angle must respect the authored bounds')
+   assert(math.abs(actual+10)<.5 or math.abs(actual-35)<.5,'test target should reach a hinge boundary')
+   return string.format('%s direction %+d: node free=%+.2f limited=%+.2f; attachment=%+.2f degrees',case.name,direction,free,limited,actual)
   end,debug.traceback)
   if track then track:Stop(0); track:Destroy() end
   animation:Destroy(); sequence:Destroy(); rig:Destroy(); assert(ok,result); table.insert(results,result)

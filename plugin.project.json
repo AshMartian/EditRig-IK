@@ -8,6 +8,9 @@
     "ChainDiscovery": {
       "$path": "src/plugin/ChainDiscovery.luau"
     },
+    "IKHingeBuilder": {
+      "$path": "src/plugin/IKHingeBuilder.luau"
+    },
     "RigInspector": {
       "$path": "src/plugin/RigInspector.luau"
     },
