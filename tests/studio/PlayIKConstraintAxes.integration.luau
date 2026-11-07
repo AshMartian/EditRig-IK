@@ -1,4 +1,4 @@
--- Run on a disposable Play server. Load IKHingeBuilder and Config first.
+-- Run on a disposable Play server. Load IKConstraintBuilder and Config first.
 -- Each axis and direction starts with a fresh rig.
 local run=game:GetService('RunService'); assert(run:IsRunning() and run:IsServer(),'Play server required')
 local results={}
@@ -25,7 +25,7 @@ for _,case in ipairs({
   local ik=Instance.new('IKControl'); ik.Type=Enum.IKControlType.Position; ik.ChainRoot=upper; ik.EndEffector=lower; ik.Target=target; ik.SmoothTime=0; ik.Parent=ac
   elbow:SetAttribute('EditRigIK_SchemaVersion',1); elbow:SetAttribute('EditRigIK_Kind','Hinge'); elbow:SetAttribute('EditRigIK_Axis',case.name)
   elbow:SetAttribute('EditRigIK_LowerDegrees',-10); elbow:SetAttribute('EditRigIK_UpperDegrees',35); elbow:SetAttribute('EditRigIK_SwingDegrees',90)
-  local builder=IKHingeBuilder.new(Config); local hinge=builder.apply(builder.prepare(elbow)); hinge.Enabled=false
+  local builder=IKConstraintBuilder.new(Config); local hinge=builder.apply(builder.prepare(elbow)); hinge.Enabled=false
   local sequence=Instance.new('KeyframeSequence'); sequence.Loop=true
   for _,time in ipairs({0,1}) do
    local key=Instance.new('Keyframe'); key.Time=time; key.Parent=sequence

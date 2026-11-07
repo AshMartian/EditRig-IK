@@ -7,7 +7,7 @@ local Config = require(script.Config)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local ChainDiscovery = require(script.ChainDiscovery)
-local IKHingeBuilder = require(script.IKHingeBuilder).new(Config)
+local IKConstraintBuilder = require(script.IKConstraintBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
@@ -134,11 +134,11 @@ local applyBatch=Instance.new('TextButton')
 applyBatch.Size=UDim2.new(1,0,0,32); applyBatch.BackgroundColor3=Color3.fromRGB(61,109,172)
 applyBatch.TextColor3=Color3.new(1,1,1); applyBatch.Text='Apply displayed settings to selected joints'
 applyBatch.Font=Enum.Font.SourceSansBold; applyBatch.TextSize=15; order(applyBatch); applyBatch.Parent=root
-local hingeNotice=label('Built-in IK hinge: creates enabled physical constraint and attachments from saved Motor6D settings.',40)
+local hingeNotice=label('Built-in IK: creates an enabled physical constraint from saved Motor6D hinge or ball settings.',40)
 hingeNotice.TextColor3=Color3.fromRGB(255,204,111)
 local createIKHinge=Instance.new('TextButton')
 createIKHinge.Size=UDim2.new(1,0,0,32); createIKHinge.BackgroundColor3=Color3.fromRGB(61,109,172)
-createIKHinge.TextColor3=Color3.new(1,1,1); createIKHinge.Text='Create built-in IK hinge for selected Motor6D'
+createIKHinge.TextColor3=Color3.new(1,1,1); createIKHinge.Text='Create built-in IK constraint for selected Motor6D'
 createIKHinge.Font=Enum.Font.SourceSansBold; createIKHinge.TextSize=15; order(createIKHinge); createIKHinge.Parent=root
 local createActor = Instance.new('TextButton')
 createActor.Size = UDim2.new(1, 0, 0, 32)
@@ -232,15 +232,15 @@ widget:GetPropertyChangedSignal('Enabled'):Connect(function() button:SetActive(w
 Selection.SelectionChanged:Connect(refresh)
 createIKHinge.MouseButton1Click:Connect(function()
     local items=Selection:Get(); local joint=if #items==1 then items[1] else nil
-    local ok,prepared=pcall(IKHingeBuilder.prepare,joint)
-    if not ok then status.Text='Cannot create IK hinge: '..tostring(prepared); return end
+    local ok,prepared=pcall(IKConstraintBuilder.prepare,joint)
+    if not ok then status.Text='Cannot create IK constraint: '..tostring(prepared); return end
     local saved,result=pcall(function()
-        ChangeHistoryService:SetWaypoint('Before create EditRig IK hinge')
-        local created=IKHingeBuilder.apply(prepared)
-        ChangeHistoryService:SetWaypoint('Create EditRig IK hinge')
+        ChangeHistoryService:SetWaypoint('Before create EditRig IK constraint')
+        local created=IKConstraintBuilder.apply(prepared)
+        ChangeHistoryService:SetWaypoint('Create EditRig IK constraint')
         return created
     end)
-    if not saved then status.Text='Cannot create IK hinge: '..tostring(result); return end
+    if not saved then status.Text='Cannot create IK constraint: '..tostring(result); return end
     status.Text='Created '..result.Name..'. Test the rig in Play; use Undo to remove.'
 end)
 apply.MouseButton1Click:Connect(function()
