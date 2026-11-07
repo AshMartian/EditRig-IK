@@ -23,6 +23,9 @@
     "FootstepBehavior": {
       "$path": "src/runtime/FootstepBehavior.luau"
     },
+    "FootstepChain": {
+      "$path": "src/runtime/FootstepChain.luau"
+    },
     "Ownership": {
       "$path": "src/runtime/Ownership.luau"
     },

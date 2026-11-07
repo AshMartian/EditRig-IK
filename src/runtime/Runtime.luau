@@ -30,6 +30,12 @@ local ChainDefinition = require(script.ChainDefinition)
 function Runtime.createConfiguredIKChain(definition, options)
     return ChainDefinition.new(definition, options, Runtime.createIKChain)
 end
+local FootstepChain = require(script.FootstepChain)
+function Runtime.createFootstepChain(definition, options)
+    return FootstepChain.new(options, {behavior=FootstepBehavior,trajectory=Runtime.StepTrajectory,createChain=function(chainOptions)
+        return Runtime.createConfiguredIKChain(definition,chainOptions)
+    end})
+end
 local ActorRig = require(script.ActorRig)
 function Runtime.createActor(definition, options)
     assert(type(options)=='table' and options.exclusive==true, 'explicit exclusive ownership is required')

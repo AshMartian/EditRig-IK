@@ -58,6 +58,23 @@ leg:solve(Vector3.new(output.position[1], output.position[2], output.position[3]
 
 This coordinator is independent of the generated direct-control actor; it does not yet merge behavior results or own the IK chain. A step target impulse must be a finite three-number array. The general coordinator retains impulses if a behavior throws, so handle invalid messages deliberately rather than blindly retrying.
 
+For an authored chain, `IK.createFootstepChain(definition, options)` combines one swing behavior and one configured IK chain. Newly generated controllers also expose `controller.openFootstep(name, options)`. Supply the current endpoint's **world position** as `start` and a world-space `up` vector; a wrong starting position causes an initial jump. For example:
+
+```lua
+local stepper = controller.openFootstep('Leg', {
+    exclusive = true, start = endpoint.WorldPosition, up = Vector3.yAxis,
+    height = 0.5, duration = 0.3,
+})
+stepper:requestStep(goal.WorldPosition)
+-- Call in your selected update loop:
+local state = stepper:step(dt)
+print(state.moving, state.progress, state.solve.error)
+-- Disconnect the loop first, then restore the chain:
+local conflicts = stepper:destroy()
+```
+
+Repeated requests before an update use the last target; requests during a swing retarget from the current target position. This controller holds the last target and solves it on each call, including while idle. It does not connect a loop, raycast, select steps, coordinate legs, or disable external writers. `step` advances the target before solving, so an error from the solver can leave its target state advanced; shut down deliberately rather than retrying blindly. `destroy` restores owned transforms where possible and returns conflicts. Existing generated controller scripts are deliberately not overwritten and may lack `openFootstep`; use `IK.createFootstepChain` directly or add the method to your editable controller. Fixtures cover Motor6D and Bone chains, not animated or skinned rigs.
+
 ## Experimental behavior coordinator
 
 `IK.Actor.new(definition, registry)` creates independent behavior instances. Each registry entry is a factory called with a private copy of the behavior's `options`; it returns a table with `step(input, dt)` and optional `destroy(self)`. The coordinator calls enabled behaviors in ascending `priority` (definition order breaks ties) and returns their named results. It does not yet blend, apply, replicate or resolve conflicts between results. The caller owns the update loop and must call `destroy` when finished.

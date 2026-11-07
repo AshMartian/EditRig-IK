@@ -14,6 +14,13 @@ function Controller.openChain(name, options)
  assert(definition and definition:IsA('Folder'), 'named IK chain definition is missing')
  return getRuntime().createConfiguredIKChain(definition,options)
 end
+function Controller.openFootstep(name, options)
+ assert(type(name)=='string' and name~='', 'chain name is required')
+ local folder=script.Parent:FindFirstChild('EditRigIKChains')
+ local definition=folder and folder:FindFirstChild(name)
+ assert(definition and definition:IsA('Folder'), 'named IK chain definition is missing')
+ return getRuntime().createFootstepChain(definition,options)
+end
 function Controller.start(options)
  if actor then return actor end
  local definition=script.Parent:FindFirstChild('EditRigIKActor')
