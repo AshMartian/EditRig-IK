@@ -16,6 +16,7 @@ function JointAdapter.new(bindings, options)
   local entry={name=b.name,joint=b.joint,axis=b.axis.Unit,original=b.joint.Transform,last=b.joint.Transform,written=false}
   names[b.name]=true; instances[b.joint]=true; table.insert(entries,entry)
  end
+ local release=if options.ownership then options.ownership:acquire((function() local joints={} for _,e in ipairs(entries) do table.insert(joints,e.joint) end return joints end)()) else function() end
  local dead=false
  local api={}
  function api:apply(angles)
@@ -36,11 +37,15 @@ function JointAdapter.new(bindings, options)
   if dead then return {} end
   dead=true
   local conflicts={}
-  for _,e in ipairs(entries) do
-   if e.written then
-    if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=e.original else table.insert(conflicts,e.name) end
+  local ok,err=pcall(function()
+   for _,e in ipairs(entries) do
+    if e.written then
+     if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=e.original else table.insert(conflicts,e.name) end
+    end
    end
-  end
+  end)
+  release()
+  if not ok then error(err) end
   return conflicts
  end
  return api

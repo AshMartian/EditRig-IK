@@ -17,6 +17,9 @@
     "JointDrive": {
       "$path": "src/runtime/JointDrive.luau"
     },
+    "Ownership": {
+      "$path": "src/runtime/Ownership.luau"
+    },
     "Actor": {
       "$path": "src/runtime/Actor.luau"
     },

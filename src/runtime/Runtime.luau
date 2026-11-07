@@ -6,10 +6,20 @@ local engine = Solver.new(Limits)
 local Runtime = {}
 Runtime.Actor = require(script.Actor)
 Runtime.JointDrive = require(script.JointDrive)
-Runtime.JointAdapter = require(script.JointAdapter)
+local JointAdapter = require(script.JointAdapter)
+local ownership = require(script.Ownership).new()
+local function ownedOptions(options)
+    assert(type(options)=='table','options are required')
+    local copy=table.clone(options)
+    copy.ownership=ownership
+    return copy
+end
+Runtime.JointAdapter = {new=function(bindings, options)
+    return JointAdapter.new(bindings, ownedOptions(options))
+end}
 local ChainAdapter = require(script.ChainAdapter)
 function Runtime.createIKChain(joints, endpointLocal, options)
-    return ChainAdapter.new(joints, endpointLocal, options, engine)
+    return ChainAdapter.new(joints, endpointLocal, ownedOptions(options), engine)
 end
 local ChainDefinition = require(script.ChainDefinition)
 function Runtime.createConfiguredIKChain(definition, options)

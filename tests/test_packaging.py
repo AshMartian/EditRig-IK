@@ -10,7 +10,7 @@ root = Path(__file__).resolve().parents[1]
 rojo = os.environ.get('ROJO_BIN', 'rojo')
 expected = {
     'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector'}),
-    'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'Limits', 'Solver'}),
+    'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'Ownership', 'Limits', 'Solver'}),
 }
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:
     for project, (cls, name, children) in expected.items():

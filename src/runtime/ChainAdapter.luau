@@ -41,6 +41,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
  end
  local limits=options.limits or {}
  assert(type(limits)=='table','limits must be a table')
+ local release=if options.ownership then options.ownership:acquire(joints) else function() end
  local function rootFrame()
   if kind=='Motor6D' then return entries[1].p0.CFrame*entries[1].c0 end
   local parent=entries[1].parent
@@ -81,11 +82,15 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   if dead then return {} end
   dead=true
   local conflicts={}
-  for i,e in ipairs(entries) do
-   if e.written then
-    if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=e.original else table.insert(conflicts,i) end
+  local ok,err=pcall(function()
+   for i,e in ipairs(entries) do
+    if e.written then
+     if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=e.original else table.insert(conflicts,i) end
+    end
    end
-  end
+  end)
+  release()
+  if not ok then error(err) end
   return conflicts
  end
  return api
