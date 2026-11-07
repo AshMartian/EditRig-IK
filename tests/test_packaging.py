@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 root = Path(__file__).resolve().parents[1]
 rojo = os.environ.get('ROJO_BIN', 'rojo')
 expected = {
-    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'LimitGeometry', 'PreviewSession', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle'}),
+    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'LimitGeometry', 'PreviewSession', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle'}),
     'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'Ownership', 'Limits', 'Solver'}),
 }
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:

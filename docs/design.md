@@ -22,6 +22,8 @@ The experimental model is `Workspace.Dino Auto` in Prehistoric Rumble, place 937
 
 The prototype's read-only rig inventory was run against Dino Auto in Studio: it reported 22 Motor6Ds, no Bones, one Animator and two enabled IKControls. These counts describe that inspection, not a guarantee that all transform writers have been found. The inspection code was tested; its editor button still needs interactive verification.
 
+The experimental IKControl discovery code found four Motor6Ds for each Dino Auto leg, including the incoming hip motor. Both controllers used BasePart end effectors, so an explicit endpoint Attachment is still needed. Discovery did not change the model or disable its existing controls.
+
 An unparented clone of Dino Auto's left and right leg chains was also checked against the source-level solver. With an illustrative nearby target and no authored limits, each solve converged and its reported endpoint matched forward kinematics within 0.000002 studs. This is a geometry test on a clone, not visible movement, an Animator coexistence test, or evidence that the real leg axes and limits are correct. `tests/studio/DinoClone.integration.luau` preserves the check.
 
 ## Current solver prototype

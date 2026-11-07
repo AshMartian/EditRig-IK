@@ -6,6 +6,7 @@ local RunService = game:GetService('RunService')
 local Config = require(script.Config)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
+local ChainDiscovery = require(script.ChainDiscovery)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
@@ -309,6 +310,18 @@ chainButton('Refresh selected chain limits from joints').MouseButton1Click:Conne
     ChainBuilder.refreshLimits(definition)
     ChangeHistoryService:SetWaypoint('Refresh EditRig IK chain limits')
     chainFeedback.Text='Refreshed '..definition.Name..'. Reopen any active runtime chain to use these limits.'
+end)
+chainButton('Capture chain from selected IKControl').MouseButton1Click:Connect(function()
+    local item=selectedOne()
+    local ok,result=pcall(ChainDiscovery.inspect,item)
+    if not ok then firstJoint=nil; lastJoint=nil; endpoint=nil; pole=nil; refreshChainStatus(); chainFeedback.Text='Cannot discover chain: '..tostring(result); return end
+    firstJoint=result.joints[1]; lastJoint=result.joints[#result.joints]
+    endpoint=result.endpoint; pole=result.pole
+    chainName.Text=string.sub(item.Name,1,64)
+    local missing=0
+    for _,joint in ipairs(result.joints) do if joint:GetAttribute('EditRigIK_SchemaVersion')~=1 then missing+=1 end end
+    refreshChainStatus()
+    chainFeedback.Text=string.format('Found %d joints; %d need limit metadata. %s Existing IKControl remains active; offsets are not copied. Custom solver is position-only.',#result.joints,missing,if endpoint then 'Endpoint captured.' else 'Select an endpoint attachment.')
 end)
 chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
