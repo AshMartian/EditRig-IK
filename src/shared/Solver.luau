@@ -90,6 +90,28 @@ function Solver.new(limits)
   end
   local count=0
   local _,_,endpoint=forward(chain.root,chain.joints,rotations)
+  -- A collinear shortened target gives CCD no bend direction. Seed a small
+  -- root rotation toward the pole, subject to the same root limit and budget.
+  if options.pole and #chain.joints>1 and length(sub(target,endpoint))>options.tolerance then
+   local positions,bases=forward(chain.root,chain.joints,rotations)
+   local direction=sub(target,positions[1]); local distance=length(direction)
+   if distance>EPS then
+    local axis=scale(direction,1/distance)
+    local endVector=sub(endpoint,positions[1])
+    local bend=sub(positions[2],positions[1]); bend=sub(bend,scale(axis,dot(bend,axis)))
+    local endSide=sub(endVector,scale(axis,dot(endVector,axis)))
+    local desired=sub(options.pole,positions[1]); desired=sub(desired,scale(axis,dot(desired,axis)))
+    local straightTolerance=1e-6*math.max(1,distance,length(endVector))
+    if length(bend)<straightTolerance and length(endSide)<straightTolerance and dot(endVector,axis)>distance and length(desired)>straightTolerance then
+     local turn=cross(axis,desired); turn=scale(turn,1/length(turn))
+     local half=math.min(maxStep,0.1)/2; local s=math.sin(half)
+     local worldDelta={turn[1]*s,turn[2]*s,turn[3]*s,math.cos(half)}
+     local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
+     rotations[1]=constrain(normalize(quat(localDelta,rotations[1])),chain.joints[1].limit)
+     _,_,endpoint=forward(chain.root,chain.joints,rotations)
+    end
+   end
+  end
   while count<options.iterations and length(sub(target,endpoint))>options.tolerance do
    count+=1
    for i=#chain.joints,1,-1 do

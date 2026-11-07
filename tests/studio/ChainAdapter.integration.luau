@@ -54,6 +54,18 @@ local bonePoleResult=bonePole:solve(target,{iterations=40,tolerance=.001,pole=po
 local boneElbow=(a.CFrame*root.CFrame*root.Transform*child.CFrame).Position
 assert(bonePoleResult.converged and bonePoleResult.poleStatus=='applied' and a.CFrame:PointToObjectSpace(boneElbow).Z>.1,'Bone chain must follow world pole')
 bonePole:destroy()
+local straightTarget=a.CFrame:PointToWorldSpace(Vector3.new(1.3,0,0))
+local straightPole=a.CFrame:PointToWorldSpace(Vector3.new(0,1,0))
+local straightMotor=ChainAdapter.new({j1,j2},Vector3.xAxis,{exclusive=true},solver)
+local straightMotorResult=straightMotor:solve(straightTarget,{iterations=100,tolerance=.001,pole=straightPole})
+local straightMotorElbow=(a.CFrame*j1.C0*j1.Transform*j1.C1:Inverse()*j2.C0).Position
+assert(straightMotorResult.converged and a.CFrame:PointToObjectSpace(straightMotorElbow).Y>.1,'straight Motor6D chain should bend toward pole')
+straightMotor:destroy()
+local straightBone=ChainAdapter.new({root,child},Vector3.xAxis,{exclusive=true},solver)
+local straightBoneResult=straightBone:solve(straightTarget,{iterations=100,tolerance=.001,pole=straightPole})
+local straightBoneElbow=(a.CFrame*root.CFrame*root.Transform*child.CFrame).Position
+assert(straightBoneResult.converged and a.CFrame:PointToObjectSpace(straightBoneElbow).Y>.1,'straight Bone chain should bend toward pole')
+straightBone:destroy()
 -- Non-coplanar rest frames and starting transforms must agree with actual FK,
 -- even when a target is unreachable or the iteration budget is exhausted.
 a.CFrame=CFrame.new(3,-2,4)*CFrame.Angles(.3,-.5,.7)
