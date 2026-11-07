@@ -330,6 +330,7 @@ end
 local iterationsField=chainNumberField('Maximum CCD iterations','30')
 local toleranceField=chainNumberField('Target tolerance (studs)','0.01')
 local maxStepField=chainNumberField('Maximum correction per iteration (degrees)','180')
+local gainField=chainNumberField('Correction gain (greater than 0 to 1)','1')
 local chainStatus=label('No chain selections yet.',55)
 local chainFeedback: TextLabel
 local firstJoint: Instance?=nil
@@ -359,13 +360,15 @@ chainButton('Load selected chain settings').MouseButton1Click:Connect(function()
     iterationsField.Text=tostring(settings.iterations)
     toleranceField.Text=tostring(settings.tolerance)
     maxStepField.Text=tostring(settings.maxStepDegrees)
+    gainField.Text=tostring(settings.gain)
     chainFeedback.Text='Loaded '..definition:GetFullName()..'. Keep it selected to save changes.'
 end)
 chainButton('Save settings to selected chain').MouseButton1Click:Connect(function()
     local definition=selectedOne()
     if not loadedChain or definition~=loadedChain then chainFeedback.Text='Select the loaded chain and load its settings before saving.'; return end
-    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=tonumber(maxStepField.Text)}
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=tonumber(maxStepField.Text),gain=tonumber(gainField.Text)}
     if not options.maxStepDegrees then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
+    if not options.gain then chainFeedback.Text='Enter a correction gain.'; return end
     local ok,settings=pcall(ChainBuilder.validateSettings,options)
     if not ok then chainFeedback.Text='Invalid settings: '..tostring(settings); return end
     local valid,err=pcall(ChainBuilder.readSettings,definition)
@@ -452,7 +455,9 @@ chainButton('Create idle IK chain definition').MouseButton1Click:Connect(functio
     if existingController and (not existingController:IsA('ModuleScript') or existingController:GetAttribute('EditRigIK_GeneratedControllerVersion')~=1) then chainFeedback.Text='An incompatible controller exists; rename it before creating the chain.'; return end
     local maxStep=tonumber(maxStepField.Text)
     if not maxStep then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
-    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep,pole=pole}
+    local gain=tonumber(gainField.Text)
+    if not gain then chainFeedback.Text='Enter a correction gain.'; return end
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep,gain=gain,pole=pole}
     local ok,definition=pcall(ChainBuilder.create,model,first,last,tip,chainName.Text,options)
     if not ok then chainFeedback.Text='Cannot create chain: '..tostring(definition); return end
     ChangeHistoryService:SetWaypoint('Before create EditRig IK chain')

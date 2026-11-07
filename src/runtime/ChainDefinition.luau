@@ -34,23 +34,26 @@ function ChainDefinition.new(definition,options,createChain)
  local iterations,tolerance=definition:GetAttribute('Iterations'),definition:GetAttribute('Tolerance')
  local maxStepDegrees=definition:GetAttribute('MaxStepDegrees')
  if maxStepDegrees==nil then maxStepDegrees=180 end -- schema 1 definitions created before this option
+ local gain=definition:GetAttribute('CorrectionGain')
+ if gain==nil then gain=1 end
  assert(finite(iterations) and iterations%1==0 and iterations>=1 and iterations<=1000,'invalid iterations')
  assert(finite(tolerance) and tolerance>=0,'invalid tolerance')
  assert(finite(maxStepDegrees) and maxStepDegrees>0 and maxStepDegrees<=180,'invalid maximum correction angle')
+ assert(finite(gain) and gain>0 and gain<=1,'invalid correction gain')
  local endpointParent,endpointPosition=endpoint.Parent,endpoint.Position
  local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits})
  local api={}
  function api:solve(target,overrides)
   assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')
   assert(overrides==nil or type(overrides)=='table','solver overrides must be a table')
-  local settings={iterations=iterations,tolerance=tolerance,maxStep=math.rad(maxStepDegrees)}
+  local settings={iterations=iterations,tolerance=tolerance,maxStep=math.rad(maxStepDegrees),gain=gain}
   if poleRef then
    assert(poleRef.Value and poleRef.Value.ClassName=='Attachment' and poleRef.Value:IsDescendantOf(model),'pole reference changed or left model')
    settings.pole=poleRef.Value.WorldPosition
   end
   if overrides then
    for key,value in pairs(overrides) do
-    assert(key=='iterations' or key=='tolerance' or key=='maxStep' or key=='pole','unknown solver option: '..tostring(key))
+    assert(key=='iterations' or key=='tolerance' or key=='maxStep' or key=='gain' or key=='pole','unknown solver option: '..tostring(key))
     settings[key]=value
    end
   end

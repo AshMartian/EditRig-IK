@@ -8,7 +8,9 @@ function ChainBuilder.new(Config)
   assert(type(options.tolerance)=='number' and options.tolerance==options.tolerance and options.tolerance>=0 and options.tolerance<math.huge,'tolerance must be finite and nonnegative')
   local maxStepDegrees=if options.maxStepDegrees==nil then 180 else options.maxStepDegrees
   assert(type(maxStepDegrees)=='number' and maxStepDegrees==maxStepDegrees and maxStepDegrees>0 and maxStepDegrees<=180,'maximum correction must be greater than 0 and at most 180 degrees')
-  return {iterations=options.iterations,tolerance=options.tolerance,maxStepDegrees=maxStepDegrees}
+  local gain=if options.gain==nil then 1 else options.gain
+  assert(type(gain)=='number' and gain==gain and gain>0 and gain<=1,'correction gain must be greater than 0 and at most 1')
+  return {iterations=options.iterations,tolerance=options.tolerance,maxStepDegrees=maxStepDegrees,gain=gain}
  end
  local function checkDefinition(definition)
   assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a supported chain definition')
@@ -18,7 +20,7 @@ function ChainBuilder.new(Config)
  end
  function api.readSettings(definition)
   checkDefinition(definition)
-  return api.validateSettings({iterations=definition:GetAttribute('Iterations'),tolerance=definition:GetAttribute('Tolerance'),maxStepDegrees=definition:GetAttribute('MaxStepDegrees')})
+  return api.validateSettings({iterations=definition:GetAttribute('Iterations'),tolerance=definition:GetAttribute('Tolerance'),maxStepDegrees=definition:GetAttribute('MaxStepDegrees'),gain=definition:GetAttribute('CorrectionGain')})
  end
  function api.writeSettings(definition,options)
   checkDefinition(definition)
@@ -26,6 +28,7 @@ function ChainBuilder.new(Config)
   definition:SetAttribute('Iterations',settings.iterations)
   definition:SetAttribute('Tolerance',settings.tolerance)
   definition:SetAttribute('MaxStepDegrees',settings.maxStepDegrees)
+  definition:SetAttribute('CorrectionGain',settings.gain)
  end
  function api.prepareLimitRefresh(definition)
   checkDefinition(definition)
@@ -129,6 +132,7 @@ function ChainBuilder.new(Config)
   local folder=Instance.new('Folder'); folder.Name=name; folder:SetAttribute('SchemaVersion',1)
   folder:SetAttribute('Iterations',options.iterations); folder:SetAttribute('Tolerance',options.tolerance)
   folder:SetAttribute('MaxStepDegrees',options.maxStepDegrees)
+  folder:SetAttribute('CorrectionGain',options.gain)
   local endpointRef=Instance.new('ObjectValue'); endpointRef.Name='Endpoint'; endpointRef.Value=endpoint; endpointRef.Parent=folder
   if pole then local poleRef=Instance.new('ObjectValue'); poleRef.Name='Pole'; poleRef.Value=pole; poleRef.Parent=folder end
   local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=folder

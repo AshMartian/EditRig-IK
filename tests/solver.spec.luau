@@ -76,4 +76,12 @@ for _,offsets in ipairs({{{0,0,0},{1,0,0}},{{1,0,0},{0,0,0}}}) do
  assert(solved.converged and solved.error<1e-6,'coincident pivots must still reach a valid target')
 end
 
+-- A fractional gain scales the correction before the per-iteration cap.
+local damped=solver.solve(one,{0,1,0},{iterations=1,tolerance=0,gain=.5})
+near(damped.endpoint[1],math.sqrt(.5),1e-6); near(damped.endpoint[2],math.sqrt(.5),1e-6)
+local dampedCapped=solver.solve(one,{0,1,0},{iterations=1,tolerance=0,gain=.5,maxStep=math.pi/6})
+near(dampedCapped.endpoint[2],.5,1e-6)
+assert(not pcall(function() solver.solve(one,{0,1,0},{iterations=1,tolerance=0,gain=0}) end),'zero gain must be rejected')
+assert(not pcall(function() solver.solve(one,{0,1,0},{iterations=1,tolerance=0,gain=1.1}) end),'gain above one must be rejected')
+
 print('solver tests passed')
