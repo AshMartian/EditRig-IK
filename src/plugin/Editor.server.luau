@@ -212,6 +212,31 @@ local function selectedOne(): Instance?
     local items=Selection:Get()
     return if #items==1 then items[1] else nil
 end
+local loadedChain: Instance?=nil
+chainButton('Load selected chain settings').MouseButton1Click:Connect(function()
+    local definition=selectedOne()
+    local ok,settings=pcall(ChainBuilder.readSettings,definition)
+    if not ok then loadedChain=nil; chainFeedback.Text='Cannot load chain: '..tostring(settings); return end
+    loadedChain=definition
+    iterationsField.Text=tostring(settings.iterations)
+    toleranceField.Text=tostring(settings.tolerance)
+    maxStepField.Text=tostring(settings.maxStepDegrees)
+    chainFeedback.Text='Loaded '..definition:GetFullName()..'. Keep it selected to save changes.'
+end)
+chainButton('Save settings to selected chain').MouseButton1Click:Connect(function()
+    local definition=selectedOne()
+    if not loadedChain or definition~=loadedChain then chainFeedback.Text='Select the loaded chain and load its settings before saving.'; return end
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=tonumber(maxStepField.Text)}
+    if not options.maxStepDegrees then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
+    local ok,settings=pcall(ChainBuilder.validateSettings,options)
+    if not ok then chainFeedback.Text='Invalid settings: '..tostring(settings); return end
+    local valid,err=pcall(ChainBuilder.readSettings,definition)
+    if not valid then chainFeedback.Text='Cannot save chain: '..tostring(err); return end
+    ChangeHistoryService:SetWaypoint('Before edit EditRig IK chain settings')
+    ChainBuilder.writeSettings(definition,settings)
+    ChangeHistoryService:SetWaypoint('Edit EditRig IK chain settings')
+    chainFeedback.Text='Saved '..definition.Name..'. Reopen any active runtime chain to use these settings.'
+end)
 chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the root.'; return end

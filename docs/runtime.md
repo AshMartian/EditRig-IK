@@ -144,6 +144,8 @@ The runtime rejects overlapping claims from its own actors and chains, but this 
 
 In the editor, save hinge or ball settings on every joint in the intended chain. Select the root joint and click **Set root joint**, select the end joint and click **Set end joint**, then select a regular Attachment directly under the final Motor6D's Part1 or final Bone and click **Set endpoint attachment**. Enter a chain name, CCD iteration limit, tolerance in studs, and maximum correction per iteration in degrees, then click **Create idle IK chain definition**. The default correction is 180 degrees; old saved chains use that default. The builder requires a single directed path and rejects ambiguous, cyclic, disconnected, mixed-type, or unconfigured chains. It creates a snapshot under the containing model's `EditRigIKChains` and an idle controller if one does not already exist. It does not overwrite an existing chain.
 
+To tune an existing chain, select its definition folder inside `EditRigIKChains`, choose **Load selected chain settings**, edit the three solver values, and choose **Save settings to selected chain** while that folder remains selected. Saving preserves its endpoint, joint references and limit snapshots; close and reopen any active runtime chain to use the new settings. Editing a joint's limit metadata still requires recreating the chain definition to update its limit snapshot. These editor buttons have not yet been verified interactively.
+
 With the runtime installed in ReplicatedStorage, and after resolving all competing writers:
 
 ```lua

@@ -19,6 +19,17 @@ assert(not pcall(function() builder.create(model,j1,j2,endpoint,'Bad',{iteration
 assert(not pcall(function() builder.create(model,j1,j2,endpoint,'Bad',{iterations=1,tolerance=0.1,maxStepDegrees=181}) end))
 assert(def.Endpoint.Value==endpoint and def.Joints.Joint001.Value==j1 and def.Joints.Joint002.Value==j2)
 assert(def.Joints.Joint001:GetAttribute('Kind')=='Ball' and def.Joints.Joint002:GetAttribute('UpperDegrees')==90)
+local container=Instance.new('Folder'); container.Name='EditRigIKChains'; container.Parent=model; def.Parent=container
+local loaded=builder.readSettings(def)
+assert(loaded.iterations==48 and loaded.tolerance==0.02 and loaded.maxStepDegrees==180)
+builder.writeSettings(def,{iterations=12,tolerance=0.005,maxStepDegrees=25})
+assert(def:GetAttribute('Iterations')==12 and def:GetAttribute('Tolerance')==0.005 and def:GetAttribute('MaxStepDegrees')==25)
+assert(def.Endpoint.Value==endpoint and def.Joints.Joint001.Value==j1,'tuning must retain references and limits')
+assert(not pcall(function() builder.writeSettings(def,{iterations=1,tolerance=0,maxStepDegrees=0}) end))
+assert(def:GetAttribute('Iterations')==12 and def:GetAttribute('Tolerance')==0.005,'invalid input must not modify settings')
+assert(not pcall(function() builder.writeSettings(container,{iterations=1,tolerance=0,maxStepDegrees=1}) end),'non-definition must be rejected')
+def:SetAttribute('MaxStepDegrees',nil)
+assert(builder.readSettings(def).maxStepDegrees==180,'legacy definition should load default')
 assert(not pcall(function() builder.create(model,j2,j1,endpoint,'Bad') end),'reverse chain should fail')
 local invalid=Instance.new('Attachment'); invalid.Parent=a
 assert(not pcall(function() builder.create(model,j1,j2,invalid,'Bad') end),'endpoint must belong to end joint')

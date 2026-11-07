@@ -3,12 +3,32 @@
 local ChainBuilder={}
 function ChainBuilder.new(Config)
  local api={}
- function api.create(model,first,last,endpoint,name,options)
-  options=options or {iterations=30,tolerance=0.01}
+ function api.validateSettings(options)
   assert(type(options)=='table' and type(options.iterations)=='number' and options.iterations%1==0 and options.iterations>=1 and options.iterations<=1000,'iterations must be an integer from 1 to 1000')
   assert(type(options.tolerance)=='number' and options.tolerance==options.tolerance and options.tolerance>=0 and options.tolerance<math.huge,'tolerance must be finite and nonnegative')
   local maxStepDegrees=if options.maxStepDegrees==nil then 180 else options.maxStepDegrees
   assert(type(maxStepDegrees)=='number' and maxStepDegrees==maxStepDegrees and maxStepDegrees>0 and maxStepDegrees<=180,'maximum correction must be greater than 0 and at most 180 degrees')
+  return {iterations=options.iterations,tolerance=options.tolerance,maxStepDegrees=maxStepDegrees}
+ end
+ local function checkDefinition(definition)
+  assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a supported chain definition')
+  local parent=definition.Parent
+  assert(parent and parent:IsA('Folder') and parent.Name=='EditRigIKChains' and parent.Parent and parent.Parent:IsA('Model'),'chain must belong to a model EditRigIKChains folder')
+  assert(definition:FindFirstChild('Joints') and definition:FindFirstChild('Endpoint'),'chain references missing')
+ end
+ function api.readSettings(definition)
+  checkDefinition(definition)
+  return api.validateSettings({iterations=definition:GetAttribute('Iterations'),tolerance=definition:GetAttribute('Tolerance'),maxStepDegrees=definition:GetAttribute('MaxStepDegrees')})
+ end
+ function api.writeSettings(definition,options)
+  checkDefinition(definition)
+  local settings=api.validateSettings(options)
+  definition:SetAttribute('Iterations',settings.iterations)
+  definition:SetAttribute('Tolerance',settings.tolerance)
+  definition:SetAttribute('MaxStepDegrees',settings.maxStepDegrees)
+ end
+ function api.create(model,first,last,endpoint,name,options)
+  options=api.validateSettings(options or {iterations=30,tolerance=0.01})
   assert(typeof(model)=='Instance' and model:IsA('Model'),'actor model required')
   assert(type(name)=='string' and #name>0 and #name<=64,'chain name must be 1–64 characters')
   assert(typeof(first)=='Instance' and typeof(last)=='Instance' and first:IsDescendantOf(model) and last:IsDescendantOf(model),'joints must belong to the selected model')
@@ -64,7 +84,7 @@ function ChainBuilder.new(Config)
   end
   local folder=Instance.new('Folder'); folder.Name=name; folder:SetAttribute('SchemaVersion',1)
   folder:SetAttribute('Iterations',options.iterations); folder:SetAttribute('Tolerance',options.tolerance)
-  folder:SetAttribute('MaxStepDegrees',maxStepDegrees)
+  folder:SetAttribute('MaxStepDegrees',options.maxStepDegrees)
   local endpointRef=Instance.new('ObjectValue'); endpointRef.Name='Endpoint'; endpointRef.Value=endpoint; endpointRef.Parent=folder
   local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=folder
   for i,e in ipairs(entries) do
