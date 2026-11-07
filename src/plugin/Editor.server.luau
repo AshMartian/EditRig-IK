@@ -9,6 +9,7 @@ local ChainBuilder = require(script.ChainBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
+local RuntimeInstaller = require(script.RuntimeInstaller)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -51,6 +52,24 @@ end
 local selectedLabel = label('Select one Motor6D or Bone in Explorer.', 38)
 local notice = label('Prototype: saves settings and idle definitions. No animation starts automatically.', 42)
 notice.TextColor3 = Color3.fromRGB(255, 204, 111)
+local install=Instance.new('TextButton')
+install.Size=UDim2.new(1,0,0,32); install.BackgroundColor3=Color3.fromRGB(61,109,172)
+install.TextColor3=Color3.new(1,1,1); install.Text='Install runtime in ReplicatedStorage'; install.Font=Enum.Font.SourceSansBold; install.TextSize=16
+order(install); install.Parent=root
+local installStatus=label('',42)
+install.MouseButton1Click:Connect(function()
+    local storage=game:GetService('ReplicatedStorage')
+    local ok,copy=pcall(RuntimeInstaller.prepare,storage,script.RuntimeBundle)
+    if not ok then installStatus.Text='Runtime not installed: '..tostring(copy); return end
+    local inserted,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before install EditRig IK runtime')
+        assert(not storage:FindFirstChild('EditRigIKRuntime'),'runtime already exists')
+        copy.Parent=storage
+        ChangeHistoryService:SetWaypoint('Install EditRig IK runtime')
+    end)
+    if not inserted then copy:Destroy(); installStatus.Text='Runtime installation failed: '..tostring(err); return end
+    installStatus.Text='Runtime installed. Start controllers explicitly after resolving joint ownership.'
+end)
 local inspect=Instance.new('TextButton')
 inspect.Size=UDim2.new(1,0,0,32); inspect.BackgroundColor3=Color3.fromRGB(61,109,172)
 inspect.TextColor3=Color3.new(1,1,1); inspect.Text='Inspect selected model'; inspect.Font=Enum.Font.SourceSansBold; inspect.TextSize=16

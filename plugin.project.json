@@ -29,6 +29,24 @@
     "PreviewChainDefinition": {
       "$path": "src/runtime/ChainDefinition.luau"
     },
+    "RuntimeInstaller": {
+      "$path": "src/plugin/RuntimeInstaller.luau"
+    },
+    "RuntimeBundle": {
+      "$path": "src/runtime/Runtime.luau",
+      "ChainDefinition": {"$path": "src/runtime/ChainDefinition.luau"},
+      "ChainAdapter": {"$path": "src/runtime/ChainAdapter.luau"},
+      "ActorRig": {"$path": "src/runtime/ActorRig.luau"},
+      "JointAdapter": {"$path": "src/runtime/JointAdapter.luau"},
+      "JointDrive": {"$path": "src/runtime/JointDrive.luau"},
+      "StepTrajectory": {"$path": "src/runtime/StepTrajectory.luau"},
+      "FootstepBehavior": {"$path": "src/runtime/FootstepBehavior.luau"},
+      "FootstepChain": {"$path": "src/runtime/FootstepChain.luau"},
+      "Ownership": {"$path": "src/runtime/Ownership.luau"},
+      "Actor": {"$path": "src/runtime/Actor.luau"},
+      "Limits": {"$path": "src/shared/Limits.luau"},
+      "Solver": {"$path": "src/shared/Solver.luau"}
+    },
     "GeneratedController": {
       "$path": "src/plugin/GeneratedController.luau"
     },

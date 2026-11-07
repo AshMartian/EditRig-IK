@@ -1,6 +1,6 @@
 # Experimental runtime core
 
-`build/current/EditRigIKRuntime.rbxm` contains the runtime ModuleScript and its components. Place the module where your scripts can require it, for example in ReplicatedStorage. Its experimental CCD solver supports explicit and authored Motor6D/Bone chain adapters. A separate limited single-axis joint adapter is described below. Do not run it on the same joints as an IKControl without first implementing explicit ownership and update ordering.
+`build/current/EditRigIKRuntime.rbxm` contains the runtime ModuleScript and its components. The prototype editor's **Install runtime in ReplicatedStorage** button prepares a copy of the runtime bundled with that plugin and inserts it with undo waypoints. It refuses to overwrite any existing `EditRigIKRuntime`; inspect and deliberately rename or remove an old copy before installing an update. Installation does not start a controller. Alternatively, place the standalone package where scripts can require it. A source-level Studio fixture cloned and required the runtime in a detached container; the installed plugin button and resulting package have not yet been verified interactively. Its experimental CCD solver supports explicit and authored Motor6D/Bone chain adapters. A separate limited single-axis joint adapter is described below. Do not run it on the same joints as an IKControl without first implementing explicit ownership and update ordering.
 
 ```lua
 local IK = require(game.ReplicatedStorage.EditRigIKRuntime)
@@ -122,7 +122,7 @@ In Studio Edit mode, isolated tests created unparented Motor6D and Bone instance
 
 In the prototype editor, save hinge metadata on each Motor6D or Bone, then select their containing Model and press **Create direct-control actor from selected model**. The joint fields include control name, impulse name and impulse damping frequency (0.01–100 inverse seconds); blank names default to the joint name and joint name plus `Impulse`. Multiple joints may share a control or impulse name. These settings are used by the direct-control actor, not by the IK chain solver. The builder requires unique configured joint names and ranges that contain zero; it rejects ball limits and unknown metadata versions. It creates an `EditRigIKActor` folder of ObjectValue references and an editable `EditRigIKController` ModuleScript in the model. It does not replace existing objects of those names. The definition is a snapshot: after changing joint metadata, remove or rename the old generated folder before creating a new one; a compatible controller can be reused. The installed plugin toolbar and panel opening were confirmed; its individual controls have not yet been tested interactively.
 
-Place the separately built `EditRigIKRuntime` ModuleScript in ReplicatedStorage. From a script running on the intended side, after ensuring no Animator, IKControl or other writer owns the configured joints:
+Install the bundled runtime using the editor button, or place the separately built `EditRigIKRuntime` ModuleScript in ReplicatedStorage. From a script running on the intended side, after ensuring no Animator, IKControl or other writer owns the configured joints:
 
 ```lua
 local controller = require(model.EditRigIKController)
