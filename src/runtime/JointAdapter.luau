@@ -7,6 +7,8 @@ local function finite(n)
 end
 function JointAdapter.new(bindings, options)
  assert(type(options)=='table' and options.exclusive==true, 'explicit exclusive ownership is required')
+ local baseMode=options.baseMode or 'fixed'
+ assert(baseMode=='fixed' or baseMode=='animated','baseMode must be fixed or animated')
  assert(type(bindings)=='table' and #bindings>0, 'joint bindings required')
  local entries,names,instances={},{},{}
  for _,b in ipairs(bindings) do
@@ -15,7 +17,7 @@ function JointAdapter.new(bindings, options)
   assert(typeof(b.axis)=='Vector3' and finite(b.axis.X) and finite(b.axis.Y) and finite(b.axis.Z) and b.axis.Magnitude>1e-8, 'invalid joint axis')
   local kind=if b.kind==nil then 'Hinge' else b.kind
   assert(kind=='Hinge' or kind=='Ball','invalid binding kind')
-  local entry={name=b.name,joint=b.joint,axis=b.axis.Unit,kind=kind,original=b.joint.Transform,last=b.joint.Transform,written=false}
+  local entry={name=b.name,joint=b.joint,parent=b.joint.Parent,axis=b.axis.Unit,kind=kind,original=b.joint.Transform,base=b.joint.Transform,last=b.joint.Transform,written=false}
   names[b.name]=true; instances[b.joint]=true; table.insert(entries,entry)
  end
  local release=if options.ownership then options.ownership:acquire((function() local joints={} for _,e in ipairs(entries) do table.insert(joints,e.joint) end return joints end)()) else function() end
@@ -24,28 +26,32 @@ function JointAdapter.new(bindings, options)
  function api:validate()
   assert(not dead, 'adapter is destroyed')
   for _,e in ipairs(entries) do
-   assert(e.joint.Transform:FuzzyEq(e.last,1e-5), 'transform changed by another writer: '..e.name)
+   assert(e.joint.Parent==e.parent,'joint was reparented: '..e.name)
+   if baseMode=='fixed' then assert(e.joint.Transform:FuzzyEq(e.last,1e-5), 'transform changed by another writer: '..e.name) end
   end
  end
  function api:apply(angles)
   self:validate()
   assert(type(angles)=='table','angles must be a table')
-  local targets={}
+  local targets,bases={},{}
   for i,e in ipairs(entries) do
+   local current=e.joint.Transform
+   local base=if baseMode=='fixed' then e.original elseif e.written and current:FuzzyEq(e.last,1e-5) then e.base else current
+   bases[i]=base
    local value=angles[e.name]
    if e.kind=='Hinge' then
     assert(finite(value), 'missing or invalid angle for '..e.name)
-    targets[i]=e.original*CFrame.fromAxisAngle(e.axis,value)
+    targets[i]=base*CFrame.fromAxisAngle(e.axis,value)
    else
     assert(type(value)=='table' and #value==4 and finite(value[1]) and finite(value[2]) and finite(value[3]) and finite(value[4]),'missing or invalid rotation for '..e.name)
     local magnitude=math.sqrt(value[1]^2+value[2]^2+value[3]^2+value[4]^2)
     assert(magnitude>1e-12 and magnitude<math.huge,'invalid rotation for '..e.name)
-    targets[i]=e.original*CFrame.new(0,0,0,value[1]/magnitude,value[2]/magnitude,value[3]/magnitude,value[4]/magnitude)
+    targets[i]=base*CFrame.new(0,0,0,value[1]/magnitude,value[2]/magnitude,value[3]/magnitude,value[4]/magnitude)
    end
   end
   for i,e in ipairs(entries) do
    e.joint.Transform=targets[i]
-   e.last=e.joint.Transform; e.written=true
+   e.base=bases[i]; e.last=e.joint.Transform; e.written=true
   end
  end
  function api:destroy()
@@ -55,7 +61,7 @@ function JointAdapter.new(bindings, options)
   local ok,err=pcall(function()
    for _,e in ipairs(entries) do
     if e.written then
-     if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=e.original else table.insert(conflicts,e.name) end
+     if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=if baseMode=='animated' then e.base else e.original else table.insert(conflicts,e.name) end
     end
    end
   end)

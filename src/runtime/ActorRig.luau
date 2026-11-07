@@ -2,10 +2,12 @@
 -- Experimental explicit-owner actor built from saved ObjectValue bindings.
 local ActorRig={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
-function ActorRig.new(folder,components)
+function ActorRig.new(folder,components,options)
  assert(typeof(folder)=='Instance' and folder:IsA('Folder') and folder.Parent and folder.Parent:IsA('Model'),'actor definition must be a folder in a model')
  assert(folder:GetAttribute('EditRigIK_ActorSchemaVersion')==1, 'unsupported actor definition schema')
  assert(type(components)=='table' and components.Actor and components.JointDrive and components.JointAdapter,'runtime components required')
+ options=options or {}
+ assert(type(options)=='table' and (options.baseMode==nil or options.baseMode=='fixed' or options.baseMode=='animated'),'invalid actor base mode')
  local refs=folder:GetChildren()
  table.sort(refs,function(a,b) return a.Name<b.Name end)
  local hingeConfigs,ballConfigs,bindings,seen={}, {}, {}, {}
@@ -51,7 +53,7 @@ function ActorRig.new(folder,components)
   table.insert(behaviors,{name='balls',type='ball',options={joints=ballConfigs}}); registry.ball=components.BallDrive.new
  end
  local actor=components.Actor.new({behaviors=behaviors},registry)
- local ok,adapter=pcall(components.JointAdapter.new,bindings,{exclusive=true})
+ local ok,adapter=pcall(components.JointAdapter.new,bindings,{exclusive=true,baseMode=options.baseMode})
  if not ok then actor:destroy(); error(adapter) end
  local dead=false
  local api={}
