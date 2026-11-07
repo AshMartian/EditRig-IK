@@ -4,6 +4,7 @@
     "$className": "DataModel",
     "EditRigIKRuntime": {
       "$path": "src/runtime/Runtime.luau",
+      "ChainAdapter": { "$path": "src/runtime/ChainAdapter.luau" },
       "ActorRig": { "$path": "src/runtime/ActorRig.luau" },
       "JointAdapter": { "$path": "src/runtime/JointAdapter.luau" },
       "JointDrive": { "$path": "src/runtime/JointDrive.luau" },

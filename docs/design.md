@@ -21,7 +21,7 @@ The experimental model is `Workspace.Dino Auto` in Prehistoric Rumble, place 937
 `ProceduralModule:IkLegStep` initializes PreviousPos to world origin and moves targets in two discrete jumps, midpoint then endpoint. The outer script alternates legs on 0.5-second waits. These are concrete candidates for visible discontinuity, but no reproduction or visual test has established causation. The model has not been modified. Preserve the original and do not change the shared ProceduralModule when experimenting with the clone without verifying impact on Dino base.
 
 ## Current solver prototype
-The portable CCD core and numerical limit handling are implemented and packaged separately from the metadata editor. Its API and coordinate conventions are in [runtime.md](runtime.md). Pole control, chain IK adapters, runtime ownership arbitration, UI integration and real-rig validation remain open. A manual single-axis joint adapter exists for isolated Motor6D and Bone controls.
+The portable CCD core and numerical limit handling are implemented and packaged separately from the metadata editor. Its API and coordinate conventions are in [runtime.md](runtime.md). An explicit position-only chain adapter and a manual single-axis joint adapter exist for Motor6D and Bone fixtures. Pole control, automatic chain discovery, runtime ownership arbitration, IK UI integration and real-rig validation remain open.
 
 ## Procedural animation framework scope
 The plugin should guide creators from an existing model to a controllable actor: inspect the model, choose Motor6D or Bone chains, identify root and end effectors, choose a Humanoid or AnimationController as appropriate, validate missing/ambiguous connections, and configure limits and behavior. Avatar setup should respect the existing character hierarchy and animation system. Automatic mesh skinning, uploading or changing the original source asset is a separate operation and must not be implied by this workflow.
@@ -42,3 +42,6 @@ The prototype coordinator can now retain named scalar/boolean/vector control val
 
 ## Direct-control actor prototype
 The editor can generate an idle controller ModuleScript and a versioned folder containing ObjectValue references for configured Motor6D and Bone hinges. `Runtime.createActor` consumes that snapshot only after the caller explicitly acknowledges exclusive ownership. This is a single-axis direct-control path, not an IK actor setup, and ball joints are rejected rather than silently simplified. See runtime.md for the sequence and caveats.
+
+## Avatar compatibility
+Roblox's Avatar Joint Upgrade can use AnimationConstraints instead of Motor6Ds for player avatars. The current direct-control and IK chain adapters support Motor6D and Bone only; they must detect and clearly report unsupported avatar joint types instead of claiming generic avatar compatibility. Design and integration tests for AnimationConstraint-based avatars are still needed. Roblox reference: https://create.roblox.com/docs/reference/engine/classes/Motor6D/Transform

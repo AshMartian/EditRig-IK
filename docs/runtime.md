@@ -1,6 +1,6 @@
 # Experimental runtime core
 
-`build/current/EditRigIKRuntime.rbxm` contains a ModuleScript and its `Solver` and `Limits` children. Place the module where your scripts can require it, for example in ReplicatedStorage. It is an experimental mathematical solver, not yet a Motor6D/Bone adapter; the CCD solver does not discover instances, read the editor's attributes, manage Animator, accept a pole, or generate driver scripts. A separate limited single-axis joint adapter is described below. Do not run it on the same joints as an IKControl without first implementing explicit ownership and update ordering.
+`build/current/EditRigIKRuntime.rbxm` contains a ModuleScript and its `Solver` and `Limits` children. Place the module where your scripts can require it, for example in ReplicatedStorage. Its experimental CCD solver supports an explicit Motor6D/Bone chain adapter; it does not discover chains, read the editor's attributes, manage Animator, accept a pole, or generate IK driver scripts. A separate limited single-axis joint adapter is described below. Do not run it on the same joints as an IKControl without first implementing explicit ownership and update ordering.
 
 ```lua
 local IK = require(game.ReplicatedStorage.EditRigIKRuntime)
@@ -23,7 +23,7 @@ print(result.converged, result.error, result.endpoint)
 
 Vectors are numeric `{x, y, z}` arrays and quaternions are `{x, y, z, w}`. `root` and target share one coordinate frame, whose orientation is identity. Joint `rest` is a quaternion relative to the previous joint's rotated frame; `rotation` is relative to that rest frame. `offset` is the vector from this joint to the next joint (or final endpoint) in this joint's rotated frame. Limits are in the joint's rest frame, in **radians**. A hinge has `axis`, `lower`, and `upper`; a ball has those fields plus `swing` (cone half-angle). For a model with nonidentity root orientation, an adapter must transform the target and geometry into this frame and translate results back consistently.
 
-The solver uses CCD and applies limits to the initial rotation and after each joint update. It returns `rotations`, `endpoint`, `error`, actual `iterations`, and `converged`. `iterations` must be an integer in 1–1000; tolerance is finite and nonnegative. Invalid axes, ranges, rotations, or zero-length links are rejected. A missed target can be unreachable, constrained, singular or simply not converged; the current diagnostic does not distinguish these cases. There is no pole vector or preferred bend direction, so ambiguous poses can flip. The mathematical tests do not establish compatibility with Roblox's animation update order or real rig transforms.
+The solver uses CCD and applies limits to the initial rotation and after each joint update. It returns `rotations`, `endpoint`, `error`, actual `iterations`, and `converged`. `iterations` must be an integer in 1–1000; tolerance is finite and nonnegative. Invalid axes, ranges, rotations, or zero-length links are rejected. A missed target can be unreachable, constrained, singular or simply not converged; the current diagnostic does not distinguish these cases. There is no pole vector or preferred bend direction, so ambiguous poses can flip. Isolated Studio fixtures have exercised both chain types, but these tests do not establish compatibility with Animator, real skinned meshes, or a live rig.
 
 ## Experimental behavior coordinator
 
@@ -83,3 +83,23 @@ local conflicts = controller.stop() -- restores transforms it still owns
 ```
 
 `exclusive = true` is the caller's assertion, not an automatic lock. The actor does not connect an update event, stop itself on model removal, solve IK, assign network ownership or replicate input. Its controls are local to the environment requiring the controller. An error during `step` can occur after behavior state and impulse queues advance; handle errors and shut down deliberately rather than retrying blindly. The generated definition copies limit values; it does not watch the source joint attributes. Tests used unparented fixture models with source modules, not an animated avatar, a skinned mesh, the installed plugin UI, or the packaged runtime.
+
+
+## Experimental explicit IK chain
+
+`IK.createIKChain(joints, endpointLocal, {exclusive = true, limits = limits})` creates a manual, position-only chain. `joints` must be an ordered, nonempty array of connected Motor6Ds or directly parented Bones, with no mixed types. For a Motor6D chain, `endpointLocal` is a Vector3 in the last joint's Part1 space; for Bones it is in the last Bone's transformed local space. The adapter derives link offsets and rest orientations, converts a world-space target into the chain root frame, runs CCD, and applies the returned rotations to `Transform`. `limits[i]`, when supplied, follows the numerical solver's hinge/ball format and uses radians and the joint's local rest frame.
+
+```lua
+local chain = IK.createIKChain({hipMotor, kneeMotor}, Vector3.new(0, -1, 0), {
+    exclusive = true,
+    limits = {
+        {kind = 'Ball', axis = {0, 1, 0}, swing = math.rad(70), lower = math.rad(-30), upper = math.rad(30)},
+        {kind = 'Hinge', axis = {1, 0, 0}, lower = 0, upper = math.rad(100)},
+    },
+})
+local result = chain:solve(target.WorldPosition, {iterations = 30, tolerance = 0.01})
+print(result.converged, result.error, result.endpointWorld)
+local conflicts = chain:destroy()
+```
+
+This is an explicit ownership assertion, not a lock. Existing Animator, IKControl, and other writers must be managed by the caller; neither the direct actor nor another chain may write the same transforms. The adapter rejects translated joint `Transform`s, zero-length offsets, disconnected chains, changed rest geometry, and externally changed transforms. It applies the best result even when `converged` is false, so callers must inspect diagnostics. Restore reports indices of joints overwritten by someone else and leaves those transforms alone. It does not connect an update loop or manage replication. Animator timing, real physics, skinned mesh deformation, live Dino Auto, editor integration, poles and preferred bending remain unverified or unimplemented. The joint limit axes in the example are illustrative only.
