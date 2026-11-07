@@ -12,6 +12,7 @@ local AxisGizmo = require(script.AxisGizmo)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
 local RuntimeInstaller = require(script.RuntimeInstaller)
 local InputProfileBuilder = require(script.InputProfileBuilder)
+local GaitExampleInstaller = require(script.GaitExampleInstaller)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -289,6 +290,24 @@ createInput.MouseButton1Click:Connect(function()
     end)
     if not inserted then context:Destroy(); status.Text='Cannot create input template: '..tostring(err); return end
     status.Text='Disabled input template created. Clone under the local player, bind, then enable explicitly.'
+end)
+local gaitExample=Instance.new('TextButton')
+gaitExample.Size=UDim2.new(1,0,0,32); gaitExample.BackgroundColor3=Color3.fromRGB(61,109,172)
+gaitExample.TextColor3=Color3.new(1,1,1); gaitExample.Text='Add disabled Dino smooth-gait example'
+gaitExample.Font=Enum.Font.SourceSansBold; gaitExample.TextSize=15; order(gaitExample); gaitExample.Parent=root
+gaitExample.MouseButton1Click:Connect(function()
+    local items=Selection:Get()
+    local model=if #items==1 then items[1] else nil
+    local ok,copy=pcall(GaitExampleInstaller.prepare,model,script.DinoGaitExample)
+    if not ok then status.Text='Cannot add gait example: '..tostring(copy); return end
+    local inserted,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before add disabled gait example')
+        assert(not model:FindFirstChild(copy.Name),'gait example already exists')
+        copy.Parent=model
+        ChangeHistoryService:SetWaypoint('Add disabled gait example')
+    end)
+    if not inserted then copy:Destroy(); status.Text='Cannot add gait example: '..tostring(err); return end
+    status.Text='Disabled example added. Review setup before enabling; install runtime and stop the old gait first.'
 end)
 
 -- Select each item in Explorer, then capture it explicitly so selection order

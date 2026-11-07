@@ -46,9 +46,9 @@ A new or retargeted swing starts from the target's current world position. `step
 
 ## Dino Auto smooth-gait experiment
 
-[The editable example](../examples/DinoSmoothGait.luau) alternates two anchored targets named like Dino Auto's existing targets. It raycasts below each ray part, steps only when the ground point is far enough from that foot's last planted position, and holds the opposite foot while swinging. It starts with each target's current position, avoiding the old world-origin initialization. The example is a ModuleScript source file, not an automatically installed or started controller.
+[The editable example](../examples/DinoSmoothGait.luau) alternates two anchored targets named like Dino Auto's existing targets. It raycasts below each ray part, steps only when the ground point is far enough from that foot's last planted position, and holds the opposite foot while swinging. It starts with each target's current position, avoiding the old world-origin initialization. The plugin can insert it as an editable, disabled example: select a compatible model and choose **Add disabled Dino smooth-gait example**. It inserts `EditRigIKSmoothGaitExample` with a child `DinoSmoothGait` ModuleScript and refuses to overwrite an existing example. The button has not yet been tested interactively. The example is not started automatically.
 
-For an isolated live comparison, copy the example into a ModuleScript named `DinoSmoothGait`, require it from an explicit controller script, and use the updated installed runtime:
+For an isolated live comparison, install the updated runtime, add the disabled example using the button, and review its settings. The inserted script requires its child ModuleScript and explicitly steps the gait. The following shows the same pattern for a custom controller:
 
 ```lua
 local RunService = game:GetService('RunService')
@@ -64,7 +64,7 @@ end)
 -- update:Disconnect(); gait:destroy()
 ```
 
-Disable the old model script before starting this experiment: both would otherwise write the targets. That script also controls movement, orientation, pole assignment, and helper visibility, so disabling it affects those behaviors; this example deliberately does not replace them. Set poles and character movement separately if needed. After stopping the example, re-enable the original script to restore the original gait. Avoid changing the shared `ProceduralModule` for a comparison. This example is a minimal fixed-up-vector gait, not a full locomotion system: it has no obstacle or slope adaptation, target reachability check, time-based velocity prediction, multi-leg support, networking policy, or limit enforcement. It has been tested on a detached Dino Auto clone with controlled ground samples, not rendered in live play.
+Disable the old model script before starting this experiment: both would otherwise write the targets. The bundled runner checks a direct child named `Script` and refuses to start if that script is enabled; it cannot discover every possible writer. Stop Play to fully end the comparison and release its runtime state. That script also controls movement, orientation, pole assignment, and helper visibility, so disabling it affects those behaviors; this example deliberately does not replace them. Set poles and character movement separately if needed. After stopping the example, re-enable the original script to restore the original gait. Avoid changing the shared `ProceduralModule` for a comparison. This example is a minimal fixed-up-vector gait, not a full locomotion system: it has no obstacle or slope adaptation, target reachability check, time-based velocity prediction, multi-leg support, networking policy, or limit enforcement. It has been tested on a detached Dino Auto clone with controlled ground samples, not rendered in live play.
 
 ## Experimental footstep target trajectory
 

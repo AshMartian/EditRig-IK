@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 root = Path(__file__).resolve().parents[1]
 rojo = os.environ.get('ROJO_BIN', 'rojo')
 expected = {
-    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'LimitGeometry', 'PreviewSession', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder'}),
+    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'LimitGeometry', 'PreviewSession', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder', 'GaitExampleInstaller', 'DinoGaitExample'}),
     'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'InputBindings', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'TargetStepper', 'Ownership', 'Limits', 'Solver'}),
 }
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:
@@ -28,6 +28,9 @@ with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:
         assert actual==children, f'{project} child modules differ: {actual ^ children}'
     plugin=roots['plugin.project.json']
     runtime=roots['runtime.project.json']
+    gait=next(x for x in plugin.findall('./Item') if item_name(x)=='DinoGaitExample')
+    assert gait.get('class')=='Script' and gait.find('./Properties/bool[@name="Disabled"]').text=='true', 'gait template must be a disabled Script'
+    assert any(item_name(x)=='DinoSmoothGait' and x.get('class')=='ModuleScript' for x in gait.findall('./Item')), 'editable gait module missing'
     bundle=next(x for x in plugin.findall('./Item') if item_name(x)=='RuntimeBundle')
     assert bundle.get('class')=='ModuleScript'
     def source(item):

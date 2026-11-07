@@ -38,6 +38,14 @@
     "InputProfileBuilder": {
       "$path": "src/plugin/InputProfileBuilder.luau"
     },
+    "GaitExampleInstaller": {
+      "$path": "src/plugin/GaitExampleInstaller.luau"
+    },
+    "DinoGaitExample": {
+      "$path": "src/plugin/DinoGaitExample.server.luau",
+      "$properties": {"Disabled": true},
+      "DinoSmoothGait": {"$path": "examples/DinoSmoothGait.luau"}
+    },
     "RuntimeBundle": {
       "$path": "src/runtime/Runtime.luau",
       "ChainDefinition": {"$path": "src/runtime/ChainDefinition.luau"},
