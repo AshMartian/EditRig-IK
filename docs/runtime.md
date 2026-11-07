@@ -108,6 +108,22 @@ The coordinator provides `actor:setControl(name, value)`, `actor:clearControl(na
 A gameplay input handler can call `actor:setControl('JawOpen', 1)` when a button is pressed and `actor:setControl('JawOpen', 0)` when released. A behavior must explicitly consume that name and implement the joint response. `JointDrive` accepts scalar angular-velocity impulses; other behaviors may define other message formats. These messages are not Roblox physics impulses. An eventual authoring flow will define the mapping and units. Network replication and authorization are not supplied.
 
 
+## Binding Roblox InputActions
+
+`IK.InputBindings.new(actor)` connects existing Bool `InputAction` instances to the actor's named controls. The action's `InputContext` and `InputBinding` objects still define the actual keyboard, gamepad, or GUI inputs. Set those up on the client using Roblox's [Input Action System](https://create.roblox.com/docs/input/input-action-system). For example, in a LocalScript after starting the actor:
+
+```lua
+local inputs = IK.InputBindings.new(actor)
+inputs:bindHold(actions.Bite, 'Jaw', 1)       -- 1 while held; 0 when released
+inputs:bindImpulse(actions.Snap, 'JawImpulse', 1) -- once on each press
+-- In the chosen update loop: actor:step(dt)
+-- On cleanup, disconnect the loop and then:
+inputs:destroy()
+controller.stop()
+```
+
+`bindHold` synchronizes an already-held action immediately and accepts a value in `[-1, 1]`. It resets an active control to zero on release or cleanup. `bindImpulse` sends a finite scalar or three-number vector only on a new press; its meaning is defined by the receiving behavior. Both return an individual handle with `destroy()`. A binding closes if its action is destroyed or changes away from Bool; one manager rejects duplicate hold bindings for the same control. Other managers and scripts can still write that control, so the caller must coordinate them. Destroy bindings before destroying the actor. This does not create input actions or UI, connect the actor update loop, authorize server actions, or replicate input. A Studio fixture used scriptable InputBindings; actual keyboard, gamepad, touch and multiplayer behavior remain unverified.
+
 ## Experimental direct joint control
 
 `IK.JointDrive.new(options)` is a behavior factory for the actor registry. Each binding has a `name`, scalar `control`, optional scalar `impulse`, lower/upper angles in radians enclosing zero, and a positive `frequency` in inverse seconds. A control in `[-1,1]` maps to the corresponding angular limit; out-of-range controls are clamped. An impulse adds angular velocity (radians/second) to a critically damped offset; input and accumulated velocity are clamped to ±100. The combined output is clamped to the joint limits. The behavior returns a map of joint names to angles and never modifies instances itself.

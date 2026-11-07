@@ -42,6 +42,7 @@
       "ActorRig": {"$path": "src/runtime/ActorRig.luau"},
       "JointAdapter": {"$path": "src/runtime/JointAdapter.luau"},
       "JointDrive": {"$path": "src/runtime/JointDrive.luau"},
+      "InputBindings": {"$path": "src/runtime/InputBindings.luau"},
       "StepTrajectory": {"$path": "src/runtime/StepTrajectory.luau"},
       "FootstepBehavior": {"$path": "src/runtime/FootstepBehavior.luau"},
       "FootstepChain": {"$path": "src/runtime/FootstepChain.luau"},

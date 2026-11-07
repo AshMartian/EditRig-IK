@@ -17,6 +17,9 @@
     "JointDrive": {
       "$path": "src/runtime/JointDrive.luau"
     },
+    "InputBindings": {
+      "$path": "src/runtime/InputBindings.luau"
+    },
     "StepTrajectory": {
       "$path": "src/runtime/StepTrajectory.luau"
     },
