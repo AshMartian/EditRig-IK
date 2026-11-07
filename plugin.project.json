@@ -41,6 +41,9 @@
     "GaitExampleInstaller": {
       "$path": "src/plugin/GaitExampleInstaller.luau"
     },
+    "JointBatch": {
+      "$path": "src/plugin/JointBatch.luau"
+    },
     "DinoGaitExample": {
       "$path": "src/plugin/DinoGaitExample.server.luau",
       "$properties": {"Disabled": true},

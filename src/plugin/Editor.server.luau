@@ -13,6 +13,7 @@ local LimitGeometry = require(script.LimitGeometry).new(Config)
 local RuntimeInstaller = require(script.RuntimeInstaller)
 local InputProfileBuilder = require(script.InputProfileBuilder)
 local GaitExampleInstaller = require(script.GaitExampleInstaller)
+local JointBatch = require(script.JointBatch)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -127,6 +128,10 @@ apply.Font = Enum.Font.SourceSansBold
 apply.TextSize = 16
 order(apply)
 apply.Parent = root
+local applyBatch=Instance.new('TextButton')
+applyBatch.Size=UDim2.new(1,0,0,32); applyBatch.BackgroundColor3=Color3.fromRGB(61,109,172)
+applyBatch.TextColor3=Color3.new(1,1,1); applyBatch.Text='Apply displayed settings to selected joints'
+applyBatch.Font=Enum.Font.SourceSansBold; applyBatch.TextSize=15; order(applyBatch); applyBatch.Parent=root
 local createActor = Instance.new('TextButton')
 createActor.Size = UDim2.new(1, 0, 0, 32)
 createActor.BackgroundColor3 = Color3.fromRGB(61, 109, 172)
@@ -210,7 +215,7 @@ local function refresh()
         status.Text = ''
     else
         current = nil
-        selectedLabel.Text = 'Select exactly one Motor6D or Bone in Explorer.'
+        selectedLabel.Text = if #items>1 then tostring(#items)..' selected. Form retains prior values; bulk applies displayed settings.' else 'Select one Motor6D or Bone in Explorer.'
         status.Text = ''
     end
 end
@@ -235,6 +240,19 @@ apply.MouseButton1Click:Connect(function()
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
     status.Text = 'Saved to ' .. item.Name .. '. Recreate the actor definition to include changes.'
+end)
+applyBatch.MouseButton1Click:Connect(function()
+    local items=Selection:Get()
+    local settings={kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,impulseKey=fields.impulseKey.Text}
+    local ok,entries=pcall(JointBatch.prepare,items,settings,Config,InputProfileBuilder)
+    if not ok then status.Text='Cannot apply joint settings: '..tostring(entries); return end
+    local saved,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before batch EditRig IK settings')
+        JointBatch.apply(entries)
+        ChangeHistoryService:SetWaypoint('Batch EditRig IK settings')
+    end)
+    if not saved then status.Text='Batch save failed: '..tostring(err); return end
+    status.Text='Saved '..#entries..' joints. Refresh actor and chain snapshots to use the changes.'
 end)
 
 createActor.MouseButton1Click:Connect(function()
