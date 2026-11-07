@@ -60,7 +60,15 @@ function ChainDefinition.new(definition,options,createChain)
     settings[key]=value
    end
   end
-  return chain:solve(target,settings)
+  local result=chain:solve(target,settings)
+  if type(result)=='table' and type(result.limitedJoints)=='table' then
+   result.limitedJointNames={}
+   for i,index in ipairs(result.limitedJoints) do
+    assert(joints[index],'solver returned an invalid joint index')
+    result.limitedJointNames[i]=joints[index].Name
+   end
+  end
+  return result
  end
  function api:destroy() return chain:destroy() end
  return api
