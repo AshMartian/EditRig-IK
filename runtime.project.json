@@ -4,6 +4,8 @@
     "$className": "DataModel",
     "EditRigIKRuntime": {
       "$path": "src/runtime/Runtime.luau",
+      "JointAdapter": { "$path": "src/runtime/JointAdapter.luau" },
+      "JointDrive": { "$path": "src/runtime/JointDrive.luau" },
       "Actor": { "$path": "src/runtime/Actor.luau" },
       "Limits": { "$path": "src/shared/Limits.luau" },
       "Solver": { "$path": "src/shared/Solver.luau" }
