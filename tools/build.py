@@ -10,7 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build'
-source = sorted([ROOT / 'plugin.project.json', ROOT / 'runtime.project.json', *ROOT.glob('src/**/*.luau'), *ROOT.glob('tests/**/*.luau'), *ROOT.glob('tests/**/*.py'), ROOT / 'tools/build.py'])
+source = sorted([ROOT / 'plugin.project.json', ROOT / 'runtime.project.json', *ROOT.glob('src/**/*.luau'), *ROOT.glob('examples/**/*.luau'), *ROOT.glob('tests/**/*.luau'), *ROOT.glob('tests/**/*.py'), ROOT / 'tools/build.py'])
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 fingerprint = hashlib.sha256()
@@ -21,7 +21,7 @@ compiler = os.environ.get('LUAU_COMPILE_BIN', 'luau-compile')
 rojo = os.environ.get('ROJO_BIN', 'rojo')
 commands = [['python3', 'tests/test_packaging.py']]
 commands += [[luau, str(path.relative_to(ROOT))] for path in sorted(ROOT.glob('tests/*.luau'))]
-commands += [[compiler, str(path.relative_to(ROOT))] for path in sorted([*ROOT.glob('src/**/*.luau'), *ROOT.glob('tests/studio/*.luau')])]
+commands += [[compiler, str(path.relative_to(ROOT))] for path in sorted([*ROOT.glob('src/**/*.luau'), *ROOT.glob('examples/**/*.luau'), *ROOT.glob('tests/studio/*.luau')])]
 BUILD.mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='.stage-', dir=BUILD) as temp:
     stage = Path(temp)

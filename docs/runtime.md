@@ -44,6 +44,28 @@ mover:destroy()
 
 A new or retargeted swing starts from the target's current world position. `step(0)` is useful for checking the starting position; `step(dt)` moves it along the smooth trajectory. Part targets must remain anchored; attachments can have a moving parent. The driver detects local position writes or reparenting between calls and refuses to overwrite them. Runtime ownership prevents two drivers from the same runtime claiming a target, but cannot prevent other scripts or another runtime from writing between checks. Destroy releases the claim and leaves the target where it is. Orientation is not driven, so Transform-type IKControls retain their existing orientation behavior. This has only been tested on isolated Studio instances, not in live play or on Dino Auto.
 
+## Dino Auto smooth-gait experiment
+
+[The editable example](../examples/DinoSmoothGait.luau) alternates two anchored targets named like Dino Auto's existing targets. It raycasts below each ray part, steps only when the ground point is far enough from that foot's last planted position, and holds the opposite foot while swinging. It starts with each target's current position, avoiding the old world-origin initialization. The example is a ModuleScript source file, not an automatically installed or started controller.
+
+For an isolated live comparison, copy the example into a ModuleScript named `DinoSmoothGait`, require it from an explicit controller script, and use the updated installed runtime:
+
+```lua
+local RunService = game:GetService('RunService')
+local IK = require(game.ReplicatedStorage.EditRigIKRuntime)
+local SmoothGait = require(script.DinoSmoothGait) -- adjust to the ModuleScript location
+local gait = SmoothGait.new(script.Parent, IK, {
+    distance = 2, forward = 2, height = 1, duration = 0.3,
+})
+local update = RunService.Heartbeat:Connect(function(dt)
+    gait:step(dt)
+end)
+-- To stop the experiment, disconnect first, then release target ownership:
+-- update:Disconnect(); gait:destroy()
+```
+
+Disable the old model script before starting this experiment: both would otherwise write the targets. That script also controls movement, orientation, pole assignment, and helper visibility, so disabling it affects those behaviors; this example deliberately does not replace them. Set poles and character movement separately if needed. After stopping the example, re-enable the original script to restore the original gait. Avoid changing the shared `ProceduralModule` for a comparison. This example is a minimal fixed-up-vector gait, not a full locomotion system: it has no obstacle or slope adaptation, target reachability check, time-based velocity prediction, multi-leg support, networking policy, or limit enforcement. It has been tested on a detached Dino Auto clone with controlled ground samples, not rendered in live play.
+
 ## Experimental footstep target trajectory
 
 `IK.StepTrajectory.new` generates one continuous swing target from a caller-supplied start to a target in the same coordinate frame. It accepts numeric three-element arrays, a nonzero up direction, a nonnegative lift height and a positive duration in seconds. Horizontal travel and lift have zero endpoint velocity. `advance(dt)` returns a fresh position array, completion flag and normalized progress; `sample(time)` evaluates without changing the trajectory's elapsed time. Calls clamp at the endpoint. Create a new trajectory for the next step using the current position as its start.
