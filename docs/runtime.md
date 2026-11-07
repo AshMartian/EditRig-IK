@@ -25,6 +25,22 @@ Vectors are numeric `{x, y, z}` arrays and quaternions are `{x, y, z, w}`. `root
 
 The solver uses CCD and applies limits to the initial rotation and after each joint update. It returns `rotations`, `endpoint`, `error`, actual `iterations`, and `converged`. `iterations` must be an integer in 1–1000; tolerance is finite and nonnegative. Optional `maxStep` limits each joint's correction per iteration in radians, greater than zero and at most pi; it defaults to pi. This limits a solver iteration, not the total change per frame or a time-based smoothing speed. Invalid axes, ranges, rotations, or zero-length links are rejected. A missed target can be unreachable, constrained, singular or simply not converged; the current diagnostic does not distinguish these cases. There is no pole vector or preferred bend direction, so ambiguous poses can flip. Isolated Studio fixtures have exercised both chain types, but these tests do not establish compatibility with Animator, real skinned meshes, or a live rig.
 
+## Experimental footstep target trajectory
+
+`IK.StepTrajectory.new` generates one continuous swing target from a caller-supplied start to a target in the same coordinate frame. It accepts numeric three-element arrays, a nonzero up direction, a nonnegative lift height and a positive duration in seconds. Horizontal travel and lift have zero endpoint velocity. `advance(dt)` returns a fresh position array, completion flag and normalized progress; `sample(time)` evaluates without changing the trajectory's elapsed time. Calls clamp at the endpoint. Create a new trajectory for the next step using the current position as its start.
+
+```lua
+local swing = IK.StepTrajectory.new({
+    start = {foot.X, foot.Y, foot.Z}, target = {goal.X, goal.Y, goal.Z},
+    up = {0, 1, 0}, height = 0.5, duration = 0.3,
+})
+-- Call from your explicitly scheduled update loop:
+local point, done = swing:advance(dt)
+local result = leg:solve(Vector3.new(point[1], point[2], point[3]))
+```
+
+This is a target generator, not a complete gait or a fix for Dino Auto: it does not select footholds, raycast, coordinate legs, manage IK ownership, or ensure the target is reachable. The caller handles the update loop, target selection, diagnostics and animation conflicts. Isolated Motor6D and Bone fixture chains have followed sampled targets; live or visible motion has not been validated.
+
 ## Experimental behavior coordinator
 
 `IK.Actor.new(definition, registry)` creates independent behavior instances. Each registry entry is a factory called with a private copy of the behavior's `options`; it returns a table with `step(input, dt)` and optional `destroy(self)`. The coordinator calls enabled behaviors in ascending `priority` (definition order breaks ties) and returns their named results. It does not yet blend, apply, replicate or resolve conflicts between results. The caller owns the update loop and must call `destroy` when finished.

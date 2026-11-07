@@ -17,6 +17,9 @@
     "JointDrive": {
       "$path": "src/runtime/JointDrive.luau"
     },
+    "StepTrajectory": {
+      "$path": "src/runtime/StepTrajectory.luau"
+    },
     "Ownership": {
       "$path": "src/runtime/Ownership.luau"
     },

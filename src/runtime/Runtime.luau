@@ -6,6 +6,7 @@ local engine = Solver.new(Limits)
 local Runtime = {}
 Runtime.Actor = require(script.Actor)
 Runtime.JointDrive = require(script.JointDrive)
+Runtime.StepTrajectory = require(script.StepTrajectory)
 local JointAdapter = require(script.JointAdapter)
 local ownership = require(script.Ownership).new()
 local function ownedOptions(options)
