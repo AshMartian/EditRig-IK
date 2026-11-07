@@ -41,13 +41,16 @@ function ChainDefinition.new(definition,options,createChain)
  if gain==nil then gain=1 end
  local maxSpeedDegrees=definition:GetAttribute('MaxSpeedDegrees')
  if maxSpeedDegrees==nil then maxSpeedDegrees=0 end
+ local baseMode=if options.baseMode~=nil then options.baseMode else definition:GetAttribute('BaseMode')
+ if baseMode==nil then baseMode='fixed' end
  assert(finite(iterations) and iterations%1==0 and iterations>=1 and iterations<=1000,'invalid iterations')
  assert(finite(tolerance) and tolerance>=0,'invalid tolerance')
  assert(finite(maxStepDegrees) and maxStepDegrees>0 and maxStepDegrees<=180,'invalid maximum correction angle')
  assert(finite(gain) and gain>0 and gain<=1,'invalid correction gain')
  assert(finite(maxSpeedDegrees) and maxSpeedDegrees>=0 and maxSpeedDegrees<=3600,'invalid maximum angular speed')
+ assert(baseMode=='fixed' or baseMode=='animated','invalid chain base mode')
  local endpointParent,endpointPosition=endpoint.Parent,endpoint.Position
- local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits,weights=weights})
+ local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits,weights=weights,baseMode=baseMode})
  local api={}
  function api:solve(target,overrides)
   assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')

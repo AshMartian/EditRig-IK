@@ -29,6 +29,12 @@ assert(limitedResult.solve.motionLimited,'footstep must forward dt to the author
 local actualEndpoint=(a.CFrame*j1.C0*j1.Transform*j1.C1:Inverse()*j2.C0*j2.Transform*j2.C1:Inverse()):PointToWorldSpace(tip.Position)
 assert((limitedResult.solve.endpointWorld-actualEndpoint).Magnitude<1e-5,'multi-joint diagnostics must match the applied pose')
 limited:destroy()
+def:SetAttribute('MaxSpeedDegrees',0)
+local overlay=FootstepChain.new({exclusive=true,baseMode='animated',start=Vector3.new(1,1,0),up=Vector3.yAxis,height=.1,duration=1},components)
+local animatedBase=CFrame.Angles(0,0,.2); j1.Transform=animatedBase
+assert(overlay:step(.1).solve.converged,'footstep must pass animated-base mode through the configured chain')
+assert(#overlay:destroy()==0 and j1.Transform:FuzzyEq(animatedBase,1e-5),'footstep cleanup must restore the latest base')
+j1.Transform=CFrame.identity
 assert(not pcall(function() FootstepChain.new({exclusive=true,start=Vector3.zero,up=Vector3.yAxis,height=.1,duration=0},components) end))
 local root=Instance.new('Bone'); root.Parent=a
 local child=Instance.new('Bone'); child.CFrame=CFrame.new(1,0,0); child.Parent=root

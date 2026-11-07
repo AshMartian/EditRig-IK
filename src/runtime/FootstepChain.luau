@@ -10,7 +10,7 @@ function FootstepChain.new(options,components)
  assert(type(options)=='table' and options.exclusive==true,'explicit exclusive ownership required')
  assert(type(components)=='table' and components.behavior and components.trajectory and type(components.createChain)=='function','footstep components required')
  local behavior=components.behavior.new({start=vector(options.start),up=vector(options.up),height=options.height,duration=options.duration,impulse='step'},components.trajectory)
- local chain=components.createChain({exclusive=true})
+ local chain=components.createChain({exclusive=true,baseMode=options.baseMode})
  local pending=nil
  local dead=false
  local api={}

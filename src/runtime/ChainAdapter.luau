@@ -24,6 +24,8 @@ end
 local function frame(q) return CFrame.new(0,0,0,q[1],q[2],q[3],q[4]) end
 function ChainAdapter.new(joints,endpointLocal,options,solver)
  assert(type(options)=='table' and options.exclusive==true,'explicit exclusive ownership required')
+ local baseMode=if options.baseMode==nil then 'fixed' else options.baseMode
+ assert(baseMode=='fixed' or baseMode=='animated','baseMode must be fixed or animated')
  assert(type(joints)=='table' and #joints>0 and validVector(endpointLocal),'joint chain and local endpoint required')
  assert(type(solver)=='table' and type(solver.solve)=='function','solver required')
  local first=joints[1]
@@ -35,7 +37,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   assert(typeof(j)=='Instance' and j.ClassName==kind and not seen[j],'chain must contain distinct joints of one type')
   seen[j]=true
   assert(j.Transform.Position.Magnitude<1e-7,'translated joint transforms are not supported')
-  local e={joint=j,original=j.Transform,last=j.Transform,written=false,parent=j.Parent}
+  local e={joint=j,original=j.Transform,base=j.Transform,last=j.Transform,written=false,parent=j.Parent}
   if kind=='Motor6D' then
    assert(j.Enabled and j.Part0 and j.Part1 and j.Part0~=j.Part1,'motor must connect distinct parts')
    if i>1 then assert(j.Part0==joints[i-1].Part1,'disconnected motor chain') else seenParts[j.Part0]=true end
@@ -70,9 +72,16 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
  function api:solve(target,solveOptions)
   assert(not dead,'chain is destroyed')
   assert(validVector(target),'target must be a finite Vector3')
-  for _,e in ipairs(entries) do
+  local rotations,bases={},{}
+  for i,e in ipairs(entries) do
    local j=e.joint
-   assert(j.Parent==e.parent and j.Transform:FuzzyEq(e.last,1e-5),'joint changed by another writer or reparented')
+   assert(j.Parent==e.parent,'joint changed by another writer or reparented')
+   local current=j.Transform
+   assert(current.Position.Magnitude<1e-7,'translated joint transforms are not supported')
+   if baseMode=='fixed' then assert(current:FuzzyEq(e.last,1e-5),'joint changed by another writer or reparented') end
+   local fresh=baseMode=='animated' and (not e.written or not current:FuzzyEq(e.last,1e-5))
+   rotations[i]=if fresh then current else e.last
+   bases[i]=if fresh then current else e.base
    if kind=='Motor6D' then
     assert(j.Enabled and j.Part0==e.p0 and j.Part1==e.p1 and j.C0:FuzzyEq(e.c0,1e-5) and j.C1:FuzzyEq(e.c1,1e-5),'motor geometry changed')
    else assert(j.CFrame:FuzzyEq(e.rest,1e-5),'bone geometry changed') end
@@ -97,7 +106,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
    local rel
    if kind=='Motor6D' then rel=e.c1:Inverse()*(if nextEntry then nextEntry.c0 else CFrame.new(endpointLocal))
    else rel=if nextEntry then nextEntry.rest else CFrame.new(endpointLocal) end
-   table.insert(data.joints,{rest=quaternion(prevRest),rotation=quaternion(e.last),offset=vector(rel.Position),limit=limits[i],weight=weights[i]})
+   table.insert(data.joints,{rest=quaternion(prevRest),rotation=quaternion(rotations[i]),offset=vector(rel.Position),limit=limits[i],weight=weights[i]})
    prevRest=rel.Rotation
   end
   local result=solver.solve(data,vector(relative),solverOptions)
@@ -106,14 +115,15 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   for i,q in ipairs(result.rotations) do
    local destination=frame(q)
    if speed then
-    local delta=quaternion(entries[i].last:Inverse()*destination)
+    local speedStart=if baseMode=='animated' and entries[i].written then entries[i].last else rotations[i]
+    local delta=quaternion(speedStart:Inverse()*destination)
     local angle=2*math.atan2(math.sqrt(delta[1]^2+delta[2]^2+delta[3]^2),math.abs(delta[4]))
     local cap=speed*dt
-    if angle>cap+1e-10 then destination=entries[i].last:Lerp(destination,cap/angle); motionLimited=true end
+    if angle>cap+1e-10 then destination=speedStart:Lerp(destination,cap/angle); motionLimited=true end
    end
    output[i]=destination
   end
-  for i,e in ipairs(entries) do e.joint.Transform=output[i]; e.last=e.joint.Transform; e.written=true; output[i]=e.last end
+  for i,e in ipairs(entries) do e.joint.Transform=output[i]; e.base=bases[i]; e.last=e.joint.Transform; e.written=true; output[i]=e.last end
   if motionLimited then
    result.solverError=result.error; result.solverConverged=result.converged
    local position=Vector3.zero; local orientation=CFrame.identity
@@ -138,7 +148,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   local ok,err=pcall(function()
    for i,e in ipairs(entries) do
     if e.written then
-     if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=e.original else table.insert(conflicts,i) end
+     if e.joint.Transform:FuzzyEq(e.last,1e-5) then e.joint.Transform=if baseMode=='animated' then e.base else e.original else table.insert(conflicts,i) end
     end
    end
   end)
