@@ -1,0 +1,22 @@
+local model=Instance.new('Model'); local a=Instance.new('Part'); a.Parent=model; local b=Instance.new('Part'); b.Parent=model
+local motor=Instance.new('Motor6D'); motor.Name='Elbow'; motor.Part0=a; motor.Part1=b; motor.Parent=a
+motor.C0=CFrame.new(1,2,3)*CFrame.Angles(.1,.2,.3); motor.C1=CFrame.new(-1,0,1)*CFrame.Angles(.3,.1,.2)
+motor:SetAttribute('EditRigIK_SchemaVersion',1); motor:SetAttribute('EditRigIK_Kind','Hinge'); motor:SetAttribute('EditRigIK_Axis','Y')
+motor:SetAttribute('EditRigIK_LowerDegrees',-10); motor:SetAttribute('EditRigIK_UpperDegrees',35); motor:SetAttribute('EditRigIK_SwingDegrees',90)
+local builder=IKHingeBuilder.new(Config)
+local prepared=builder.prepare(motor)
+assert(#a:GetChildren()==1 and #b:GetChildren()==0,'preparation must not mutate the rig')
+local constraint=builder.apply(prepared)
+assert(constraint:IsA('HingeConstraint') and constraint.Parent==b and constraint.Enabled and constraint.LimitsEnabled,'must create an enabled limited hinge')
+assert(constraint.LowerAngle==-10 and constraint.UpperAngle==35,'must preserve authored degree bounds')
+assert(constraint.Attachment0.Parent==a and constraint.Attachment1.Parent==b,'must connect motor parts')
+assert(constraint.Attachment0.CFrame:FuzzyEq(motor.C0*CFrame.Angles(0,0,math.pi/2),1e-5),'attachment0 must align axis in joint frame')
+assert(constraint.Attachment1.CFrame:FuzzyEq(motor.C1*CFrame.Angles(0,0,math.pi/2),1e-5),'attachment1 must align axis in joint frame')
+assert(not pcall(builder.prepare,motor),'must reject an existing constraint on the same parts')
+constraint.Attachment0:Destroy(); constraint.Attachment1:Destroy(); constraint:Destroy()
+local stale=builder.prepare(motor); motor.C0=CFrame.new(2,0,0)
+assert(not pcall(builder.apply,stale),'must reject changed joint geometry')
+assert(#a:GetChildren()==1 and #b:GetChildren()==0,'stale preparation must not leave partial objects')
+motor:SetAttribute('EditRigIK_Kind','Ball'); assert(not pcall(builder.prepare,motor),'ball conversion is not supported yet')
+model:Destroy()
+return 'Motor6D hinge preparation validates geometry and preserves axis and limits'
