@@ -103,3 +103,22 @@ local conflicts = chain:destroy()
 ```
 
 This is an explicit ownership assertion, not a lock. Existing Animator, IKControl, and other writers must be managed by the caller; neither the direct actor nor another chain may write the same transforms. The adapter rejects translated joint `Transform`s, zero-length offsets, disconnected chains, changed rest geometry, and externally changed transforms. It applies the best result even when `converged` is false, so callers must inspect diagnostics. Restore reports indices of joints overwritten by someone else and leaves those transforms alone. It does not connect an update loop or manage replication. Animator timing, real physics, skinned mesh deformation, live Dino Auto, editor integration, poles and preferred bending remain unverified or unimplemented. The joint limit axes in the example are illustrative only.
+
+
+## Authoring and opening an IK chain
+
+In the editor, save hinge or ball settings on every joint in the intended chain. Select the root joint and click **Set root joint**, select the end joint and click **Set end joint**, then select a regular Attachment directly under the final Motor6D's Part1 or final Bone and click **Set endpoint attachment**. Enter a chain name, CCD iteration limit and tolerance in studs, then click **Create idle IK chain definition**. The builder requires a single directed path and rejects ambiguous, cyclic, disconnected, mixed-type, or unconfigured chains. It creates a snapshot under the containing model's `EditRigIKChains` and an idle controller if one does not already exist. It does not overwrite an existing chain.
+
+With the runtime installed in ReplicatedStorage, and after resolving all competing writers:
+
+```lua
+local controller = require(model.EditRigIKController)
+local leg = controller.openChain('Leg', {exclusive = true})
+local result = leg:solve(target.WorldPosition) -- uses authored iteration/tolerance
+-- Optionally pass {iterations = 40, tolerance = 0.01} as the second argument.
+print(result.converged, result.error)
+-- Stop your update loop before restoring the owned transforms.
+local conflicts = leg:destroy()
+```
+
+Opening does not start an update loop, disable an IKControl, or prevent another chain or actor from taking the same joints. The creator must avoid overlap and manage scheduling and networking. Saved limits are snapshots, so recreate the definition after editing a joint. Changing or reparenting the endpoint after opening requires closing and reopening the chain. The helper supports only explicitly authored limits and position targets; pole/bend preference, visual previews, AnimationConstraint rigs and automatic conflict resolution are not implemented. The UI and packaged module have not been tested as installed plugins. Source-level Studio tests used isolated Motor6D and Bone fixtures, including ambiguous path and endpoint-change checks, not a live dinosaur or skinned mesh.

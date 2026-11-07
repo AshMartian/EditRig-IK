@@ -43,5 +43,7 @@ local boneEnd=a.CFrame*root.CFrame*root.Transform*child.CFrame*child.Transform*C
 assert((boneEnd.Position-target).Magnitude<0.002,'applied Bone transforms must reproduce target')
 assert(#boneChain:destroy()==0)
 assert(not pcall(function() ChainAdapter.new({j1,j2},Vector3.new(1,0,0),{},solver) end))
+local loop=Instance.new('Motor6D'); loop.Part0=b; loop.Part1=a; loop.Parent=b
+assert(not pcall(function() ChainAdapter.new({j1,loop},Vector3.new(1,0,0),{exclusive=true},solver) end),'cycles must be rejected')
 holder:Destroy()
 return 'Motor6D and Bone constrained chain adapter passed'

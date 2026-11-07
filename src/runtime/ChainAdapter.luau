@@ -20,6 +20,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
  assert(typeof(first)=='Instance' and (first:IsA('Motor6D') or first:IsA('Bone')),'expected Motor6D or Bone chain')
  local kind=first.ClassName
  local entries,seen={},{}
+ local seenParts={}
  for i,j in ipairs(joints) do
   assert(typeof(j)=='Instance' and j.ClassName==kind and not seen[j],'chain must contain distinct joints of one type')
   seen[j]=true
@@ -27,7 +28,9 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   local e={joint=j,original=j.Transform,last=j.Transform,written=false,parent=j.Parent}
   if kind=='Motor6D' then
    assert(j.Enabled and j.Part0 and j.Part1 and j.Part0~=j.Part1,'motor must connect distinct parts')
-   if i>1 then assert(j.Part0==joints[i-1].Part1,'disconnected motor chain') end
+   if i>1 then assert(j.Part0==joints[i-1].Part1,'disconnected motor chain') else seenParts[j.Part0]=true end
+   assert(not seenParts[j.Part1], 'cyclic motor chain')
+   seenParts[j.Part1]=true
    e.p0=j.Part0; e.p1=j.Part1; e.c0=j.C0; e.c1=j.C1
   else
    assert(j.Parent and (j.Parent:IsA('Bone') or j.Parent:IsA('BasePart')),'bone needs a Bone or BasePart parent')

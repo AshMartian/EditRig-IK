@@ -1,9 +1,10 @@
 --!strict
--- Authoring prototype only: stores metadata, does not run IK or alter poses.
+-- Authoring prototype: stores metadata and definitions without starting IK.
 local Selection = game:GetService('Selection')
 local ChangeHistoryService = game:GetService('ChangeHistoryService')
 local Config = require(script.Config)
 local Builder = require(script.DefinitionBuilder).new(Config)
+local ChainBuilder = require(script.ChainBuilder).new(Config)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKJointLimits', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 320, 430, 260, 350))
@@ -24,6 +25,11 @@ padding.PaddingTop = UDim.new(0, 10)
 padding.PaddingLeft = UDim.new(0, 10)
 padding.PaddingRight = UDim.new(0, 10)
 padding.Parent = root
+local nextOrder=0
+local function order(item: GuiObject)
+    nextOrder+=1
+    item.LayoutOrder=nextOrder
+end
 local function label(text: string, height: number): TextLabel
     local item = Instance.new('TextLabel')
     item.Size = UDim2.new(1, 0, 0, height)
@@ -34,11 +40,12 @@ local function label(text: string, height: number): TextLabel
     item.Font = Enum.Font.SourceSans
     item.TextSize = 16
     item.Text = text
+    order(item)
     item.Parent = root
     return item
 end
 local selectedLabel = label('Select one Motor6D or Bone in Explorer.', 38)
-local notice = label('Prototype: saves metadata only. Limits do not affect animation or IK yet.', 42)
+local notice = label('Prototype: saves settings and idle definitions. No animation starts automatically.', 42)
 notice.TextColor3 = Color3.fromRGB(255, 204, 111)
 local fields: {[string]: TextBox} = {}
 for _, entry in ipairs({{'kind','Type: Hinge or Ball'}, {'axis','Local axis: X, Y or Z'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing angle (degrees)'}}) do
@@ -52,6 +59,7 @@ for _, entry in ipairs({{'kind','Type: Hinge or Ball'}, {'axis','Local axis: X, 
     box.ClearTextOnFocus = false
     box.Font = Enum.Font.SourceSans
     box.TextSize = 16
+    order(box)
     box.Parent = root
     fields[entry[1]] = box
 end
@@ -62,6 +70,7 @@ apply.TextColor3 = Color3.new(1,1,1)
 apply.Text = 'Save limit metadata'
 apply.Font = Enum.Font.SourceSansBold
 apply.TextSize = 16
+order(apply)
 apply.Parent = root
 local createActor = Instance.new('TextButton')
 createActor.Size = UDim2.new(1, 0, 0, 32)
@@ -71,6 +80,7 @@ createActor.Text = 'Create direct-control actor from selected model'
 createActor.Font = Enum.Font.SourceSansBold
 createActor.TextSize = 15
 createActor.TextWrapped = true
+order(createActor)
 createActor.Parent = root
 local status = label('', 65)
 local current: Instance? = nil
@@ -112,16 +122,101 @@ createActor.MouseButton1Click:Connect(function()
     local selection=Selection:Get()
     local model=if #selection==1 then selection[1] else nil
     if not model or not model:IsA('Model') then status.Text='Select one model in Explorer to create an actor.'; return end
-    if model:FindFirstChild('EditRigIKActor') or model:FindFirstChild('EditRigIKController') then
-        status.Text='Actor or controller already exists. Remove or rename the existing objects before creating another.'; return
+    local existingController=model:FindFirstChild('EditRigIKController')
+    if model:FindFirstChild('EditRigIKActor') then status.Text='Actor already exists; remove or rename it before creating another.'; return end
+    if existingController and (not existingController:IsA('ModuleScript') or existingController:GetAttribute('EditRigIK_GeneratedControllerVersion')~=1) then
+        status.Text='An incompatible controller already exists; rename it before creating an actor.'; return
     end
     local ok,definition=pcall(Builder.create,model)
     if not ok then status.Text='Cannot create actor: '..tostring(definition); return end
-    local controller=script.GeneratedController:Clone()
-    controller.Name='EditRigIKController'
+    local controller=if existingController then nil else script.GeneratedController:Clone()
+    if controller then controller.Name='EditRigIKController'; controller:SetAttribute('EditRigIK_GeneratedControllerVersion',1) end
     ChangeHistoryService:SetWaypoint('Before create EditRig IK actor')
     definition.Parent=model
-    controller.Parent=model
+    if controller then controller.Parent=model end
     ChangeHistoryService:SetWaypoint('Create EditRig IK actor')
     status.Text='Created idle direct-control actor. Install the runtime and start it explicitly from a script.'
 end)
+
+-- Select each item in Explorer, then capture it explicitly so selection order
+-- never decides chain direction.
+local chainTitle=label('IK chain: capture root joint, end joint, then endpoint attachment.',42)
+local chainName=Instance.new('TextBox')
+chainName.Size=UDim2.new(1,0,0,28)
+chainName.BackgroundColor3=Color3.fromRGB(60,63,72)
+chainName.TextColor3=Color3.new(1,1,1)
+chainName.PlaceholderText='Chain name'; chainName.Text='Leg'; chainName.ClearTextOnFocus=false
+chainName.Font=Enum.Font.SourceSans; chainName.TextSize=16; order(chainName); chainName.Parent=root
+local function chainNumberField(labelText: string, default: string): TextBox
+    label(labelText,20)
+    local box=Instance.new('TextBox')
+    box.Size=UDim2.new(1,0,0,28); box.BackgroundColor3=Color3.fromRGB(60,63,72)
+    box.TextColor3=Color3.new(1,1,1); box.Text=default; box.ClearTextOnFocus=false
+    box.Font=Enum.Font.SourceSans; box.TextSize=16; order(box); box.Parent=root
+    return box
+end
+local iterationsField=chainNumberField('Maximum CCD iterations','30')
+local toleranceField=chainNumberField('Target tolerance (studs)','0.01')
+local chainStatus=label('No chain selections yet.',55)
+local chainFeedback: TextLabel
+local firstJoint: Instance?=nil
+local lastJoint: Instance?=nil
+local endpoint: Instance?=nil
+local function refreshChainStatus()
+    chainStatus.Text='Root: '..(if firstJoint then firstJoint.Name else '—')..'  |  End: '..(if lastJoint then lastJoint.Name else '—')..'  |  Endpoint: '..(if endpoint then endpoint.Name else '—')
+end
+local function chainButton(text: string): TextButton
+    local item=Instance.new('TextButton')
+    item.Size=UDim2.new(1,0,0,30); item.BackgroundColor3=Color3.fromRGB(61,109,172)
+    item.TextColor3=Color3.new(1,1,1); item.Text=text; item.Font=Enum.Font.SourceSansBold; item.TextSize=15
+    order(item); item.Parent=root
+    return item
+end
+local function selectedOne(): Instance?
+    local items=Selection:Get()
+    return if #items==1 then items[1] else nil
+end
+chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
+    local item=selectedOne()
+    if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the root.'; return end
+    firstJoint=item; refreshChainStatus()
+end)
+chainButton('Set end joint from selection').MouseButton1Click:Connect(function()
+    local item=selectedOne()
+    if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the end.'; return end
+    lastJoint=item; refreshChainStatus()
+end)
+chainButton('Set endpoint attachment from selection').MouseButton1Click:Connect(function()
+    local item=selectedOne()
+    if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the endpoint.'; return end
+    endpoint=item; refreshChainStatus()
+end)
+chainButton('Create idle IK chain definition').MouseButton1Click:Connect(function()
+    local first,last,tip=firstJoint,lastJoint,endpoint
+    if not first or not last or not tip then chainFeedback.Text='Capture the root, end and endpoint first.'; return end
+    local ancestor=first.Parent
+    local model=nil
+    while ancestor do
+        if ancestor:IsA('Model') and last:IsDescendantOf(ancestor) and tip:IsDescendantOf(ancestor) then model=ancestor; break end
+        ancestor=ancestor.Parent
+    end
+    if not model then chainFeedback.Text='Selections must share a model.'; return end
+    local container=model:FindFirstChild('EditRigIKChains')
+    if container and not container:IsA('Folder') then chainFeedback.Text='EditRigIKChains exists but is not a folder.'; return end
+    if container and container:FindFirstChild(chainName.Text) then chainFeedback.Text='That chain name already exists.'; return end
+    local existingController=model:FindFirstChild('EditRigIKController')
+    if existingController and (not existingController:IsA('ModuleScript') or existingController:GetAttribute('EditRigIK_GeneratedControllerVersion')~=1) then chainFeedback.Text='An incompatible controller exists; rename it before creating the chain.'; return end
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text)}
+    local ok,definition=pcall(ChainBuilder.create,model,first,last,tip,chainName.Text,options)
+    if not ok then chainFeedback.Text='Cannot create chain: '..tostring(definition); return end
+    ChangeHistoryService:SetWaypoint('Before create EditRig IK chain')
+    if not container then container=Instance.new('Folder'); container.Name='EditRigIKChains'; container.Parent=model end
+    definition.Parent=container
+    if not existingController then
+        local controller=script.GeneratedController:Clone(); controller.Name='EditRigIKController'; controller:SetAttribute('EditRigIK_GeneratedControllerVersion',1); controller.Parent=model
+    end
+    ChangeHistoryService:SetWaypoint('Create EditRig IK chain')
+    chainFeedback.Text='Created idle chain. Use the runtime API to start it after resolving joint ownership.'
+end)
+
+chainFeedback=label('',65)

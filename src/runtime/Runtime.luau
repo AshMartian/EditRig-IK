@@ -11,6 +11,10 @@ local ChainAdapter = require(script.ChainAdapter)
 function Runtime.createIKChain(joints, endpointLocal, options)
     return ChainAdapter.new(joints, endpointLocal, options, engine)
 end
+local ChainDefinition = require(script.ChainDefinition)
+function Runtime.createConfiguredIKChain(definition, options)
+    return ChainDefinition.new(definition, options, Runtime.createIKChain)
+end
 local ActorRig = require(script.ActorRig)
 function Runtime.createActor(definition, options)
     assert(type(options)=='table' and options.exclusive==true, 'explicit exclusive ownership is required')

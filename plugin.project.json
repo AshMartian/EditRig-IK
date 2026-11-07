@@ -4,6 +4,7 @@
     "$className": "DataModel",
     "EditRigIK": {
       "$path": "src/plugin/Editor.server.luau",
+      "ChainBuilder": { "$path": "src/plugin/ChainBuilder.luau" },
       "GeneratedController": { "$path": "src/plugin/GeneratedController.luau" },
       "DefinitionBuilder": { "$path": "src/plugin/DefinitionBuilder.luau" },
       "Config": { "$path": "src/shared/Config.luau" }
