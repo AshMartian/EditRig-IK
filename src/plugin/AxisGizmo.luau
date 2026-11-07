@@ -1,6 +1,13 @@
 --!strict
 -- Temporary rest-axis markers. Never parent them to the edited model.
 local AxisGizmo={}
+function AxisGizmo.toWorldSegments(frame,segments)
+ local result={}
+ for _,segment in ipairs(segments) do
+  table.insert(result,{frame:PointToWorldSpace(segment[1]),frame:PointToWorldSpace(segment[2])})
+ end
+ return result
+end
 function AxisGizmo.new(parent,geometry)
  local lines={}
  for _,spec in ipairs({
@@ -10,27 +17,25 @@ function AxisGizmo.new(parent,geometry)
  }) do
   local line=Instance.new('WireframeHandleAdornment')
   line.Name='EditRigIKAxis'..spec.name
-  line.Color3=spec.color; line.AlwaysOnTop=true; line.ZIndex=1
-  line:AddLine(Vector3.zero,spec.axis*1.5)
+  line.Color3=spec.color; line.Thickness=3; line.AlwaysOnTop=true; line.ZIndex=1
   line.Parent=parent
-  table.insert(lines,line)
+  table.insert(lines,{adornment=line,axis=spec.axis})
  end
  local limit=Instance.new('WireframeHandleAdornment')
  limit.Name='EditRigIKLimit'; limit.Color3=Color3.fromRGB(255,210,60)
  limit.Thickness=2; limit.AlwaysOnTop=true; limit.ZIndex=1; limit.Parent=parent
- local hasLimits=false
+ local segments=nil
  local dead=false
  local api={}
  function api:clear()
-  if not dead then for _,line in ipairs(lines) do line.Adornee=nil end; limit.Adornee=nil end
+  if not dead then for _,line in ipairs(lines) do line.adornment.Adornee=nil end; limit.Adornee=nil end
  end
  function api:setLimits(config)
   assert(not dead,'axis gizmo is destroyed')
-  local ok,segments=pcall(geometry.build,config)
-  limit:Clear(); limit.Adornee=nil; hasLimits=false
+  local ok,result=pcall(geometry.build,config)
+  limit:Clear(); limit.Adornee=nil; segments=nil
   if not ok then return false end
-  for _,segment in ipairs(segments) do limit:AddLine(segment[1],segment[2]) end
-  hasLimits=true
+  segments=result
   return true
  end
  function api:update(joint)
@@ -48,15 +53,22 @@ function AxisGizmo.new(parent,geometry)
    end
   end
   if not part or not frame then self:clear(); return false end
-  local offset=part.CFrame:ToObjectSpace(frame)
-  for _,line in ipairs(lines) do line.Adornee=part; line.CFrame=offset end
-  if hasLimits then limit.Adornee=part; limit.CFrame=offset end
+  for _,line in ipairs(lines) do
+   local adornment=line.adornment
+   adornment:Clear(); adornment.Adornee=nil
+   adornment:AddLine(frame.Position,frame:PointToWorldSpace(line.axis*1.5)); adornment.Adornee=part
+  end
+  if segments then
+   limit:Clear(); limit.Adornee=nil
+   for _,segment in ipairs(AxisGizmo.toWorldSegments(frame,segments)) do limit:AddLine(segment[1],segment[2]) end
+   limit.Adornee=part
+  end
   return true
  end
  function api:destroy()
   if dead then return end
   dead=true
-  for _,line in ipairs(lines) do line:Destroy() end
+  for _,line in ipairs(lines) do line.adornment:Destroy() end
   limit:Destroy()
  end
  return api
