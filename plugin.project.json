@@ -49,6 +49,7 @@
       "StepTrajectory": {"$path": "src/runtime/StepTrajectory.luau"},
       "FootstepBehavior": {"$path": "src/runtime/FootstepBehavior.luau"},
       "FootstepChain": {"$path": "src/runtime/FootstepChain.luau"},
+      "TargetStepper": {"$path": "src/runtime/TargetStepper.luau"},
       "Ownership": {"$path": "src/runtime/Ownership.luau"},
       "Actor": {"$path": "src/runtime/Actor.luau"},
       "Limits": {"$path": "src/shared/Limits.luau"},

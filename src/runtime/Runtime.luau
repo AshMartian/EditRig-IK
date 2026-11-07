@@ -32,6 +32,10 @@ function Runtime.createConfiguredIKChain(definition, options)
     return ChainDefinition.new(definition, options, Runtime.createIKChain)
 end
 local FootstepChain = require(script.FootstepChain)
+local TargetStepper = require(script.TargetStepper)
+function Runtime.createTargetStepper(target, options)
+    return TargetStepper.new(target, ownedOptions(options), Runtime.StepTrajectory)
+end
 function Runtime.createFootstepChain(definition, options)
     return FootstepChain.new(options, {behavior=FootstepBehavior,trajectory=Runtime.StepTrajectory,createChain=function(chainOptions)
         return Runtime.createConfiguredIKChain(definition,chainOptions)

@@ -25,6 +25,25 @@ Vectors are numeric `{x, y, z}` arrays and quaternions are `{x, y, z, w}`. `root
 
 The solver uses CCD and applies limits to the initial rotation and after each joint update. It returns `rotations`, `endpoint`, `error`, actual `iterations`, and `converged`. `iterations` must be an integer in 1–1000; tolerance is finite and nonnegative. Optional `maxStep` limits each joint's correction per iteration in radians, greater than zero and at most pi; it defaults to pi. This limits a solver iteration, not the total change per frame or a time-based smoothing speed. An optional numeric `pole` point uses the same frame as the target and requests a bend direction. For a nearly straight chain with a closer collinear target, a small limit-respecting root rotation seeds a bend toward the pole before CCD. After CCD, the solver rotates the root around the root-to-end axis to steer the first bend toward the pole, bounded by `maxStep` and root limits. It rejects a correction that worsens endpoint error. The seed and pole adjustment are additional corrections, so `maxStep` is not a cap on the entire solve. `poleStatus` reports `none`, `applied`, `aligned`, `blocked`, or `degenerate`; `applied` does not promise full alignment. A pole on the root-to-end axis or constrained joint can remain degenerate, and this heuristic does not guarantee stable bends or remove every flip. Individual zero-length links are allowed for coincident pivots, but a chain with no nonzero links is rejected. Invalid axes, ranges and rotations are rejected. A missed target can be unreachable, constrained, singular or simply not converged; the current diagnostic does not distinguish these cases. Isolated Studio fixtures have exercised both chain types, but these tests do not establish compatibility with Animator, real skinned meshes, or a live rig.
 
+## Smooth target motion for an existing IKControl
+
+`IK.createTargetStepper(target, options)` drives an existing anchored BasePart or Attachment in world space. It can move the target of a built-in IKControl without taking over its joints. It does not find ground, schedule alternating feet, or disable the existing gait script; the caller must ensure that script and other writers are not moving the same target. Roblox's [IKControl documentation](https://create.roblox.com/docs/reference/engine/classes/IKControl) describes the supported target and pole relationships.
+
+```lua
+local IK = require(game.ReplicatedStorage.EditRigIKRuntime)
+local mover = IK.createTargetStepper(targetPartOrAttachment, {
+    exclusive = true, up = Vector3.yAxis, height = 1, duration = 0.3,
+})
+mover:requestStep(worldFootGoal)
+-- Call once per update from your chosen loop:
+local state = mover:step(dt)
+-- state.position, state.moving, state.progress
+-- On shutdown, disconnect the update loop first:
+mover:destroy()
+```
+
+A new or retargeted swing starts from the target's current world position. `step(0)` is useful for checking the starting position; `step(dt)` moves it along the smooth trajectory. Part targets must remain anchored; attachments can have a moving parent. The driver detects local position writes or reparenting between calls and refuses to overwrite them. Runtime ownership prevents two drivers from the same runtime claiming a target, but cannot prevent other scripts or another runtime from writing between checks. Destroy releases the claim and leaves the target where it is. Orientation is not driven, so Transform-type IKControls retain their existing orientation behavior. This has only been tested on isolated Studio instances, not in live play or on Dino Auto.
+
 ## Experimental footstep target trajectory
 
 `IK.StepTrajectory.new` generates one continuous swing target from a caller-supplied start to a target in the same coordinate frame. It accepts numeric three-element arrays, a nonzero up direction, a nonnegative lift height and a positive duration in seconds. Horizontal travel and lift have zero endpoint velocity. `advance(dt)` returns a fresh position array, completion flag and normalized progress; `sample(time)` evaluates without changing the trajectory's elapsed time. Calls clamp at the endpoint. Create a new trajectory for the next step using the current position as its start.

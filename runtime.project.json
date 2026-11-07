@@ -29,6 +29,9 @@
     "FootstepChain": {
       "$path": "src/runtime/FootstepChain.luau"
     },
+    "TargetStepper": {
+      "$path": "src/runtime/TargetStepper.luau"
+    },
     "Ownership": {
       "$path": "src/runtime/Ownership.luau"
     },
