@@ -21,8 +21,9 @@ local root = Instance.new('ScrollingFrame')
 root.AutomaticCanvasSize = Enum.AutomaticSize.Y
 root.CanvasSize = UDim2.new()
 root.ScrollBarThickness = 6
--- Keep command feedback visible even when the long editor is scrolled.
-root.Size = UDim2.new(1, 0, 1, -72)
+-- Keep section navigation and command feedback visible while scrolling.
+root.Position = UDim2.fromOffset(0, 32)
+root.Size = UDim2.new(1, 0, 1, -104)
 root.BackgroundColor3 = Color3.fromRGB(37, 39, 45)
 root.Parent = widget
 local layout = Instance.new('UIListLayout')
@@ -472,7 +473,7 @@ end)
 
 chainFeedback=status
 
-label('Clone pose preview: select a saved chain, then enter a world-space target offset in studs.',50)
+local previewTitle=label('Clone pose preview: select a saved chain, then enter a world-space target offset in studs.',50)
 local previewFrame=Instance.new('ViewportFrame')
 previewFrame.Size=UDim2.new(1,0,0,260); previewFrame.BackgroundColor3=Color3.fromRGB(24,26,31)
 previewFrame.Ambient=Color3.fromRGB(160,160,160); previewFrame.LightColor=Color3.fromRGB(255,255,255)
@@ -513,6 +514,21 @@ chainButton('Solve clone preview').MouseButton1Click:Connect(function()
     previewStatus.Text=string.format('Converged: %s  |  error: %.4f studs  |  pole: %s',tostring(result.converged),result.error,tostring(result.poleStatus))
 end)
 chainButton('Close clone preview').MouseButton1Click:Connect(function() closePreview(); previewStatus.Text='Preview closed.' end)
-previewStatus=label('',65)
+previewStatus=status
 widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then closePreview() end end)
 plugin.Unloading:Connect(closePreview)
+
+local navigation=Instance.new('Frame')
+navigation.Name='SectionNavigation'; navigation.Size=UDim2.new(1,0,0,32)
+navigation.BackgroundColor3=Color3.fromRGB(30,32,38); navigation.Parent=widget
+for index,entry in ipairs({{'Rig',selectedLabel},{'Actor',createActor},{'Chain',chainTitle},{'Preview',previewTitle}}) do
+    local item=Instance.new('TextButton')
+    item.Name=entry[1]..'Section'; item.Position=UDim2.new((index-1)/4,0,0,0); item.Size=UDim2.new(.25,-1,1,0)
+    item.BackgroundColor3=Color3.fromRGB(53,57,68); item.TextColor3=Color3.fromRGB(245,245,245)
+    item.Font=Enum.Font.SourceSansBold; item.TextSize=15; item.Text=entry[1]; item.Parent=navigation
+    local destination=entry[2]
+    item.MouseButton1Click:Connect(function()
+        local offset=destination.AbsolutePosition.Y-root.AbsolutePosition.Y+root.CanvasPosition.Y
+        root.CanvasPosition=Vector2.new(0,math.max(0,offset-10))
+    end)
+end
