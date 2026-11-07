@@ -34,6 +34,36 @@ function DefinitionBuilder.new(Config)
   local entries=api.prepareRefresh(folder)
   for _,entry in ipairs(entries) do writeRef(entry.ref,entry.config,entry.drive) end
  end
+ function api.prepareAdd(folder)
+  assert(typeof(folder)=='Instance' and folder:IsA('Folder') and folder.Name=='EditRigIKActor' and folder:GetAttribute('EditRigIK_ActorSchemaVersion')==1 and folder.Parent and folder.Parent:IsA('Model'),'select a supported actor definition')
+  local model=folder.Parent
+  local refs=folder:GetChildren(); assert(#refs>0,'actor has no joint bindings')
+  local names,joints={},{}
+  for _,ref in ipairs(refs) do
+   local joint=if ref:IsA('ObjectValue') then ref.Value else nil
+   assert(joint and (joint:IsA('Motor6D') or joint:IsA('Bone')) and joint:IsDescendantOf(model),'invalid actor joint reference')
+   assert(ref.Name~='' and not names[ref.Name] and not joints[joint],'duplicate actor binding')
+   names[ref.Name]=true; joints[joint]=true
+  end
+  local entries={}
+  for _,joint in ipairs(model:GetDescendants()) do
+   if (joint:IsA('Motor6D') or joint:IsA('Bone')) and not joints[joint] and joint:GetAttribute('EditRigIK_SchemaVersion')~=nil then
+    assert(joint.Name~='' and not names[joint.Name],'configured joint names must be unique: '..joint.Name)
+    local config,drive=readJoint(joint)
+    table.insert(entries,{joint=joint,config=config,drive=drive}); names[joint.Name]=true
+   end
+  end
+  table.sort(entries,function(a,b) return a.joint.Name<b.joint.Name end)
+  return entries
+ end
+ function api.addNew(folder)
+  local entries=api.prepareAdd(folder)
+  for _,entry in ipairs(entries) do
+   local ref=Instance.new('ObjectValue'); ref.Name=entry.joint.Name; ref.Value=entry.joint
+   writeRef(ref,entry.config,entry.drive); ref.Parent=folder
+  end
+  return #entries
+ end
  function api.create(model)
   assert(typeof(model)=='Instance' and model:IsA('Model'),'select one model')
   local entries,seen={},{}

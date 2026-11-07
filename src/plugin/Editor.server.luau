@@ -239,7 +239,7 @@ apply.MouseButton1Click:Connect(function()
     item:SetAttribute(inputAttrs.holdKey,holdKey); item:SetAttribute(inputAttrs.impulseKey,impulseKey)
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
-    status.Text = 'Saved to ' .. item.Name .. '. Recreate the actor definition to include changes.'
+    status.Text = 'Saved to ' .. item.Name .. '. Refresh actor and chain snapshots to use the changes.'
 end)
 applyBatch.MouseButton1Click:Connect(function()
     local items=Selection:Get()
@@ -289,6 +289,27 @@ refreshActor.MouseButton1Click:Connect(function()
     Builder.refresh(folder)
     ChangeHistoryService:SetWaypoint('Refresh EditRig IK actor')
     status.Text='Existing bindings refreshed. Restart active actor; newly configured joints are not added.'
+end)
+local addActorJoints=Instance.new('TextButton')
+addActorJoints.Size=UDim2.new(1,0,0,32); addActorJoints.BackgroundColor3=Color3.fromRGB(61,109,172)
+addActorJoints.TextColor3=Color3.new(1,1,1); addActorJoints.Text='Add newly configured joints to actor'
+addActorJoints.Font=Enum.Font.SourceSansBold; addActorJoints.TextSize=15; order(addActorJoints); addActorJoints.Parent=root
+addActorJoints.MouseButton1Click:Connect(function()
+    local items=Selection:Get()
+    local model=if #items==1 then items[1] else nil
+    if not model or not model:IsA('Model') then status.Text='Select one model containing an actor.'; return end
+    local folder=model:FindFirstChild('EditRigIKActor')
+    local ok,entries=pcall(Builder.prepareAdd,folder)
+    if not ok then status.Text='Cannot add joints: '..tostring(entries); return end
+    if #entries==0 then status.Text='No new configured joints found.'; return end
+    local saved,count=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before add EditRig IK actor joints')
+        local n=Builder.addNew(folder)
+        ChangeHistoryService:SetWaypoint('Add EditRig IK actor joints')
+        return n
+    end)
+    if not saved then status.Text='Cannot add joints: '..tostring(count); return end
+    status.Text='Added '..count..' joints. Restart the actor and regenerate input templates if needed.'
 end)
 local createInput=Instance.new('TextButton')
 createInput.Size=UDim2.new(1,0,0,32); createInput.BackgroundColor3=Color3.fromRGB(61,109,172)
