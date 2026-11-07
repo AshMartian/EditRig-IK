@@ -8,6 +8,9 @@
     "RigInspector": {
       "$path": "src/plugin/RigInspector.luau"
     },
+    "AxisGizmo": {
+      "$path": "src/plugin/AxisGizmo.luau"
+    },
     "GeneratedController": {
       "$path": "src/plugin/GeneratedController.luau"
     },

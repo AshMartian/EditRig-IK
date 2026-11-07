@@ -10,6 +10,8 @@ In Studio, open **Window → Output** (or the Output button on the Script tab). 
 
 In the current agent environment, computer-use exposes browser surfaces but not the native Studio window. Studio MCP's capture shows the 3D viewport, not plugin dock widgets or the rest of Studio's interface. A user-provided screenshot can document the complete interface; it showed the original plugin window clipped to a short floating panel on 2026-11-07. The revised editor uses a new widget ID and a taller initial floating size, but its appearance and controls still need confirmation in Studio. Logs and viewport captures alone cannot establish that those controls are visible or usable.
 
+On 2026-11-07, an MCP capture taken to check the temporary joint-axis marker returned a blank viewport, both with and without an explicit camera. The probe was removed from CoreGui after the attempt. The axis-frame and cleanup fixture passed, but this capture does not demonstrate that the marker is visible; verify the toggle in the actual Studio window.
+
 ## Studio process logs
 
 The application log directory is:

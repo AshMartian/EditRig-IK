@@ -20,4 +20,6 @@ The build runs portable Luau tests, compiles the sources, builds staged plugin a
 
 The default authoring values are placeholders, not anatomically correct dinosaur limits. Axis and rest-frame conventions need Studio verification on actual Motor6D and Bone rigs before use.
 
+The prototype includes **Show selected joint rest axes** for a selected Motor6D or Bone. It is intended to draw X in red, Y in green and Z in blue at the joint's rest frame; it does not show angular limits. The marker is temporary and should be removed when hidden, the panel closes or the plugin unloads. Frame calculations and cleanup passed Studio fixtures, but the viewport capture returned blank and the actual marker rendering has not yet been confirmed interactively.
+
 Select a Model and use **Inspect selected model** to list its joint types, Animators, AnimationConstraints and IKControls before configuring it. The inventory is read-only and cannot establish exclusive ownership: scripts and controllers outside the selected model may also affect the rig. The prototype does not drive AnimationConstraints.

@@ -2,10 +2,12 @@
 -- Authoring prototype: stores metadata and definitions without starting IK.
 local Selection = game:GetService('Selection')
 local ChangeHistoryService = game:GetService('ChangeHistoryService')
+local RunService = game:GetService('RunService')
 local Config = require(script.Config)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
+local AxisGizmo = require(script.AxisGizmo)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -112,6 +114,39 @@ order(createActor)
 createActor.Parent = root
 local status = label('', 65)
 local current: Instance? = nil
+local axisButton=Instance.new('TextButton')
+axisButton.Size=UDim2.new(1,0,0,32); axisButton.BackgroundColor3=Color3.fromRGB(61,109,172)
+axisButton.TextColor3=Color3.new(1,1,1); axisButton.Text='Show selected joint rest axes'
+axisButton.Font=Enum.Font.SourceSansBold; axisButton.TextSize=16; order(axisButton); axisButton.Parent=root
+local axisFolder: Folder?=nil
+local axisGizmo: any=nil
+local function hideAxes()
+    if axisGizmo then axisGizmo:destroy(); axisGizmo=nil end
+    if axisFolder then axisFolder:Destroy(); axisFolder=nil end
+    axisButton.Text='Show selected joint rest axes'
+end
+axisButton.MouseButton1Click:Connect(function()
+    if axisGizmo then hideAxes(); return end
+    if not current then status.Text='Select a Motor6D or Bone first.'; return end
+    local folder=Instance.new('Folder'); folder.Name='EditRigIKAxisPreview'
+    local ok,result=pcall(function()
+        folder.Parent=game:GetService('CoreGui')
+        return AxisGizmo.new(folder)
+    end)
+    if not ok then folder:Destroy(); status.Text='Cannot show axes: '..tostring(result); return end
+    axisFolder=folder; axisGizmo=result
+    local updated,visible=pcall(function() return axisGizmo:update(current) end)
+    if not updated or not visible then hideAxes(); status.Text='Cannot display this joint frame.'; return end
+    axisButton.Text='Hide joint rest axes'
+    status.Text='Rest axes: X red, Y green, Z blue. These do not display angle limits.'
+end)
+local axisUpdate=RunService.Heartbeat:Connect(function()
+    if axisGizmo then
+        local ok=pcall(function() axisGizmo:update(current) end)
+        if not ok then hideAxes() end
+    end
+end)
+plugin.Unloading:Connect(function() axisUpdate:Disconnect(); hideAxes() end)
 local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees'}
 local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90}
 local driveAttrs = {control='EditRigIK_Control',impulse='EditRigIK_Impulse',frequency='EditRigIK_Frequency'}
@@ -134,7 +169,7 @@ local function refresh()
     end
 end
 button.Click:Connect(function() widget.Enabled = not widget.Enabled; button:SetActive(widget.Enabled); if widget.Enabled then refresh() end end)
-widget:GetPropertyChangedSignal('Enabled'):Connect(function() button:SetActive(widget.Enabled) end)
+widget:GetPropertyChangedSignal('Enabled'):Connect(function() button:SetActive(widget.Enabled); if not widget.Enabled then hideAxes() end end)
 Selection.SelectionChanged:Connect(refresh)
 apply.MouseButton1Click:Connect(function()
     local item = current
