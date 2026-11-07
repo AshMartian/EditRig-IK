@@ -8,6 +8,7 @@ function ActorRig.new(folder,components,options)
  assert(type(components)=='table' and components.Actor and components.JointDrive and components.JointAdapter,'runtime components required')
  options=options or {}
  assert(type(options)=='table' and (options.baseMode==nil or options.baseMode=='fixed' or options.baseMode=='animated'),'invalid actor base mode')
+ assert(options.limitMode==nil or options.limitMode=='offset' or options.limitMode=='absolute','invalid actor limit mode')
  local refs=folder:GetChildren()
  table.sort(refs,function(a,b) return a.Name<b.Name end)
  local hingeConfigs,ballConfigs,bindings,seen={}, {}, {}, {}
@@ -35,13 +36,14 @@ function ActorRig.new(folder,components,options)
    impulses[impulse]=mode
   end
   local jointConfig={name=ref.Name,control=control,impulse=impulse,frequency=frequency,lower=math.rad(lower),upper=math.rad(upper)}
+  local swing=nil
   if kind=='Ball' then
-   local swing=ref:GetAttribute('SwingDegrees')
+   swing=ref:GetAttribute('SwingDegrees')
    assert(finite(swing) and swing>=0 and swing<=180,'invalid ball swing')
    local v=axes[axis]; jointConfig.axis={v.X,v.Y,v.Z}; jointConfig.swing=math.rad(swing)
    table.insert(ballConfigs,jointConfig)
   else table.insert(hingeConfigs,jointConfig) end
-  table.insert(bindings,{name=ref.Name,joint=ref.Value,axis=axes[axis],kind=kind})
+  table.insert(bindings,{name=ref.Name,joint=ref.Value,axis=axes[axis],kind=kind,limit={lower=math.rad(lower),upper=math.rad(upper),swing=if swing then math.rad(swing) else nil}})
  end
  assert(#bindings>0, 'actor has no configured joints')
  local behaviors,registry={},{}
@@ -53,7 +55,7 @@ function ActorRig.new(folder,components,options)
   table.insert(behaviors,{name='balls',type='ball',options={joints=ballConfigs}}); registry.ball=components.BallDrive.new
  end
  local actor=components.Actor.new({behaviors=behaviors},registry)
- local ok,adapter=pcall(components.JointAdapter.new,bindings,{exclusive=true,baseMode=options.baseMode})
+ local ok,adapter=pcall(components.JointAdapter.new,bindings,{exclusive=true,baseMode=options.baseMode,limitMode=options.limitMode})
  if not ok then actor:destroy(); error(adapter) end
  local dead=false
  local api={}

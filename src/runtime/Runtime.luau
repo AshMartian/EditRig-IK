@@ -25,7 +25,7 @@ local function ownedOptions(options)
     return copy
 end
 Runtime.JointAdapter = {new=function(bindings, options)
-    return JointAdapter.new(bindings, ownedOptions(options))
+    return JointAdapter.new(bindings, ownedOptions(options), Limits)
 end}
 local ChainAdapter = require(script.ChainAdapter)
 function Runtime.createIKChain(joints, endpointLocal, options)
