@@ -1,6 +1,27 @@
 --!strict
 -- Discover references only; does not modify the controller or its rig.
 local ChainDiscovery={}
+local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
+function ChainDiscovery.parseOffset(text)
+ assert(type(text)=='string','enter three numeric offsets separated by commas')
+ local sx,sy,sz=string.match(text,'^%s*([^,]+),%s*([^,]+),%s*([^,]+)%s*$')
+ local x,y,z=if sx then tonumber(sx) else nil,if sy then tonumber(sy) else nil,if sz then tonumber(sz) else nil
+ assert(finite(x) and finite(y) and finite(z),'enter three finite numeric offsets separated by commas')
+ return Vector3.new(x,y,z)
+end
+function ChainDiscovery.prepareEndpoint(last,offset)
+ assert(typeof(last)=='Instance' and (last:IsA('Motor6D') or last:IsA('Bone')),'capture an end joint first')
+ assert(typeof(offset)=='Vector3' and finite(offset.X) and finite(offset.Y) and finite(offset.Z),'endpoint offset must be a finite Vector3')
+ local model=last:FindFirstAncestorOfClass('Model')
+ local parent=if last:IsA('Motor6D') then last.Part1 else last
+ assert(model and parent and parent:IsDescendantOf(model),'end joint and endpoint parent must belong to a model')
+ assert(not parent:FindFirstChild('EditRigIKEndpoint'),'EditRigIKEndpoint already exists; select it or rename it')
+ local link=if last:IsA('Motor6D') then last.C1:Inverse():PointToWorldSpace(offset) else offset
+ assert(link.Magnitude>1e-7,'endpoint creates a zero-length last link; choose another offset')
+ local attachment=Instance.new('Attachment')
+ attachment.Name='EditRigIKEndpoint'; attachment.Position=offset
+ return attachment,parent
+end
 function ChainDiscovery.inspect(control)
  assert(typeof(control)=='Instance' and control:IsA('IKControl'),'select one IKControl')
  local model=control:FindFirstAncestorOfClass('Model')

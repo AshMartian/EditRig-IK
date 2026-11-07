@@ -338,6 +338,22 @@ chainButton('Set endpoint attachment from selection').MouseButton1Click:Connect(
     if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the endpoint.'; return end
     endpoint=item; refreshChainStatus()
 end)
+local endpointOffset=chainNumberField('New endpoint local X, Y, Z offset (studs)','0, 0, 0')
+chainButton('Create endpoint at entered local offset').MouseButton1Click:Connect(function()
+    local parsed,offset=pcall(ChainDiscovery.parseOffset,endpointOffset.Text)
+    if not parsed then chainFeedback.Text='Invalid endpoint offset: '..tostring(offset); return end
+    local ok,attachment,parent=pcall(ChainDiscovery.prepareEndpoint,lastJoint,offset)
+    if not ok then chainFeedback.Text='Cannot create endpoint: '..tostring(attachment); return end
+    local inserted,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before create EditRig IK endpoint')
+        assert(not parent:FindFirstChild('EditRigIKEndpoint'),'endpoint name already exists')
+        attachment.Parent=parent
+        ChangeHistoryService:SetWaypoint('Create EditRig IK endpoint')
+    end)
+    if not inserted then attachment:Destroy(); chainFeedback.Text='Cannot create endpoint: '..tostring(err); return end
+    endpoint=attachment; refreshChainStatus()
+    chainFeedback.Text='Endpoint created at the entered offset. Verify its position on the rig.'
+end)
 chainButton('Set optional pole attachment from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the pole.'; return end
