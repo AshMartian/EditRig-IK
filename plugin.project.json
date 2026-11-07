@@ -11,6 +11,9 @@
     "AxisGizmo": {
       "$path": "src/plugin/AxisGizmo.luau"
     },
+    "LimitGeometry": {
+      "$path": "src/plugin/LimitGeometry.luau"
+    },
     "GeneratedController": {
       "$path": "src/plugin/GeneratedController.luau"
     },

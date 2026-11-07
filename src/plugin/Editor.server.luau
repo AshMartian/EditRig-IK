@@ -8,6 +8,7 @@ local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
+local LimitGeometry = require(script.LimitGeometry).new(Config)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -116,14 +117,21 @@ local status = label('', 65)
 local current: Instance? = nil
 local axisButton=Instance.new('TextButton')
 axisButton.Size=UDim2.new(1,0,0,32); axisButton.BackgroundColor3=Color3.fromRGB(61,109,172)
-axisButton.TextColor3=Color3.new(1,1,1); axisButton.Text='Show selected joint rest axes'
+axisButton.TextColor3=Color3.new(1,1,1); axisButton.Text='Show selected joint axes and limits'
 axisButton.Font=Enum.Font.SourceSansBold; axisButton.TextSize=16; order(axisButton); axisButton.Parent=root
 local axisFolder: Folder?=nil
 local axisGizmo: any=nil
 local function hideAxes()
     if axisGizmo then axisGizmo:destroy(); axisGizmo=nil end
     if axisFolder then axisFolder:Destroy(); axisFolder=nil end
-    axisButton.Text='Show selected joint rest axes'
+    axisButton.Text='Show selected joint axes and limits'
+end
+local function updateLimitPreview()
+    if not axisGizmo then return end
+    axisGizmo:setLimits({kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text)})
+end
+for _,key in ipairs({'kind','axis','lower','upper','swing'}) do
+    fields[key]:GetPropertyChangedSignal('Text'):Connect(updateLimitPreview)
 end
 axisButton.MouseButton1Click:Connect(function()
     if axisGizmo then hideAxes(); return end
@@ -131,14 +139,15 @@ axisButton.MouseButton1Click:Connect(function()
     local folder=Instance.new('Folder'); folder.Name='EditRigIKAxisPreview'
     local ok,result=pcall(function()
         folder.Parent=game:GetService('CoreGui')
-        return AxisGizmo.new(folder)
+        return AxisGizmo.new(folder,LimitGeometry)
     end)
     if not ok then folder:Destroy(); status.Text='Cannot show axes: '..tostring(result); return end
     axisFolder=folder; axisGizmo=result
+    updateLimitPreview()
     local updated,visible=pcall(function() return axisGizmo:update(current) end)
     if not updated or not visible then hideAxes(); status.Text='Cannot display this joint frame.'; return end
-    axisButton.Text='Hide joint rest axes'
-    status.Text='Rest axes: X red, Y green, Z blue. These do not display angle limits.'
+    axisButton.Text='Hide joint axes and limits'
+    status.Text='X red, Y green, Z blue; yellow shows hinge range or ball swing. Ball twist is numeric only.'
 end)
 local axisUpdate=RunService.Heartbeat:Connect(function()
     if axisGizmo then
