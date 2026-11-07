@@ -37,11 +37,18 @@ local function range(lower: number, upper: number)
     assert(lower == lower and upper == upper and lower >= -math.pi and upper <= math.pi and lower <= upper, 'invalid angular range')
 end
 
+local function chooseHalfTurn(angle: number, lower: number, upper: number): number
+    if math.abs(angle - math.pi) < 1e-12 and lower + math.pi < math.pi - upper then
+        return -math.pi
+    end
+    return angle
+end
+
 function Limits.hinge(rotation: {number}, axis: {number}, lower: number, upper: number): {number}
     range(lower, upper)
     local a = unit(axis)
     local _, angle = twist(normalize(rotation), a)
-    local half = math.clamp(angle, lower, upper)/2
+    local half = math.clamp(chooseHalfTurn(angle, lower, upper), lower, upper)/2
     return {a[1]*math.sin(half), a[2]*math.sin(half), a[3]*math.sin(half), math.cos(half)}
 end
 
@@ -59,7 +66,7 @@ function Limits.ball(rotation: {number}, axis: {number}, maxSwing: number, lower
         local s = math.sin(maxSwing/2)/vectorLength
         swing = {swing[1]*s, swing[2]*s, swing[3]*s, math.cos(maxSwing/2)}
     end
-    local half = math.clamp(angle, lowerTwist, upperTwist)/2
+    local half = math.clamp(chooseHalfTurn(angle, lowerTwist, upperTwist), lowerTwist, upperTwist)/2
     local limitedTwist = {a[1]*math.sin(half),a[2]*math.sin(half),a[3]*math.sin(half),math.cos(half)}
     return normalize(multiply(swing, limitedTwist))
 end

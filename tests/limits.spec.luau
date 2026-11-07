@@ -33,4 +33,8 @@ local halfTurn = Limits.hinge({0, 1, 0, 0}, axis, 0, math.pi)
 local negativeHalfTurn = Limits.hinge({0, -1, 0, 0}, axis, 0, math.pi)
 near(halfTurn[2], 1); near(negativeHalfTurn[2], 1)
 
+-- A half turn is also valid at the negative end of a one-sided range.
+local negativeRange = Limits.hinge({0,1,0,0}, axis, -math.pi, 0)
+near(negativeRange[2], -1)
+
 print('joint limit tests passed')

@@ -10,7 +10,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / 'build'
-source = sorted([ROOT / 'plugin.project.json', *ROOT.glob('src/**/*.luau'), *ROOT.glob('tests/*.luau'), ROOT / 'tools/build.py'])
+source = sorted([ROOT / 'plugin.project.json', ROOT / 'runtime.project.json', *ROOT.glob('src/**/*.luau'), *ROOT.glob('tests/*.luau'), ROOT / 'tools/build.py'])
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 fingerprint = hashlib.sha256()
@@ -27,14 +27,19 @@ with tempfile.TemporaryDirectory(prefix='.stage-', dir=BUILD) as temp:
     for command in commands:
         print('+', ' '.join(command), flush=True)
         subprocess.run(command, cwd=ROOT, check=True, stdout=subprocess.DEVNULL if command[0] == compiler else None)
-    artifact = stage / 'EditRigIK.rbxm'
-    build = [rojo, 'build', 'plugin.project.json', '-o', str(artifact)]
-    print('+', ' '.join(build), flush=True)
-    subprocess.run(build, cwd=ROOT, check=True)
-    if not artifact.read_bytes().startswith(b'<roblox!'):
-        raise RuntimeError('invalid Roblox binary header')
+    artifacts = {}
+    builds = []
+    for project, filename in [('plugin.project.json', 'EditRigIK.rbxm'), ('runtime.project.json', 'EditRigIKRuntime.rbxm')]:
+        artifact = stage / filename
+        build = [rojo, 'build', project, '-o', str(artifact)]
+        print('+', ' '.join(build), flush=True)
+        subprocess.run(build, cwd=ROOT, check=True)
+        if not artifact.read_bytes().startswith(b'<roblox!'):
+            raise RuntimeError('invalid Roblox binary header: ' + filename)
+        artifacts[filename] = sha(artifact)
+        builds.append([rojo, 'build', project])
     version = subprocess.check_output([rojo, '--version'], text=True).strip()
-    manifest = {'source_sha256':fingerprint.hexdigest(), 'source_files':[str(p.relative_to(ROOT)) for p in source], 'rojo':version, 'tool_sha256': {name: sha(Path(shutil.which(exe) or exe)) for name, exe in [('luau', luau), ('luau_compile', compiler), ('rojo', rojo)]}, 'luau_release':'0.746 expected; verify downloaded executable against trusted release', 'commands':commands + [[rojo,'build','plugin.project.json']], 'result':'passed', 'artifact_sha256':sha(artifact), 'studio_validation':'not performed'}
+    manifest = {'source_sha256':fingerprint.hexdigest(), 'source_files':[str(p.relative_to(ROOT)) for p in source], 'rojo':version, 'tool_sha256': {name: sha(Path(shutil.which(exe) or exe)) for name, exe in [('luau', luau), ('luau_compile', compiler), ('rojo', rojo)]}, 'luau_release':'0.746 expected; verify downloaded executable against trusted release', 'commands':commands + builds, 'result':'passed', 'artifacts_sha256':artifacts, 'studio_validation':'not performed'}
     (stage / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     current, previous = BUILD / 'current', BUILD / '.previous'
     if previous.exists():

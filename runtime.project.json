@@ -1,0 +1,12 @@
+{
+  "name": "EditRigIKRuntime",
+  "tree": {
+    "$className": "DataModel",
+    "EditRigIKRuntime": {
+      "$path": "src/runtime/Runtime.luau",
+      "Actor": { "$path": "src/runtime/Actor.luau" },
+      "Limits": { "$path": "src/shared/Limits.luau" },
+      "Solver": { "$path": "src/shared/Solver.luau" }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # EditRig IK companion — working design
 
 ## Intent
-Build a companion Studio plugin for authoring procedural IK on existing rigs, including both Motor6D and skinned Bone chains. RigEdit remains independently installed; this project does not patch or depend on its private code. Dino Auto is the intended experimental rig, but its live hierarchy and existing solver remain uninspected until Studio connects.
+Build a companion Studio plugin for authoring procedural IK on existing rigs, including both Motor6D and skinned Bone chains. RigEdit remains independently installed; this project does not patch or depend on its private code. Dino Auto is the experimental rig; its current built-in IK setup is described below.
 
 ## Architecture
 - A docked editor selects a model, identifies ordered Motor6D or Bone chains, displays them, and edits per-chain and per-joint settings. The editor visualizes local axes, limits, target and pole, warns about ambiguous or disconnected chains, and supports reversible preview.
@@ -13,9 +13,24 @@ Build a companion Studio plugin for authoring procedural IK on existing rigs, in
 Start with portable quaternion limit math and tests, then a working editor, runtime adapters and solver. The prototype is experimental: no claim of rig compatibility or glitch resolution until tested inside Studio on Dino Auto. Unit tests cover pure math, while Studio integration tests must cover transforms, actual poses, Animator interaction, frame ordering, both rig types, persistence, preview restoration and generated scripts. No automatic changes to the installed RigEdit plugin or live rig.
 
 ## Open decisions
-Dino Auto's rig types, scale, naming, solver and reproduction are unknown. Solver algorithm, default limits and initial UI layout remain design choices to verify against the real rig; they are not assumptions about existing behavior. No physical constraints are created merely to pretend that a custom solver respects limits.
+Dino Auto's reproduction and the correct local limit axes remain unknown. Solver algorithm, default limits and initial UI layout remain design choices to verify against the real rig; they are not assumptions about existing behavior. No physical constraints are created merely to pretend that a custom solver respects limits.
 
 ## Dino Auto inspection (2026-11-07)
 The experimental model is `Workspace.Dino Auto` in Prehistoric Rumble, place 93747181848349. Its legs are Motor6D chains, not Bone chains. Two enabled Transform IKControls under the Humanoid run from each `Leg 1` to its `Foot`; poles are assigned by the model script at runtime. A read-only descendant scan found no HingeConstraint or BallSocketConstraint in this model. The existing built-in IKControl is separate from the custom solver planned here, and would need explicit ownership arbitration before a custom solver drives the same joints.
 
 `ProceduralModule:IkLegStep` initializes PreviousPos to world origin and moves targets in two discrete jumps, midpoint then endpoint. The outer script alternates legs on 0.5-second waits. These are concrete candidates for visible discontinuity, but no reproduction or visual test has established causation. The model has not been modified. Preserve the original and do not change the shared ProceduralModule when experimenting with the clone without verifying impact on Dino base.
+
+## Current solver prototype
+The portable CCD core and numerical limit handling are implemented and packaged separately from the metadata editor. Its API and coordinate conventions are in [runtime.md](runtime.md). Pole control, instance adapters, runtime ownership, UI integration and Studio validation remain open.
+
+## Procedural animation framework scope
+The plugin should guide creators from an existing model to a controllable actor: inspect the model, choose Motor6D or Bone chains, identify root and end effectors, choose a Humanoid or AnimationController as appropriate, validate missing/ambiguous connections, and configure limits and behavior. Avatar setup should respect the existing character hierarchy and animation system. Automatic mesh skinning, uploading or changing the original source asset is a separate operation and must not be implied by this workflow.
+
+An actor definition is versioned, serializable rig metadata with stable references, a named collection of chains, a neutral pose, and an ordered set of named behavior configurations. Behaviors are reusable modules with explicit inputs and outputs: locomotion/foot placement, look-at, reach, and secondary motion are target behaviors, not yet implemented features. The runtime composes them under one actor controller that owns selected joints, resolves priorities and weights, accepts gameplay inputs and exposes events and diagnostics. A behavior should be addable without editing generated files or framework internals. The interface must allow turning behaviors on or off, adjusting parameters at runtime, supplying targets, and extending the behavior registry from game scripts.
+
+A setup flow should show validation and a safe reversible preview before generating an actor definition and a short editable bootstrap script. Generated scripts should reference a versioned shared framework API rather than duplicate solver code. Multiple actors should use independent state; clients and servers need a documented authority/replication policy rather than assuming a single update loop. Preview must restore transforms and any displaced controllers even on errors or plugin shutdown. The framework should report existing IKControls, Animator ownership, missing targets, invalid scales, zero-length links and disconnected chains before it takes control.
+
+The existing experimental CCD module is one solver backend: future options include iteration budget, tolerance, damping, joint weights, pole or bend preference, and per-chain scheduling. These options need actual implementation and tests before exposure; configuration must never suggest a control is effective when it is not. Framework verification requires real Motor6D and Bone examples, actor behavior interaction, generated-script loading, save/reopen, interruption cleanup, avatar animation coexistence and multi-actor isolation. Dino Auto is a Motor6D test subject; an independent skinned Bone fixture is needed as well.
+
+## Studio smoke evidence
+A read-only Studio MCP execution on 2026-11-07 evaluated the current source for the portable limit and CCD modules in Edit mode. The single-joint antiparallel hinge test converged in one iteration with reported error 0. This is a math smoke test: no packaged module, UI, Bone or Motor6D adapter, animation, or live rig behavior was tested by that execution.
