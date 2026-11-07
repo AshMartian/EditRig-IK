@@ -66,4 +66,14 @@ assert(not unreachable.converged and unreachable.iterations == 8)
 near(unreachable.error,2,1e-6)
 assert(not pcall(function() solver.solve({root={0,0,0},joints={{rest=identity,rotation=identity,offset={0,0,0}}}}, {1,0,0}, {iterations=2,tolerance=0}) end))
 
+-- Coincident adjacent pivots and an endpoint at the last pivot remain valid.
+for _,offsets in ipairs({{{0,0,0},{1,0,0}},{{1,0,0},{0,0,0}}}) do
+ local coincident={root={0,0,0},joints={
+  {rest=identity,rotation=identity,offset=offsets[1]},
+  {rest=identity,rotation=identity,offset=offsets[2]},
+ }}
+ local solved=solver.solve(coincident,{0,1,0},{iterations=10,tolerance=1e-6})
+ assert(solved.converged and solved.error<1e-6,'coincident pivots must still reach a valid target')
+end
+
 print('solver tests passed')

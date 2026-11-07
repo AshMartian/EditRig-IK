@@ -83,11 +83,14 @@ function Solver.new(limits)
   assert(type(maxStep)=='number' and maxStep==maxStep and maxStep>0 and maxStep<=math.pi,'invalid maximum correction angle')
   assert(options.pole==nil or finiteVector(options.pole),'invalid pole')
   local rotations={}
+  local hasReach=false
   for i,j in ipairs(chain.joints) do
-   assert(finiteVector(j.offset) and length(j.offset)>EPS,'invalid or zero-length offset')
+   assert(finiteVector(j.offset),'invalid offset')
+   if length(j.offset)>EPS then hasReach=true end
    normalize(j.rest)
    rotations[i]=constrain(normalize(j.rotation),j.limit)
   end
+  assert(hasReach,'chain has no nonzero links')
   local count=0
   local _,_,endpoint=forward(chain.root,chain.joints,rotations)
   -- A collinear shortened target gives CCD no bend direction. Seed a small

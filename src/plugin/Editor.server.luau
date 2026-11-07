@@ -446,7 +446,7 @@ chainButton('Create idle IK chain definition').MouseButton1Click:Connect(functio
     chainFeedback.Text='Created idle chain. Use the runtime API to start it after resolving joint ownership.'
 end)
 
-chainFeedback=label('',65)
+chainFeedback=status
 
 label('Clone pose preview: select a saved chain, then enter a world-space target offset in studs.',50)
 local previewFrame=Instance.new('ViewportFrame')
