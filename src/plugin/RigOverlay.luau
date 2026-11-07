@@ -55,7 +55,9 @@ function RigOverlay.new(rig,holder,onSelect)
    if parentJoint then local _,point=anchorAndPosition(parentJoint,rig); parentPosition=point end
    line:Clear(); line.Adornee=nil
    if part and parentPosition and parentJoint~=joint then
-    line:AddLine(part.CFrame:PointToObjectSpace(position),part.CFrame:PointToObjectSpace(parentPosition)); line.Adornee=part
+    -- In Studio these wireframe points render in world coordinates, unlike
+    -- the sphere marker's part-relative CFrame.
+    line:AddLine(position,parentPosition); line.Adornee=part
    end
   end
  end
