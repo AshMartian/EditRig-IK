@@ -117,7 +117,7 @@ With the runtime installed in ReplicatedStorage, and after resolving all competi
 local controller = require(model.EditRigIKController)
 local leg = controller.openChain('Leg', {exclusive = true})
 local result = leg:solve(target.WorldPosition) -- uses authored iteration/tolerance
--- Optionally pass {iterations = 40, tolerance = 0.01} as the second argument.
+-- Optionally override either or both: {iterations = 40} keeps the saved tolerance.
 print(result.converged, result.error)
 -- Stop your update loop before restoring the owned transforms.
 local conflicts = leg:destroy()

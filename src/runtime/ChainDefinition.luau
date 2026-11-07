@@ -37,7 +37,15 @@ function ChainDefinition.new(definition,options,createChain)
  local api={}
  function api:solve(target,overrides)
   assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')
-  return chain:solve(target,overrides or {iterations=iterations,tolerance=tolerance})
+  assert(overrides==nil or type(overrides)=='table','solver overrides must be a table')
+  local settings={iterations=iterations,tolerance=tolerance}
+  if overrides then
+   for key,value in pairs(overrides) do
+    assert(key=='iterations' or key=='tolerance','unknown solver option: '..tostring(key))
+    settings[key]=value
+   end
+  end
+  return chain:solve(target,settings)
  end
  function api:destroy() return chain:destroy() end
  return api

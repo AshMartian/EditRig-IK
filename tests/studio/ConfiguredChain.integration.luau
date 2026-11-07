@@ -10,7 +10,18 @@ for _,j in ipairs({j1,j2}) do
  j:SetAttribute('EditRigIK_LowerDegrees',-180); j:SetAttribute('EditRigIK_UpperDegrees',180); j:SetAttribute('EditRigIK_SwingDegrees',90)
 end
 local folder=Instance.new('Folder'); folder.Name='EditRigIKChains'; folder.Parent=model
-local definition=ChainBuilder.new(Config).create(model,j1,j2,endpoint,'Leg'); definition.Parent=folder
+local definition=ChainBuilder.new(Config).create(model,j1,j2,endpoint,'Leg',{iterations=48,tolerance=0.02}); definition.Parent=folder
+local captured
+local optionsChain=ChainDefinition.new(definition,{exclusive=true},function()
+ return {solve=function(_,_,options) captured=options; return options end,destroy=function() return {} end}
+end)
+optionsChain:solve(Vector3.zero,{iterations=7})
+assert(captured.iterations==7 and captured.tolerance==0.02,'partial override must preserve saved tolerance')
+optionsChain:solve(Vector3.zero,{tolerance=0})
+assert(captured.iterations==48 and captured.tolerance==0,'partial override must preserve saved iterations and accept zero tolerance')
+assert(not pcall(function() optionsChain:solve(Vector3.zero,{iteration=7}) end),'unknown options must not be ignored')
+assert(not pcall(function() optionsChain:solve(Vector3.zero,false) end),'invalid override type must be rejected')
+optionsChain:destroy()
 local chain=ChainDefinition.new(definition,{exclusive=true},function(joints,localPoint,options)
  return ChainAdapter.new(joints,localPoint,options,Solver.new(Limits))
 end)
@@ -27,6 +38,12 @@ for _,j in ipairs({root,child}) do
  j:SetAttribute('EditRigIK_LowerDegrees',-180); j:SetAttribute('EditRigIK_UpperDegrees',180); j:SetAttribute('EditRigIK_SwingDegrees',90)
 end
 local boneDefinition=ChainBuilder.new(Config).create(model,root,child,boneTip,'Tail'); boneDefinition.Parent=folder
+local boneOptions=ChainDefinition.new(boneDefinition,{exclusive=true},function()
+ return {solve=function(_,_,options) captured=options; return options end,destroy=function() return {} end}
+end)
+boneOptions:solve(Vector3.zero,{iterations=9})
+assert(captured.iterations==9 and captured.tolerance==0.01,'Bone chain must retain saved tolerance')
+boneOptions:destroy()
 local boneChain=ChainDefinition.new(boneDefinition,{exclusive=true},function(joints,localPoint,options)
  return ChainAdapter.new(joints,localPoint,options,Solver.new(Limits))
 end)
