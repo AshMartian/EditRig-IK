@@ -77,8 +77,22 @@ function PreviewSession.new(definition,viewport,components)
   local extent=math.max(size.X,size.Y,size.Z,1)
   world=Instance.new('WorldModel'); world.Name='EditRigIKPreviewWorld'; world.Parent=viewport
   clone.Parent=world
+  local function marker(name,color,diameter)
+   local part=Instance.new('Part'); part.Name=name; part.Shape=Enum.PartType.Ball
+   part.Anchored=true; part.CanCollide=false; part.CanTouch=false; part.CanQuery=false; part.CastShadow=false
+   part.Color=color; part.Size=Vector3.one*diameter; part.Position=start; part.Parent=world
+   return part
+  end
+  local markerSize=math.clamp(extent*.035,.12,.6)
+  local targetMarker=marker('EditRigIKTargetMarker',Color3.fromRGB(255,80,80),markerSize*1.5)
+  local endpointMarker=marker('EditRigIKEndpointMarker',Color3.fromRGB(80,255,120),markerSize)
   camera=Instance.new('Camera'); camera.Name='EditRigIKPreviewCamera'; camera.FieldOfView=45
-  camera.CFrame=CFrame.lookAt(box.Position+Vector3.new(1,.7,1).Unit*extent*2.2,box.Position)
+  local function frameCamera(target)
+   local center=(box.Position+target)*.5
+   local radius=math.max(1,size.Magnitude*.5+(target-box.Position).Magnitude*.5)
+   camera.CFrame=CFrame.lookAt(center+Vector3.new(1,.7,1).Unit*radius*3.2,center)
+  end
+  frameCamera(start)
   camera.Parent=viewport; viewport.CurrentCamera=camera
   local dead=false
   local api={}
@@ -87,6 +101,9 @@ function PreviewSession.new(definition,viewport,components)
    assert(typeof(offset)=='Vector3' and finite(offset.X) and finite(offset.Y) and finite(offset.Z),'preview offset must be finite')
    local solved=chain:solve(start+offset)
    updateParts()
+   targetMarker.Position=start+offset
+   endpointMarker.Position=solved.endpointWorld
+   frameCamera(targetMarker.Position)
    return solved
   end
   function api:destroy()

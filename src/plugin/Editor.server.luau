@@ -372,7 +372,7 @@ chainButton('Open selected chain clone preview').MouseButton1Click:Connect(funct
     end)
     if not ok then previewStatus.Text='Cannot open preview: '..tostring(result); return end
     preview=result; previewFrame.Visible=true
-    previewStatus.Text='Clone ready. Enter an offset and solve; the source model stays unchanged.'
+    previewStatus.Text='Clone ready. Red is target; green is solved endpoint. Source model stays unchanged.'
 end)
 order(previewFrame); previewFrame.Parent=root
 local previewX=chainNumberField('Preview target offset X (studs)','-1')
