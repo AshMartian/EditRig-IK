@@ -50,3 +50,9 @@ actor:destroy()
 ```
 
 This is infrastructure for extensible behaviors, not an actor/avatar creation workflow or a procedural animation by itself. Configuration serialization, live tuning, event hooks, lifecycle integration with Roblox instances, behavior blending, generated scripts and built-in animation behaviors remain outstanding.
+
+## Named controls and one-shot messages
+
+The coordinator provides `actor:setControl(name, value)`, `actor:clearControl(name)` and `actor:impulse(name, value)`. Values are finite numbers, booleans, or three-number arrays. Controls persist until changed or cleared. Each impulse is a named message delivered once to every enabled behavior on the next successful `actor:step`, in enqueue order. A maximum of 256 may be queued. Each behavior receives an isolated snapshot as its third argument, `{values = ..., impulses = {{name = ..., value = ...}, ...}}`. A successful step drains the messages even if no behavior is enabled. If a behavior throws, messages remain queued; behavior side effects that already happened are not rolled back, so error handlers must avoid blind retries. This API describes routing only: no supplied behavior applies impulses or joint forces yet.
+
+A gameplay input handler can call `actor:setControl('JawOpen', 1)` when a button is pressed and `actor:setControl('JawOpen', 0)` when released. A behavior must explicitly consume that name and implement the joint response. Similarly, `actor:impulse('Tail', {0, 1, 0})` queues data; it is not a Roblox physics impulse. An eventual authoring flow will define the mapping and units. Network replication and authorization are not supplied.

@@ -13,6 +13,7 @@ end
 function Actor.new(definition, registry)
  assert(type(definition)=='table' and type(definition.behaviors)=='table' and type(registry)=='table', 'invalid actor definition')
  local entries,byName={},{}
+ local values,impulses={},{}
  local destroyed=false
  local ok,err=pcall(function()
   for index, spec in ipairs(definition.behaviors) do
@@ -35,13 +36,48 @@ function Actor.new(definition, registry)
  end
  table.sort(entries,function(a,b) if a.priority==b.priority then return a.index<b.index end return a.priority<b.priority end)
  local api={}
+ local function validName(name)
+  return type(name)=='string' and #name>0 and #name<=128
+ end
+ local function checkedValue(value)
+  local kind=type(value)
+  if kind=='boolean' then return value end
+  if kind=='number' then assert(value==value and math.abs(value)<math.huge,'control must be finite'); return value end
+  assert(kind=='table' and #value==3, 'expected a number, boolean, or three-number vector')
+  local result={}
+  for i=1,3 do
+   local n=value[i]
+   assert(type(n)=='number' and n==n and math.abs(n)<math.huge,'vector must be finite')
+   result[i]=n
+  end
+  return result
+ end
+ function api:setControl(name,value)
+  assert(not destroyed,'actor is destroyed')
+  assert(validName(name),'invalid control name')
+  values[name]=checkedValue(value)
+ end
+ function api:clearControl(name)
+  assert(not destroyed,'actor is destroyed')
+  assert(validName(name),'invalid control name')
+  values[name]=nil
+ end
+ function api:impulse(name,value)
+  assert(not destroyed,'actor is destroyed')
+  assert(validName(name),'invalid impulse name')
+  assert(#impulses<256,'impulse queue is full')
+  table.insert(impulses,{name=name,value=checkedValue(value)})
+ end
  function api:step(input,dt)
   assert(not destroyed,'actor is destroyed')
   assert(type(dt)=='number' and dt==dt and dt>=0 and dt<math.huge,'invalid delta time')
   local outputs={}
+  local snapshot={values=copy(values,{}),impulses=copy(impulses,{})}
+  local consumed=#impulses
   for _,entry in ipairs(entries) do
-   if entry.enabled then table.insert(outputs,{name=entry.name,value=entry.behavior.step(input,dt)}) end
+   if entry.enabled then table.insert(outputs,{name=entry.name,value=entry.behavior.step(input,dt,copy(snapshot,{}))}) end
   end
+  for _=1,consumed do table.remove(impulses,1) end
   return outputs
  end
  function api:setEnabled(name,enabled)

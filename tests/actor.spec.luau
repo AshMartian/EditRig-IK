@@ -28,4 +28,28 @@ local factories = {
 assert(not pcall(function() Actor.new({behaviors={{name='good',type='good'}, {name='bad',type='bad'}}},factories) end))
 assert(cleaned==2, 'partially constructed behaviors must be cleaned up')
 
+local observed = {}
+local inputRegistry = {listen=function() return {step=function(_,_,controls)
+    table.insert(observed, controls)
+    return controls
+end} end}
+local controller = Actor.new({behaviors={{name='listener',type='listen'}}}, inputRegistry)
+controller:setControl('JawOpen', 0.75)
+controller:impulse('Tail', {1,2,3})
+controller:step({},0.1)
+assert(observed[1].values.JawOpen==0.75)
+assert(#observed[1].impulses==1 and observed[1].impulses[1].name=='Tail' and observed[1].impulses[1].value[2]==2)
+controller:step({},0.1)
+assert(observed[2].values.JawOpen==0.75 and #observed[2].impulses==0)
+assert(not pcall(function() controller:setControl('', 1) end))
+assert(not pcall(function() controller:impulse('Tail', 0/0) end))
+controller:destroy()
+assert(not pcall(function() controller:setControl('x',1) end))
+
+local snapshots={}
+local reg={capture=function() return {step=function(_,_,controls) table.insert(snapshots,controls.values) end} end}
+local c=Actor.new({behaviors={{name='capture',type='capture'}}},reg)
+c:setControl('JawOpen',1); c:clearControl('JawOpen'); c:step({},.1)
+assert(snapshots[1].JawOpen==nil, 'cleared control should not remain active')
+
 print('actor framework tests passed')

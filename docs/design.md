@@ -34,3 +34,8 @@ The existing experimental CCD module is one solver backend: future options inclu
 
 ## Studio smoke evidence
 A read-only Studio MCP execution on 2026-11-07 evaluated the current source for the portable limit and CCD modules in Edit mode. The single-joint antiparallel hinge test converged in one iteration with reported error 0. This is a math smoke test: no packaged module, UI, Bone or Motor6D adapter, animation, or live rig behavior was tested by that execution.
+
+## Gameplay control SDK
+A generated actor should expose a small, stable programmatic interface suitable for input bindings and other scripts: named continuous controls for joint or muscle activation, named one-shot impulses, target changes, behavior enablement and diagnostics. The authoring UI should map human-readable control names to real joints, bones, or behavior parameters and show units, range, affected chain and conflicts. A button binding should call this API; it should not need to edit generated solver code. Impulse magnitude and direction, duration, falloff, damping, limits, and blending need explicit semantics per behavior. Names are routing labels rather than proof of physical muscle simulation. Client input, server authority and replication require explicit policies.
+
+The prototype coordinator can now retain named scalar/boolean/vector control values and deliver bounded one-shot messages to behaviors on their next step. It has no built-in joint/muscle/impulse behavior or mapping UI, so these messages cannot yet move a rig. The design must add those real responses and verify them in Studio before presenting the SDK as a finished animation control system.

@@ -6,7 +6,7 @@ A companion Studio plugin and procedural animation framework in early prototype 
 
 The intended framework will guide actor/avatar setup, compose reusable procedural behaviors, and expose a script-facing actor controller; see [design](docs/design.md). These framework features are not yet implemented.
 
-The docked editor accepts one selected `Motor6D` or `Bone` and saves validated hinge or ball-limit metadata as attributes, with undo waypoints. **These attributes do not constrain an IK solver yet.** A separate experimental runtime module exposes a position-only CCD solver, quaternion hinge and swing/twist limits, and a registry-based behavior coordinator; its input is plain numeric data, not Roblox rig instances. Chain discovery, rig adapters, preview, visualization, pole control and script generation are not implemented yet. See [runtime API and conventions](docs/runtime.md). Dino Auto and its existing scripts have not been changed. See [design and investigation](docs/design.md).
+The docked editor accepts one selected `Motor6D` or `Bone` and saves validated hinge or ball-limit metadata as attributes, with undo waypoints. **These attributes do not constrain an IK solver yet.** A separate experimental runtime module exposes a position-only CCD solver, quaternion hinge and swing/twist limits, and a registry-based behavior coordinator with named controls and one-shot messages; its input is plain numeric data, not Roblox rig instances. Chain discovery, rig adapters, preview, visualization, pole control and script generation are not implemented yet. See [runtime API and conventions](docs/runtime.md). Dino Auto and its existing scripts have not been changed. See [design and investigation](docs/design.md).
 
 ## Build and validation
 
