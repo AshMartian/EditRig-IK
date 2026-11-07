@@ -5,6 +5,9 @@
     "ChainBuilder": {
       "$path": "src/plugin/ChainBuilder.luau"
     },
+    "RigInspector": {
+      "$path": "src/plugin/RigInspector.luau"
+    },
     "GeneratedController": {
       "$path": "src/plugin/GeneratedController.luau"
     },

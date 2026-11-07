@@ -5,6 +5,7 @@ local ChangeHistoryService = game:GetService('ChangeHistoryService')
 local Config = require(script.Config)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
+local RigInspector = require(script.RigInspector)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -47,6 +48,21 @@ end
 local selectedLabel = label('Select one Motor6D or Bone in Explorer.', 38)
 local notice = label('Prototype: saves settings and idle definitions. No animation starts automatically.', 42)
 notice.TextColor3 = Color3.fromRGB(255, 204, 111)
+local inspect=Instance.new('TextButton')
+inspect.Size=UDim2.new(1,0,0,32); inspect.BackgroundColor3=Color3.fromRGB(61,109,172)
+inspect.TextColor3=Color3.new(1,1,1); inspect.Text='Inspect selected model'; inspect.Font=Enum.Font.SourceSansBold; inspect.TextSize=16
+order(inspect); inspect.Parent=root
+local inspection=label('Select a model and inspect it for existing animation controllers.',40)
+inspection.AutomaticSize=Enum.AutomaticSize.Y
+inspection.Size=UDim2.new(1,0,0,40)
+inspection.TextYAlignment=Enum.TextYAlignment.Top
+inspect.MouseButton1Click:Connect(function()
+    local items=Selection:Get()
+    local model=if #items==1 then items[1] else nil
+    if not model or not model:IsA('Model') then inspection.Text='Select exactly one model in Explorer to inspect.'; return end
+    local ok,result=pcall(RigInspector.inspect,model)
+    inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
+end)
 local fields: {[string]: TextBox} = {}
 for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}}) do
     local row = Instance.new('Frame')

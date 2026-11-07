@@ -20,6 +20,8 @@ The experimental model is `Workspace.Dino Auto` in Prehistoric Rumble, place 937
 
 `ProceduralModule:IkLegStep` initializes PreviousPos to world origin and moves targets in two discrete jumps, midpoint then endpoint. The outer script alternates legs on 0.5-second waits. These are concrete candidates for visible discontinuity, but no reproduction or visual test has established causation. The model has not been modified. Preserve the original and do not change the shared ProceduralModule when experimenting with the clone without verifying impact on Dino base.
 
+The prototype's read-only rig inventory was run against Dino Auto in Studio: it reported 22 Motor6Ds, no Bones, one Animator and two enabled IKControls. These counts describe that inspection, not a guarantee that all transform writers have been found. The inspection code was tested; its editor button still needs interactive verification.
+
 ## Current solver prototype
 The portable CCD core and numerical limit handling are implemented and packaged separately from the metadata editor. Its API and coordinate conventions are in [runtime.md](runtime.md). An explicit position-only chain adapter and a manual single-axis joint adapter exist for Motor6D and Bone fixtures. The editor now resolves a selected root-to-end path and saves a chain definition; pole control, runtime ownership arbitration, visual preview and real-rig validation remain open.
 
