@@ -4,7 +4,7 @@ local RigInspector={}
 function RigInspector.inspect(model,config)
  assert(typeof(model)=='Instance' and model:IsA('Model'),'select one model')
  assert(type(config)=='table' and type(config.validate)=='function','joint configuration validator required')
- local result={model=model:GetFullName(),motors=0,bones=0,animators=0,animationConstraints=0,enabledIK=0,ikControls={},configured=0,missingSettings=0,invalidSettings=0,disabledMotors=0,incompleteMotors=0,issues={}}
+ local result={model=model:GetFullName(),motors=0,bones=0,animators=0,animationConstraints=0,hingeConstraints=0,ballConstraints=0,enabledIK=0,ikControls={},configured=0,missingSettings=0,invalidSettings=0,disabledMotors=0,incompleteMotors=0,issues={}}
  local function issue(item,message) table.insert(result.issues,{path=item:GetFullName(),message=message}) end
  for _,item in ipairs(model:GetDescendants()) do
   if item:IsA('Motor6D') or item:IsA('Bone') then
@@ -22,9 +22,11 @@ function RigInspector.inspect(model,config)
    end
   elseif item:IsA('Animator') then result.animators+=1
   elseif item:IsA('AnimationConstraint') then result.animationConstraints+=1
+  elseif item:IsA('HingeConstraint') then result.hingeConstraints+=1
+  elseif item:IsA('BallSocketConstraint') then result.ballConstraints+=1
   elseif item:IsA('IKControl') then
    if item.Enabled then result.enabledIK+=1 end
-   table.insert(result.ikControls,{path=item:GetFullName(),enabled=item.Enabled})
+   table.insert(result.ikControls,{path=item:GetFullName(),enabled=item.Enabled,hasPole=item.Pole~=nil})
   end
  end
  table.sort(result.ikControls,function(a,b) return a.path<b.path end)
@@ -34,15 +36,19 @@ end
 function RigInspector.format(result)
  local lines={result.model, string.format('Motor6D: %d  |  Bone: %d  |  Animator: %d',result.motors,result.bones,result.animators),
   string.format('IKControls: %d (%d enabled)  |  AnimationConstraints: %d',#result.ikControls,result.enabledIK,result.animationConstraints),
+  string.format('HingeConstraints: %d  |  BallSocketConstraints: %d',result.hingeConstraints,result.ballConstraints),
   string.format('Joint settings: %d valid, %d missing, %d invalid',result.configured,result.missingSettings,result.invalidSettings),
   string.format('Motors: %d disabled, %d incomplete',result.disabledMotors,result.incompleteMotors)}
  for i=1,math.min(#result.ikControls,8) do
   local control=result.ikControls[i]
-  table.insert(lines,control.path..' ('..(if control.enabled then 'enabled' else 'disabled')..')')
+  table.insert(lines,control.path..' ('..(if control.enabled then 'enabled' else 'disabled')..', '..(if control.hasPole then 'pole assigned' else 'no pole')..')')
  end
  if #result.ikControls>8 then table.insert(lines,string.format('... and %d more IKControls',#result.ikControls-8)) end
  for i=1,math.min(#result.issues,8) do local entry=result.issues[i]; table.insert(lines,entry.path..': '..entry.message) end
  if #result.issues>8 then table.insert(lines,string.format('... and %d more joint issues',#result.issues-8)) end
+ if #result.ikControls>0 then
+  table.insert(lines,'EditRig IK metadata does not constrain built-in IKControls. Constraint counts are not proof of compatible or enabled limits; scripts may change poles or constraints at runtime.')
+ end
  table.insert(lines,'Valid settings do not establish a usable chain or compatible direct-control actor.')
  table.insert(lines,'Inventory does not prove joint ownership is clear. Scripts, animation and controllers outside this model may also write joints.')
  if result.animationConstraints>0 then table.insert(lines,'AnimationConstraint joints are not supported by this prototype.') end

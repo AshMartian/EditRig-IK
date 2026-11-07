@@ -50,6 +50,8 @@ Studio's Assistant MCP server was observed using a local proxy and the Studio pr
 
 ## Experimental solver diagnostics
 
+On 2026-11-07, a read-only Edit-mode inspection of `Workspace.Dino Auto` found 22 Motor6Ds with no EditRig IK metadata, two enabled leg IKControls, and no HingeConstraint or BallSocketConstraint descendants. Neither control had a pole assigned at that moment; a game script can assign one during Play. The plugin's saved joint metadata configures its custom solver or direct actor; it does not add constraints to Roblox's existing IKControls. Roblox's [IK guide](https://create.roblox.com/docs/animation/inverse-kinematics) explains the required attachment positions and model relationship for supported IKControl constraints. Constraint counts alone do not verify that constraints are enabled, correctly aligned, or affect a particular chain. Do not infer rendered behavior from this static inspection.
+
 `chain:solve(...)` returns `converged`, `error`, `iterations`, `endpointWorld`, `status`, `maxReach`, and `limitedJoints`. `outsideReach` is a geometric upper-bound check; listed joints were clamped during an attempted correction, which does not by itself prove why a target was missed. `chain:destroy()` and the direct adapter's `destroy()` return conflicts when a different writer changed owned transforms. These are return values, not automatically recorded logs. The caller owns any logging, update loop, and cleanup; no supplied diagnostic proves a rendered rig behaves correctly. Use isolated fixtures and verify Animator/IKControl ownership before testing a real model.
 
 ## Play-mode actor timing check
