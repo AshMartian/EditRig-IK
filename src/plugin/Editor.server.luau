@@ -553,7 +553,7 @@ chainButton('Capture chain from selected IKControl').MouseButton1Click:Connect(f
     local missing=0
     for _,joint in ipairs(result.joints) do if joint:GetAttribute('EditRigIK_SchemaVersion')~=1 then missing+=1 end end
     refreshChainStatus()
-    chainFeedback.Text=string.format('Found %d joints; %d need limit metadata. %s Existing IKControl remains active; offsets are not copied. Custom solver is position-only.',#result.joints,missing,if endpoint then 'Endpoint captured.' else 'Select an endpoint attachment.')
+    chainFeedback.Text=string.format('Found %d joints; %d need limit metadata. %s Existing IKControl is unchanged; offsets are not copied. Custom solver is position-only.',#result.joints,missing,if endpoint then 'Endpoint captured.' else 'Select an endpoint attachment.')
 end)
 chainButton('Apply joint settings to captured IK chain').MouseButton1Click:Connect(function()
     local ok,entries=pcall(function()
