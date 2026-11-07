@@ -214,6 +214,20 @@ actor:impulse('JawImpulse', 1.0)     -- angular velocity, radians/second
 local conflicts = controller.stop() -- restores transforms it still owns
 ```
 
+Newly generated controllers also provide an opt-in update loop:
+
+```lua
+local actor = controller.run({exclusive = true}, function(message)
+    warn('Actor stopped: ' .. message)
+    -- Disconnect input bindings here before the actor is destroyed.
+end)
+actor:setControl('Jaw', 0.5)
+-- Later, disconnect input bindings first, then:
+local conflicts = controller.stop()
+```
+
+`run` connects to `RunService.PreSimulation`; Roblox recommends this timing for Motor6D transform updates ([Motor6D reference](https://create.roblox.com/docs/reference/engine/classes/Motor6D/Transform)). It rejects a second loop, and on a failed step disconnects, calls the optional error handler, and destroys the actor unless the handler already stopped it. Cleanup conflicts are reported as warnings. `start` remains available for a manually scheduled loop. The helper does not resolve Animator or IKControl conflicts, network authority, or replication. Existing generated controllers are never overwritten and may not include `run`; add the method manually or generate a new controller after preserving any edits.
+
 `exclusive = true` is the caller's assertion about external writers. A runtime module instance also rejects overlapping joint claims between its own actors, IK chains and direct adapters, releasing claims on `destroy`. This registry does not coordinate separate copies of the runtime, separate client/server environments, Animator, IKControl or other scripts. Call `destroy` when finished; discarding a live controller is not a supported cleanup strategy. The actor does not connect an update event, stop itself on model removal, solve IK, assign network ownership or replicate input. Its controls are local to the environment requiring the controller. An error during `step` can occur after behavior state and impulse queues advance; handle errors and shut down deliberately rather than retrying blindly. The generated definition copies limit values; it does not watch the source joint attributes. Tests used unparented fixture models with source modules, not an animated avatar, a skinned mesh, the installed plugin UI, or the packaged runtime.
 
 
