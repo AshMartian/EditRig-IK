@@ -14,6 +14,21 @@
     "LimitGeometry": {
       "$path": "src/plugin/LimitGeometry.luau"
     },
+    "PreviewSession": {
+      "$path": "src/plugin/PreviewSession.luau"
+    },
+    "PreviewSolver": {
+      "$path": "src/shared/Solver.luau"
+    },
+    "PreviewLimits": {
+      "$path": "src/shared/Limits.luau"
+    },
+    "PreviewChainAdapter": {
+      "$path": "src/runtime/ChainAdapter.luau"
+    },
+    "PreviewChainDefinition": {
+      "$path": "src/runtime/ChainDefinition.luau"
+    },
     "GeneratedController": {
       "$path": "src/plugin/GeneratedController.luau"
     },

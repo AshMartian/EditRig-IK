@@ -345,3 +345,48 @@ chainButton('Create idle IK chain definition').MouseButton1Click:Connect(functio
 end)
 
 chainFeedback=label('',65)
+
+label('Clone pose preview: select a saved chain, then enter a world-space target offset in studs.',50)
+local previewFrame=Instance.new('ViewportFrame')
+previewFrame.Size=UDim2.new(1,0,0,260); previewFrame.BackgroundColor3=Color3.fromRGB(24,26,31)
+previewFrame.Ambient=Color3.fromRGB(160,160,160); previewFrame.LightColor=Color3.fromRGB(255,255,255)
+previewFrame.Visible=false
+local preview: any=nil
+local previewStatus: TextLabel
+local function closePreview()
+    if preview then preview:destroy(); preview=nil end
+    previewFrame.Visible=false
+end
+chainButton('Open selected chain clone preview').MouseButton1Click:Connect(function()
+    closePreview()
+    local definition=selectedOne()
+    local ok,result=pcall(function()
+        local solver=require(script.PreviewSolver).new(require(script.PreviewLimits))
+        local adapter=require(script.PreviewChainAdapter)
+        local chainDefinition=require(script.PreviewChainDefinition)
+        return require(script.PreviewSession).new(definition,previewFrame,{createChain=function(copy)
+            return chainDefinition.new(copy,{exclusive=true},function(joints,point,options)
+                return adapter.new(joints,point,options,solver)
+            end)
+        end})
+    end)
+    if not ok then previewStatus.Text='Cannot open preview: '..tostring(result); return end
+    preview=result; previewFrame.Visible=true
+    previewStatus.Text='Clone ready. Enter an offset and solve; the source model stays unchanged.'
+end)
+order(previewFrame); previewFrame.Parent=root
+local previewX=chainNumberField('Preview target offset X (studs)','-1')
+local previewY=chainNumberField('Preview target offset Y (studs)','1')
+local previewZ=chainNumberField('Preview target offset Z (studs)','0')
+chainButton('Solve clone preview').MouseButton1Click:Connect(function()
+    if not preview then previewStatus.Text='Open a chain preview first.'; return end
+    local x,y,z=tonumber(previewX.Text),tonumber(previewY.Text),tonumber(previewZ.Text)
+    if not x or not y or not z then previewStatus.Text='Enter numeric target offsets.'; return end
+    local ok,result=pcall(function() return preview:solveOffset(Vector3.new(x,y,z)) end)
+    if not ok then previewStatus.Text='Preview solve failed: '..tostring(result); return end
+    previewStatus.Text=string.format('Converged: %s  |  error: %.4f studs  |  pole: %s',tostring(result.converged),result.error,tostring(result.poleStatus))
+end)
+chainButton('Close clone preview').MouseButton1Click:Connect(function() closePreview(); previewStatus.Text='Preview closed.' end)
+previewStatus=label('',65)
+widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then closePreview() end end)
+plugin.Unloading:Connect(closePreview)

@@ -1,0 +1,44 @@
+local model=Instance.new('Model'); model.Name='Rig'
+local a=Instance.new('Part'); a.Name='Base'; a.Anchored=true; a.Parent=model
+local b=Instance.new('Part'); b.Name='Mid'; b.CFrame=CFrame.new(1,0,0); b.Parent=model
+local c=Instance.new('Part'); c.Name='Tip'; c.CFrame=CFrame.new(2,0,0); c.Parent=model
+local j1=Instance.new('Motor6D'); j1.Name='Root'; j1.Part0=a; j1.Part1=b; j1.Parent=a
+local j2=Instance.new('Motor6D'); j2.Name='Elbow'; j2.Part0=b; j2.Part1=c; j2.C0=CFrame.new(1,0,0); j2.Parent=b
+local tip=Instance.new('Attachment'); tip.Position=Vector3.xAxis; tip.Parent=c
+for _,joint in ipairs({j1,j2}) do
+ joint:SetAttribute('EditRigIK_SchemaVersion',1); joint:SetAttribute('EditRigIK_Kind','Ball'); joint:SetAttribute('EditRigIK_Axis','Z')
+ joint:SetAttribute('EditRigIK_LowerDegrees',-180); joint:SetAttribute('EditRigIK_UpperDegrees',180); joint:SetAttribute('EditRigIK_SwingDegrees',180)
+end
+local folder=Instance.new('Folder'); folder.Name='EditRigIKChains'; folder.Parent=model
+local definition=ChainBuilder.new(Config).create(model,j1,j2,tip,'Leg'); definition.Parent=folder
+local view=Instance.new('ViewportFrame')
+local engine=Solver.new(Limits)
+local session=PreviewSession.new(definition,view,{createChain=function(def)
+ return ChainDefinition.new(def,{exclusive=true},function(joints,point,opts) return ChainAdapter.new(joints,point,opts,engine) end)
+end})
+local result=session:solveOffset(Vector3.new(-1,1,0))
+assert(result.converged and result.error<.02)
+assert(session:solveOffset(Vector3.new(-.9,1,0)).converged,'preview must accept repeated solves')
+assert(j1.Transform:FuzzyEq(CFrame.identity,1e-5) and j2.Transform:FuzzyEq(CFrame.identity,1e-5),'source joints must never move')
+assert(b.CFrame:FuzzyEq(CFrame.new(1,0,0),1e-5) and c.CFrame:FuzzyEq(CFrame.new(2,0,0),1e-5),'source parts must never move')
+assert(view:FindFirstChildOfClass('WorldModel') and view.CurrentCamera,'preview must have its own world and camera')
+session:destroy()
+assert(#view:GetChildren()==0 and view.CurrentCamera==nil,'closing preview must remove all generated objects')
+local root=Instance.new('Bone'); root.Name='BoneRoot'; root.Parent=a
+local child=Instance.new('Bone'); child.Name='BoneEnd'; child.CFrame=CFrame.new(1,0,0); child.Parent=root
+local boneTip=Instance.new('Attachment'); boneTip.Position=Vector3.xAxis; boneTip.Parent=child
+for _,joint in ipairs({root,child}) do
+ joint:SetAttribute('EditRigIK_SchemaVersion',1); joint:SetAttribute('EditRigIK_Kind','Ball'); joint:SetAttribute('EditRigIK_Axis','Z')
+ joint:SetAttribute('EditRigIK_LowerDegrees',-180); joint:SetAttribute('EditRigIK_UpperDegrees',180); joint:SetAttribute('EditRigIK_SwingDegrees',180)
+end
+local bones=ChainBuilder.new(Config).create(model,root,child,boneTip,'Tail'); bones.Parent=folder
+local boneSession=PreviewSession.new(bones,view,{createChain=function(def)
+ return ChainDefinition.new(def,{exclusive=true},function(joints,point,opts) return ChainAdapter.new(joints,point,opts,engine) end)
+end})
+assert(boneSession:solveOffset(Vector3.new(-1,1,0)).converged,'Bone preview must solve')
+assert(root.Transform:FuzzyEq(CFrame.identity,1e-5) and child.Transform:FuzzyEq(CFrame.identity,1e-5),'Bone source must remain unchanged')
+boneSession:destroy()
+assert(not pcall(function() PreviewSession.new(definition,view,{createChain=function() error('failed construction') end}) end))
+assert(#view:GetChildren()==0 and view.CurrentCamera==nil,'failed preview must clean up')
+model:Destroy(); view:Destroy()
+return 'Clone pose preview isolates Motor6D and Bone source rigs'
