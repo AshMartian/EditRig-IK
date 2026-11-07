@@ -41,6 +41,23 @@ local result = leg:solve(Vector3.new(point[1], point[2], point[3]))
 
 This is a target generator, not a complete gait or a fix for Dino Auto: it does not select footholds, raycast, coordinate legs, manage IK ownership, or ensure the target is reachable. The caller handles the update loop, target selection, diagnostics and animation conflicts. Isolated Motor6D and Bone fixture chains have followed sampled targets; live or visible motion has not been validated.
 
+The separate behavior coordinator can route named vector impulses to `IK.FootstepBehavior.new`. Its `start`, `up`, `height`, and `duration` use the same conventions as `StepTrajectory`; `impulse` names the event. Its output contains `position`, `moving`, and `progress`. An event during a swing begins a new swing at the current position; if several arrive in one update, the last target wins. The behavior holds the final target until another event. For example:
+
+```lua
+local coordinator = IK.Actor.new({behaviors = {{
+    name = 'leftFoot', type = 'footstep', options = {
+        start = {foot.X, foot.Y, foot.Z}, up = {0, 1, 0},
+        height = 0.5, duration = 0.3, impulse = 'StepLeft',
+    },
+}}}, {footstep = IK.FootstepBehavior.new})
+coordinator:impulse('StepLeft', {goal.X, goal.Y, goal.Z})
+-- In the caller's update loop:
+local output = coordinator:step({}, dt)[1].value
+leg:solve(Vector3.new(output.position[1], output.position[2], output.position[3]))
+```
+
+This coordinator is independent of the generated direct-control actor; it does not yet merge behavior results or own the IK chain. A step target impulse must be a finite three-number array. The general coordinator retains impulses if a behavior throws, so handle invalid messages deliberately rather than blindly retrying.
+
 ## Experimental behavior coordinator
 
 `IK.Actor.new(definition, registry)` creates independent behavior instances. Each registry entry is a factory called with a private copy of the behavior's `options`; it returns a table with `step(input, dt)` and optional `destroy(self)`. The coordinator calls enabled behaviors in ascending `priority` (definition order breaks ties) and returns their named results. It does not yet blend, apply, replicate or resolve conflicts between results. The caller owns the update loop and must call `destroy` when finished.

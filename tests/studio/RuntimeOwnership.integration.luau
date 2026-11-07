@@ -1,4 +1,4 @@
-local runtime=RuntimeFactory({Solver=Solver,Limits=Limits,Actor=Actor,JointDrive=JointDrive,StepTrajectory=StepTrajectory,JointAdapter=JointAdapter,ChainAdapter=ChainAdapter,ChainDefinition=ChainDefinition,ActorRig=ActorRig,Ownership=Ownership},function(module) return module end)
+local runtime=RuntimeFactory({Solver=Solver,Limits=Limits,Actor=Actor,JointDrive=JointDrive,StepTrajectory=StepTrajectory,FootstepBehavior=FootstepBehavior,JointAdapter=JointAdapter,ChainAdapter=ChainAdapter,ChainDefinition=ChainDefinition,ActorRig=ActorRig,Ownership=Ownership},function(module) return module end)
 local model=Instance.new('Model')
 local a=Instance.new('Part'); a.Parent=model
 local b=Instance.new('Part'); b.Parent=model

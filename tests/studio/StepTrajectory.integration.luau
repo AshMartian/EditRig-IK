@@ -16,6 +16,14 @@ for _,joints in ipairs({{m1,m2},{b1,b2}}) do
   assert(result.converged and (result.endpointWorld-target).Magnitude<.002,'trajectory target must be solvable by fixture chain')
   assert(done==(i==10))
  end
+ local actor=Actor.new({behaviors={{name='step',type='footstep',options={start={1,1,0},up={0,1,0},height=.1,duration=1,impulse='Step'}}}}, {footstep=function(options) return FootstepBehavior.new(options,StepTrajectory) end})
+ actor:impulse('Step',{1.1,.9,0})
+ for _=1,10 do
+  local output=actor:step({},.1)[1].value
+  local pos=output.position
+  assert(chain:solve(Vector3.new(pos[1],pos[2],pos[3]),{iterations=100,tolerance=.001}).converged,'actor-driven footstep must solve')
+ end
+ actor:destroy()
  assert(#chain:destroy()==0)
 end
 model:Destroy()

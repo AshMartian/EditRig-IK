@@ -7,6 +7,10 @@ local Runtime = {}
 Runtime.Actor = require(script.Actor)
 Runtime.JointDrive = require(script.JointDrive)
 Runtime.StepTrajectory = require(script.StepTrajectory)
+local FootstepBehavior = require(script.FootstepBehavior)
+Runtime.FootstepBehavior = {new=function(options)
+    return FootstepBehavior.new(options, Runtime.StepTrajectory)
+end}
 local JointAdapter = require(script.JointAdapter)
 local ownership = require(script.Ownership).new()
 local function ownedOptions(options)

@@ -20,6 +20,9 @@
     "StepTrajectory": {
       "$path": "src/runtime/StepTrajectory.luau"
     },
+    "FootstepBehavior": {
+      "$path": "src/runtime/FootstepBehavior.luau"
+    },
     "Ownership": {
       "$path": "src/runtime/Ownership.luau"
     },
