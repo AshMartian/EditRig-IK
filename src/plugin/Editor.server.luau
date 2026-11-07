@@ -20,7 +20,8 @@ local root = Instance.new('ScrollingFrame')
 root.AutomaticCanvasSize = Enum.AutomaticSize.Y
 root.CanvasSize = UDim2.new()
 root.ScrollBarThickness = 6
-root.Size = UDim2.fromScale(1, 1)
+-- Keep command feedback visible even when the long editor is scrolled.
+root.Size = UDim2.new(1, 0, 1, -72)
 root.BackgroundColor3 = Color3.fromRGB(37, 39, 45)
 root.Parent = widget
 local layout = Instance.new('UIListLayout')
@@ -135,6 +136,18 @@ createActor.TextWrapped = true
 order(createActor)
 createActor.Parent = root
 local status = label('', 65)
+status.Parent = widget
+status.AnchorPoint = Vector2.new(0, 1)
+status.Position = UDim2.fromScale(0, 1)
+status.Size = UDim2.new(1, 0, 0, 72)
+status.BackgroundTransparency = 0
+status.BackgroundColor3 = Color3.fromRGB(30, 32, 38)
+status.TextYAlignment = Enum.TextYAlignment.Top
+local statusPadding = Instance.new('UIPadding')
+statusPadding.PaddingTop = UDim.new(0, 6)
+statusPadding.PaddingLeft = UDim.new(0, 10)
+statusPadding.PaddingRight = UDim.new(0, 10)
+statusPadding.Parent = status
 local current: Instance? = nil
 local axisButton=Instance.new('TextButton')
 axisButton.Size=UDim2.new(1,0,0,32); axisButton.BackgroundColor3=Color3.fromRGB(61,109,172)
