@@ -1,13 +1,17 @@
 local model=Instance.new('Model'); local motor=Instance.new('Motor6D'); motor.Name='Jaw'; motor.Parent=model
 local part=Instance.new('Part'); part.Parent=model; local bone=Instance.new('Bone'); bone.Name='Tail'; bone.Parent=part
 motor:SetAttribute('EditRigIK_LowerDegrees',-12); bone:SetAttribute('EditRigIK_LowerDegrees',-23)
-local settings={kind='Hinge',axis='Z',lower=-30,upper=80,swing=90,control='',impulse='',frequency=4,holdKey='E',impulseKey='Q'}
+local settings={kind='Hinge',axis='Z',lower=-30,upper=80,swing=90,control='',impulse='',frequency=4,holdKey='E',reverseHoldKey='R',impulseKey='Q'}
 local batch=JointBatch.prepare({motor,bone},settings,Config,InputProfileBuilder)
 assert(motor:GetAttribute('EditRigIK_LowerDegrees')==-12 and bone:GetAttribute('EditRigIK_LowerDegrees')==-23,'preparation must not mutate')
 JointBatch.apply(batch)
 assert(motor:GetAttribute('EditRigIK_LowerDegrees')==-30 and bone:GetAttribute('EditRigIK_LowerDegrees')==-30,'limits must apply to both kinds')
 assert(motor:GetAttribute('EditRigIK_Control')=='Jaw' and bone:GetAttribute('EditRigIK_Control')=='Tail','blank names should default per joint')
 assert(motor:GetAttribute('EditRigIK_HoldKey')=='E' and bone:GetAttribute('EditRigIK_ImpulseKey')=='Q','keys must persist')
+assert(motor:GetAttribute('EditRigIK_ReverseHoldKey')=='R' and bone:GetAttribute('EditRigIK_ReverseHoldKey')=='R','reverse keys must persist')
+settings.reverseHoldKey='E'
+assert(not pcall(JointBatch.prepare,{motor,bone},settings,Config,InputProfileBuilder),'same key must not be accepted in both directions')
+settings.reverseHoldKey='R'
 settings.lower=100
 assert(not pcall(function() JointBatch.prepare({motor,bone},settings,Config,InputProfileBuilder) end),'invalid limits must be rejected')
 assert(motor:GetAttribute('EditRigIK_LowerDegrees')==-30 and bone:GetAttribute('EditRigIK_LowerDegrees')==-30,'failed validation must preserve both joints')

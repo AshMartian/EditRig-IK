@@ -18,9 +18,14 @@ function InputProfileBuilder.validateKey(value)
  assert(ok and key and key~=Enum.KeyCode.None,'unknown or unsupported KeyCode: '..name)
  return key.Name
 end
+function InputProfileBuilder.validateHoldKeys(forward,reverse)
+ forward=InputProfileBuilder.validateKey(forward); reverse=InputProfileBuilder.validateKey(reverse)
+ assert(reverse=='' or (forward~='' and reverse~=forward),'reverse hold key needs a different hold key')
+ return forward,reverse
+end
 function InputProfileBuilder.create(definition)
  assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition.Name=='EditRigIKActor' and definition:GetAttribute('EditRigIK_ActorSchemaVersion')==1 and definition.Parent and definition.Parent:IsA('Model'),'select a supported actor definition')
- local groups,keys={},{}
+ local groups,keys,holdModes={},{},{}
  local function add(route,control,keyName,value)
   if keyName=='' then return end
   assert(type(control)=='string' and #control>0 and #control<=128,'actor control or impulse name is invalid')
@@ -35,22 +40,31 @@ function InputProfileBuilder.create(definition)
  for _,ref in ipairs(definition:GetChildren()) do
   local joint=if ref:IsA('ObjectValue') then ref.Value else nil
   assert(joint and (joint:IsA('Motor6D') or joint:IsA('Bone')) and joint:IsDescendantOf(definition.Parent),'invalid actor joint reference')
-  local holdKey=InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_HoldKey'))
+  local holdKey,reverseKey=InputProfileBuilder.validateHoldKeys(joint:GetAttribute('EditRigIK_HoldKey'),joint:GetAttribute('EditRigIK_ReverseHoldKey'))
   local impulseKey=InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_ImpulseKey'))
   local kind=ref:GetAttribute('Kind') or 'Hinge'
   assert(kind=='Hinge' or kind=='Ball','invalid actor joint kind')
   local holdValue=InputProfileBuilder.validateAmount(kind,'Hold',joint:GetAttribute('EditRigIK_HoldValue'))
   local impulseValue=InputProfileBuilder.validateAmount(kind,'Impulse',joint:GetAttribute('EditRigIK_ImpulseValue'))
+  local holdRoute=if reverseKey~='' then 'AxisPositive' else 'Hold'
+  if holdKey~='' then
+   local control=ref:GetAttribute('Control')
+   assert(type(control)=='string' and #control>0 and #control<=128,'actor control or impulse name is invalid')
+   assert(not holdModes[control] or holdModes[control]==holdRoute,'shared control must use the same hold mode')
+   holdModes[control]=holdRoute
+  end
   if kind=='Ball' then
    local axis=ref:GetAttribute('Axis')
    local axes={X=Vector3.xAxis,Y=Vector3.yAxis,Z=Vector3.zAxis}
-   assert((holdKey=='' and impulseKey=='') or axes[axis],'ball-joint input needs a valid axis')
+   assert((holdKey=='' and reverseKey=='' and impulseKey=='') or axes[axis],'ball-joint input needs a valid axis')
    if axes[axis] then
-    add('Hold',ref:GetAttribute('Control'),holdKey,axes[axis]*holdValue)
+    add(holdRoute,ref:GetAttribute('Control'),holdKey,axes[axis]*holdValue)
+    add('AxisNegative',ref:GetAttribute('Control'),reverseKey,axes[axis]*holdValue)
     add('Impulse',ref:GetAttribute('Impulse'),impulseKey,axes[axis]*impulseValue)
    end
   else
-   add('Hold',ref:GetAttribute('Control'),holdKey,holdValue)
+   add(holdRoute,ref:GetAttribute('Control'),holdKey,holdValue)
+   add('AxisNegative',ref:GetAttribute('Control'),reverseKey,holdValue)
    add('Impulse',ref:GetAttribute('Impulse'),impulseKey,impulseValue)
   end
  end

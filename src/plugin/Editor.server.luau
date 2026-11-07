@@ -92,7 +92,7 @@ inspect.MouseButton1Click:Connect(function()
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'holdValue','Hold value'}, {'impulseKey','Impulse KeyCode (optional)'}, {'impulseValue','Impulse value (rad/s)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'reverseHoldKey','Reverse hold KeyCode (optional)'}, {'holdValue','Hold value'}, {'impulseKey','Impulse KeyCode (optional)'}, {'impulseValue','Impulse value (rad/s)'}}) do
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
@@ -199,9 +199,9 @@ local axisUpdate=RunService.Heartbeat:Connect(function()
 end)
 plugin.Unloading:Connect(function() axisUpdate:Disconnect(); hideAxes() end)
 local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees',weight='EditRigIK_Weight'}
-local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90,weight=1,holdKey='',holdValue=1,impulseKey='',impulseValue=1}
+local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90,weight=1,holdKey='',reverseHoldKey='',holdValue=1,impulseKey='',impulseValue=1}
 local driveAttrs = {control='EditRigIK_Control',impulse='EditRigIK_Impulse',frequency='EditRigIK_Frequency'}
-local inputAttrs = {holdKey='EditRigIK_HoldKey',holdValue='EditRigIK_HoldValue',impulseKey='EditRigIK_ImpulseKey',impulseValue='EditRigIK_ImpulseValue'}
+local inputAttrs = {holdKey='EditRigIK_HoldKey',reverseHoldKey='EditRigIK_ReverseHoldKey',holdValue='EditRigIK_HoldValue',impulseKey='EditRigIK_ImpulseKey',impulseValue='EditRigIK_ImpulseValue'}
 local function refresh()
     local items = Selection:Get()
     local item = if #items == 1 then items[1] else nil
@@ -236,16 +236,17 @@ apply.MouseButton1Click:Connect(function()
     if not driveOk then status.Text='Invalid control settings: '..tostring(drive); return end
     local holdValue,impulseValue=tonumber(fields.holdValue.Text),tonumber(fields.impulseValue.Text)
     if holdValue==nil or impulseValue==nil then status.Text='Enter numeric hold and impulse values.'; return end
-    local keysOk,holdKey,impulseKey=pcall(function()
+    local keysOk,holdKey,reverseHoldKey,impulseKey=pcall(function()
         InputProfileBuilder.validateAmount(result.kind,'Hold',holdValue)
         InputProfileBuilder.validateAmount(result.kind,'Impulse',impulseValue)
-        return InputProfileBuilder.validateKey(fields.holdKey.Text),InputProfileBuilder.validateKey(fields.impulseKey.Text)
+        local forward,reverse=InputProfileBuilder.validateHoldKeys(fields.holdKey.Text,fields.reverseHoldKey.Text)
+        return forward,reverse,InputProfileBuilder.validateKey(fields.impulseKey.Text)
     end)
     if not keysOk then status.Text='Invalid input settings: '..tostring(holdKey); return end
     ChangeHistoryService:SetWaypoint('Before EditRig IK limit metadata')
     for key, name in pairs(attrs) do item:SetAttribute(name, result[key]) end
     for key, name in pairs(driveAttrs) do item:SetAttribute(name, drive[key]) end
-    item:SetAttribute(inputAttrs.holdKey,holdKey); item:SetAttribute(inputAttrs.impulseKey,impulseKey)
+    item:SetAttribute(inputAttrs.holdKey,holdKey); item:SetAttribute(inputAttrs.reverseHoldKey,reverseHoldKey); item:SetAttribute(inputAttrs.impulseKey,impulseKey)
     item:SetAttribute(inputAttrs.holdValue,holdValue); item:SetAttribute(inputAttrs.impulseValue,impulseValue)
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
@@ -256,7 +257,7 @@ local function batchValues()
     assert(weight,'enter a joint influence')
     local holdValue,impulseValue=tonumber(fields.holdValue.Text),tonumber(fields.impulseValue.Text)
     assert(holdValue~=nil and impulseValue~=nil,'enter numeric hold and impulse values')
-    return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=weight,control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,holdValue=holdValue,impulseKey=fields.impulseKey.Text,impulseValue=impulseValue}
+    return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=weight,control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,reverseHoldKey=fields.reverseHoldKey.Text,holdValue=holdValue,impulseKey=fields.impulseKey.Text,impulseValue=impulseValue}
 end
 applyBatch.MouseButton1Click:Connect(function()
     local items=Selection:Get()

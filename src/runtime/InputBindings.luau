@@ -113,30 +113,46 @@ function InputBindings.new(actor)
  function api:bindProfile(context)
   assert(not dead,'input bindings are destroyed')
   assert(typeof(context)=='Instance' and context:IsA('InputContext') and not context.Enabled,'expected a disabled InputContext')
-  local planned,seen={},{}
+  local planned,seen,axes={},{},{}
   for _,action in ipairs(context:GetChildren()) do
    if action:IsA('InputAction') then
     checkAction(action)
     local route,control,raw=action:GetAttribute('Route'),action:GetAttribute('Control'),action:GetAttribute('Value')
     local value=if typeof(raw)=='Vector3' then {raw.X,raw.Y,raw.Z} else raw
-    assert((route=='Hold' or route=='Impulse') and nameValid(control),'invalid input profile action')
+    assert((route=='Hold' or route=='Impulse' or route=='AxisPositive' or route=='AxisNegative') and nameValid(control),'invalid input profile action')
     if route=='Hold' then
      value=holdValues(value)
      assert(not controls[control] and not seen[control],'invalid or duplicate hold control')
      if type(actor.validateControl)=='function' then actor:validateControl(control,value) end
      seen[control]=true
-    else
+    elseif route=='Impulse' then
      assert(finite(value) or (type(value)=='table' and #value==3 and finite(value[1]) and finite(value[2]) and finite(value[3])),'invalid impulse profile value')
      if type(actor.validateImpulse)=='function' then actor:validateImpulse(control,value) end
+    else
+     value=holdValues(value)
+     assert(not controls[control] and (not seen[control] or seen[control]=='axis'),'invalid or duplicate hold control')
+     seen[control]='axis'
+     local pair=axes[control]
+     if not pair then pair={raw=raw,value=value}; axes[control]=pair end
+     assert(pair.raw==raw and not pair[route],'duplicate axis direction or mismatched axis value')
+     pair[route]=action
+     if type(actor.validateControl)=='function' then
+      actor:validateControl(control,value)
+      actor:validateControl(control,if type(value)=='table' then {-value[1],-value[2],-value[3]} else -value)
+     end
     end
-    table.insert(planned,{action=action,route=route,control=control,value=value})
+    if route=='Hold' or route=='Impulse' then table.insert(planned,{action=action,route=route,control=control,value=value}) end
    end
+  end
+  for control,pair in pairs(axes) do
+   assert(pair.AxisNegative and pair.AxisPositive,'axis profile needs both directions')
+   table.insert(planned,{route='Axis',control=control,value=pair.value,negative=pair.AxisNegative,positive=pair.AxisPositive})
   end
   assert(#planned>0,'input profile contains no actions')
   local handles={}
   local ok,err=pcall(function()
    for _,entry in ipairs(planned) do
-    local handle=if entry.route=='Hold' then api:bindHold(entry.action,entry.control,entry.value) else api:bindImpulse(entry.action,entry.control,entry.value)
+    local handle=if entry.route=='Hold' then api:bindHold(entry.action,entry.control,entry.value) elseif entry.route=='Axis' then api:bindAxis(entry.negative,entry.positive,entry.control,entry.value) else api:bindImpulse(entry.action,entry.control,entry.value)
     table.insert(handles,handle)
    end
   end)
