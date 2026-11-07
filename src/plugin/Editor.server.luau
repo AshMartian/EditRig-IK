@@ -7,7 +7,7 @@ local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
-local widget = plugin:CreateDockWidgetPluginGui('EditRigIKJointLimits', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 320, 430, 260, 350))
+local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
 widget.Title = 'EditRig IK — prototype'
 local root = Instance.new('ScrollingFrame')
 root.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -48,19 +48,31 @@ local selectedLabel = label('Select one Motor6D or Bone in Explorer.', 38)
 local notice = label('Prototype: saves settings and idle definitions. No animation starts automatically.', 42)
 notice.TextColor3 = Color3.fromRGB(255, 204, 111)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Type: Hinge or Ball'}, {'axis','Local axis: X, Y or Z'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing angle (degrees)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}}) do
+    local row = Instance.new('Frame')
+    row.Size = UDim2.new(1, 0, 0, 30)
+    row.BackgroundTransparency = 1
+    order(row)
+    row.Parent = root
+    local caption = Instance.new('TextLabel')
+    caption.Size = UDim2.new(0.53, -4, 1, 0)
+    caption.BackgroundTransparency = 1
+    caption.Text = entry[2]
+    caption.TextColor3 = Color3.fromRGB(235,235,240)
+    caption.TextXAlignment = Enum.TextXAlignment.Left
+    caption.Font = Enum.Font.SourceSans
+    caption.TextSize = 16
+    caption.Parent = row
     local box = Instance.new('TextBox')
-    box.Size = UDim2.new(1, 0, 0, 28)
+    box.Position = UDim2.new(0.53, 0, 0, 0)
+    box.Size = UDim2.new(0.47, 0, 1, 0)
     box.BackgroundColor3 = Color3.fromRGB(60, 63, 72)
     box.TextColor3 = Color3.fromRGB(245, 245, 245)
-    box.PlaceholderColor3 = Color3.fromRGB(185, 185, 190)
-    box.PlaceholderText = entry[2]
     box.Text = ''
     box.ClearTextOnFocus = false
     box.Font = Enum.Font.SourceSans
     box.TextSize = 16
-    order(box)
-    box.Parent = root
+    box.Parent = row
     fields[entry[1]] = box
 end
 local apply = Instance.new('TextButton')

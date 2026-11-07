@@ -6,6 +6,10 @@ These paths describe the Vinegar Studio prefix on this machine, checked on 2026-
 
 In Studio, open **Window → Output** (or the Output button on the Script tab). Use its context/source filters to distinguish user plugin, server and client messages. Plugin startup errors and errors thrown by the generated controller or game scripts appear here when Studio reports them. Validation failures from the editor's buttons appear in its status text. The prototype does not currently write a dedicated plugin log file or implement a persistent runtime logging service.
 
+## Interface and captures
+
+In the current agent environment, computer-use exposes browser surfaces but not the native Studio window. Studio MCP's capture shows the 3D viewport, not plugin dock widgets or the rest of Studio's interface. A user-provided screenshot can document the complete interface; it showed the original plugin window clipped to a short floating panel on 2026-11-07. The revised editor uses a new widget ID and a taller initial floating size, but its appearance and controls still need confirmation in Studio. Logs and viewport captures alone cannot establish that those controls are visible or usable.
+
 ## Studio process logs
 
 The application log directory is:
