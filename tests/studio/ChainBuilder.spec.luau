@@ -16,6 +16,7 @@ local def=builder.create(model,j1,j2,endpoint,'Leg',{iterations=48,tolerance=0.0
 assert(def.Parent==nil and def.Name=='Leg' and def:GetAttribute('SchemaVersion')==1)
 assert(def:GetAttribute('Iterations')==48 and def:GetAttribute('Tolerance')==0.02)
 assert(not pcall(function() builder.create(model,j1,j2,endpoint,'Bad',{iterations=0,tolerance=0.1}) end))
+assert(not pcall(function() builder.create(model,j1,j2,endpoint,'Bad',{iterations=1,tolerance=0.1,maxStepDegrees=181}) end))
 assert(def.Endpoint.Value==endpoint and def.Joints.Joint001.Value==j1 and def.Joints.Joint002.Value==j2)
 assert(def.Joints.Joint001:GetAttribute('Kind')=='Ball' and def.Joints.Joint002:GetAttribute('UpperDegrees')==90)
 assert(not pcall(function() builder.create(model,j2,j1,endpoint,'Bad') end),'reverse chain should fail')

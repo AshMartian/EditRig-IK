@@ -10,13 +10,16 @@ for _,j in ipairs({j1,j2}) do
  j:SetAttribute('EditRigIK_LowerDegrees',-180); j:SetAttribute('EditRigIK_UpperDegrees',180); j:SetAttribute('EditRigIK_SwingDegrees',90)
 end
 local folder=Instance.new('Folder'); folder.Name='EditRigIKChains'; folder.Parent=model
-local definition=ChainBuilder.new(Config).create(model,j1,j2,endpoint,'Leg',{iterations=48,tolerance=0.02}); definition.Parent=folder
+local definition=ChainBuilder.new(Config).create(model,j1,j2,endpoint,'Leg',{iterations=48,tolerance=0.02,maxStepDegrees=20}); definition.Parent=folder
+assert(definition:GetAttribute('MaxStepDegrees')==20,'authored correction angle must persist')
 local captured
 local optionsChain=ChainDefinition.new(definition,{exclusive=true},function()
  return {solve=function(_,_,options) captured=options; return options end,destroy=function() return {} end}
 end)
 optionsChain:solve(Vector3.zero,{iterations=7})
-assert(captured.iterations==7 and captured.tolerance==0.02,'partial override must preserve saved tolerance')
+assert(captured.iterations==7 and captured.tolerance==0.02 and math.abs(captured.maxStep-math.rad(20))<1e-8,'partial override must preserve saved settings')
+optionsChain:solve(Vector3.zero,{maxStep=math.rad(10)})
+assert(math.abs(captured.maxStep-math.rad(10))<1e-8 and captured.iterations==48,'runtime correction angle override must reach solver')
 optionsChain:solve(Vector3.zero,{tolerance=0})
 assert(captured.iterations==48 and captured.tolerance==0,'partial override must preserve saved iterations and accept zero tolerance')
 assert(not pcall(function() optionsChain:solve(Vector3.zero,{iteration=7}) end),'unknown options must not be ignored')
@@ -26,7 +29,7 @@ local chain=ChainDefinition.new(definition,{exclusive=true},function(joints,loca
  return ChainAdapter.new(joints,localPoint,options,Solver.new(Limits))
 end)
 local result=chain:solve(Vector3.new(1,1,0))
-assert(result.converged and result.error<0.01)
+assert(result.converged and result.error<=0.02,'authored tolerance should govern convergence')
 endpoint.Position=Vector3.new(2,0,0)
 assert(not pcall(function() chain:solve(Vector3.new(1,1,0)) end),'endpoint changes require rebuilding the chain')
 assert(#chain:destroy()==0)
@@ -38,12 +41,17 @@ for _,j in ipairs({root,child}) do
  j:SetAttribute('EditRigIK_LowerDegrees',-180); j:SetAttribute('EditRigIK_UpperDegrees',180); j:SetAttribute('EditRigIK_SwingDegrees',90)
 end
 local boneDefinition=ChainBuilder.new(Config).create(model,root,child,boneTip,'Tail'); boneDefinition.Parent=folder
+assert(boneDefinition:GetAttribute('MaxStepDegrees')==180,'default correction angle preserves existing behavior')
+boneDefinition:SetAttribute('MaxStepDegrees',nil) -- definitions saved before this option
 local boneOptions=ChainDefinition.new(boneDefinition,{exclusive=true},function()
  return {solve=function(_,_,options) captured=options; return options end,destroy=function() return {} end}
 end)
 boneOptions:solve(Vector3.zero,{iterations=9})
-assert(captured.iterations==9 and captured.tolerance==0.01,'Bone chain must retain saved tolerance')
+assert(captured.iterations==9 and captured.tolerance==0.01 and captured.maxStep==math.pi,'Bone chain must retain saved settings')
 boneOptions:destroy()
+boneDefinition:SetAttribute('MaxStepDegrees',0)
+assert(not pcall(function() ChainDefinition.new(boneDefinition,{exclusive=true},function() end) end),'invalid saved correction angle must fail')
+boneDefinition:SetAttribute('MaxStepDegrees',180)
 local boneChain=ChainDefinition.new(boneDefinition,{exclusive=true},function(joints,localPoint,options)
  return ChainAdapter.new(joints,localPoint,options,Solver.new(Limits))
 end)

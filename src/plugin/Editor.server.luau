@@ -169,6 +169,7 @@ local function chainNumberField(labelText: string, default: string): TextBox
 end
 local iterationsField=chainNumberField('Maximum CCD iterations','30')
 local toleranceField=chainNumberField('Target tolerance (studs)','0.01')
+local maxStepField=chainNumberField('Maximum correction per iteration (degrees)','180')
 local chainStatus=label('No chain selections yet.',55)
 local chainFeedback: TextLabel
 local firstJoint: Instance?=nil
@@ -218,7 +219,9 @@ chainButton('Create idle IK chain definition').MouseButton1Click:Connect(functio
     if container and container:FindFirstChild(chainName.Text) then chainFeedback.Text='That chain name already exists.'; return end
     local existingController=model:FindFirstChild('EditRigIKController')
     if existingController and (not existingController:IsA('ModuleScript') or existingController:GetAttribute('EditRigIK_GeneratedControllerVersion')~=1) then chainFeedback.Text='An incompatible controller exists; rename it before creating the chain.'; return end
-    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text)}
+    local maxStep=tonumber(maxStepField.Text)
+    if not maxStep then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep}
     local ok,definition=pcall(ChainBuilder.create,model,first,last,tip,chainName.Text,options)
     if not ok then chainFeedback.Text='Cannot create chain: '..tostring(definition); return end
     ChangeHistoryService:SetWaypoint('Before create EditRig IK chain')

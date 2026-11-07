@@ -30,18 +30,21 @@ function ChainDefinition.new(definition,options,createChain)
  local last=joints[#joints]; local endpoint=endpointRef.Value
  assert(endpoint.Parent==(if last:IsA('Motor6D') then last.Part1 else last),'endpoint parent does not match chain')
  local iterations,tolerance=definition:GetAttribute('Iterations'),definition:GetAttribute('Tolerance')
+ local maxStepDegrees=definition:GetAttribute('MaxStepDegrees')
+ if maxStepDegrees==nil then maxStepDegrees=180 end -- schema 1 definitions created before this option
  assert(finite(iterations) and iterations%1==0 and iterations>=1 and iterations<=1000,'invalid iterations')
  assert(finite(tolerance) and tolerance>=0,'invalid tolerance')
+ assert(finite(maxStepDegrees) and maxStepDegrees>0 and maxStepDegrees<=180,'invalid maximum correction angle')
  local endpointParent,endpointPosition=endpoint.Parent,endpoint.Position
  local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits})
  local api={}
  function api:solve(target,overrides)
   assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')
   assert(overrides==nil or type(overrides)=='table','solver overrides must be a table')
-  local settings={iterations=iterations,tolerance=tolerance}
+  local settings={iterations=iterations,tolerance=tolerance,maxStep=math.rad(maxStepDegrees)}
   if overrides then
    for key,value in pairs(overrides) do
-    assert(key=='iterations' or key=='tolerance','unknown solver option: '..tostring(key))
+    assert(key=='iterations' or key=='tolerance' or key=='maxStep','unknown solver option: '..tostring(key))
     settings[key]=value
    end
   end

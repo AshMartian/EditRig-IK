@@ -79,6 +79,8 @@ function Solver.new(limits)
   assert(finiteVector(target),'invalid target')
   assert(type(options)=='table' and type(options.iterations)=='number' and options.iterations%1==0 and options.iterations>=1 and options.iterations<=1000,'invalid iterations')
   assert(type(options.tolerance)=='number' and options.tolerance==options.tolerance and options.tolerance>=0 and options.tolerance<math.huge,'invalid tolerance')
+  local maxStep=if options.maxStep==nil then math.pi else options.maxStep
+  assert(type(maxStep)=='number' and maxStep==maxStep and maxStep>0 and maxStep<=math.pi,'invalid maximum correction angle')
   local rotations={}
   for i,j in ipairs(chain.joints) do
    assert(finiteVector(j.offset) and length(j.offset)>EPS,'invalid or zero-length offset')
@@ -101,6 +103,13 @@ function Solver.new(limits)
      if change then localDelta=quat(quat(inverse(bases[i]),change),bases[i]) end
     end
     if localDelta then
+     localDelta=normalize(localDelta)
+     local magnitude=math.sqrt(localDelta[1]^2+localDelta[2]^2+localDelta[3]^2)
+     local angle=2*math.atan2(magnitude,localDelta[4])
+     if angle>maxStep and magnitude>EPS then
+      local s=math.sin(maxStep/2)/magnitude
+      localDelta={localDelta[1]*s,localDelta[2]*s,localDelta[3]*s,math.cos(maxStep/2)}
+     end
      local rotation=normalize(quat(localDelta,rotations[i]))
      rotations[i]=constrain(rotation,limit)
     end

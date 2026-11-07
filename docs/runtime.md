@@ -23,7 +23,7 @@ print(result.converged, result.error, result.endpoint)
 
 Vectors are numeric `{x, y, z}` arrays and quaternions are `{x, y, z, w}`. `root` and target share one coordinate frame, whose orientation is identity. Joint `rest` is a quaternion relative to the previous joint's rotated frame; `rotation` is relative to that rest frame. `offset` is the vector from this joint to the next joint (or final endpoint) in this joint's rotated frame. Limits are in the joint's rest frame, in **radians**. A hinge has `axis`, `lower`, and `upper`; a ball has those fields plus `swing` (cone half-angle). For a model with nonidentity root orientation, an adapter must transform the target and geometry into this frame and translate results back consistently.
 
-The solver uses CCD and applies limits to the initial rotation and after each joint update. It returns `rotations`, `endpoint`, `error`, actual `iterations`, and `converged`. `iterations` must be an integer in 1–1000; tolerance is finite and nonnegative. Invalid axes, ranges, rotations, or zero-length links are rejected. A missed target can be unreachable, constrained, singular or simply not converged; the current diagnostic does not distinguish these cases. There is no pole vector or preferred bend direction, so ambiguous poses can flip. Isolated Studio fixtures have exercised both chain types, but these tests do not establish compatibility with Animator, real skinned meshes, or a live rig.
+The solver uses CCD and applies limits to the initial rotation and after each joint update. It returns `rotations`, `endpoint`, `error`, actual `iterations`, and `converged`. `iterations` must be an integer in 1–1000; tolerance is finite and nonnegative. Optional `maxStep` limits each joint's correction per iteration in radians, greater than zero and at most pi; it defaults to pi. This limits a solver iteration, not the total change per frame or a time-based smoothing speed. Invalid axes, ranges, rotations, or zero-length links are rejected. A missed target can be unreachable, constrained, singular or simply not converged; the current diagnostic does not distinguish these cases. There is no pole vector or preferred bend direction, so ambiguous poses can flip. Isolated Studio fixtures have exercised both chain types, but these tests do not establish compatibility with Animator, real skinned meshes, or a live rig.
 
 ## Experimental behavior coordinator
 
@@ -109,7 +109,7 @@ This is an explicit ownership assertion, not a lock. Existing Animator, IKContro
 
 ## Authoring and opening an IK chain
 
-In the editor, save hinge or ball settings on every joint in the intended chain. Select the root joint and click **Set root joint**, select the end joint and click **Set end joint**, then select a regular Attachment directly under the final Motor6D's Part1 or final Bone and click **Set endpoint attachment**. Enter a chain name, CCD iteration limit and tolerance in studs, then click **Create idle IK chain definition**. The builder requires a single directed path and rejects ambiguous, cyclic, disconnected, mixed-type, or unconfigured chains. It creates a snapshot under the containing model's `EditRigIKChains` and an idle controller if one does not already exist. It does not overwrite an existing chain.
+In the editor, save hinge or ball settings on every joint in the intended chain. Select the root joint and click **Set root joint**, select the end joint and click **Set end joint**, then select a regular Attachment directly under the final Motor6D's Part1 or final Bone and click **Set endpoint attachment**. Enter a chain name, CCD iteration limit, tolerance in studs, and maximum correction per iteration in degrees, then click **Create idle IK chain definition**. The default correction is 180 degrees; old saved chains use that default. The builder requires a single directed path and rejects ambiguous, cyclic, disconnected, mixed-type, or unconfigured chains. It creates a snapshot under the containing model's `EditRigIKChains` and an idle controller if one does not already exist. It does not overwrite an existing chain.
 
 With the runtime installed in ReplicatedStorage, and after resolving all competing writers:
 
@@ -117,7 +117,7 @@ With the runtime installed in ReplicatedStorage, and after resolving all competi
 local controller = require(model.EditRigIKController)
 local leg = controller.openChain('Leg', {exclusive = true})
 local result = leg:solve(target.WorldPosition) -- uses authored iteration/tolerance
--- Optionally override either or both: {iterations = 40} keeps the saved tolerance.
+-- Override any setting, e.g. {iterations = 40, maxStep = math.rad(20)}.
 print(result.converged, result.error)
 -- Stop your update loop before restoring the owned transforms.
 local conflicts = leg:destroy()

@@ -7,6 +7,8 @@ function ChainBuilder.new(Config)
   options=options or {iterations=30,tolerance=0.01}
   assert(type(options)=='table' and type(options.iterations)=='number' and options.iterations%1==0 and options.iterations>=1 and options.iterations<=1000,'iterations must be an integer from 1 to 1000')
   assert(type(options.tolerance)=='number' and options.tolerance==options.tolerance and options.tolerance>=0 and options.tolerance<math.huge,'tolerance must be finite and nonnegative')
+  local maxStepDegrees=if options.maxStepDegrees==nil then 180 else options.maxStepDegrees
+  assert(type(maxStepDegrees)=='number' and maxStepDegrees==maxStepDegrees and maxStepDegrees>0 and maxStepDegrees<=180,'maximum correction must be greater than 0 and at most 180 degrees')
   assert(typeof(model)=='Instance' and model:IsA('Model'),'actor model required')
   assert(type(name)=='string' and #name>0 and #name<=64,'chain name must be 1–64 characters')
   assert(typeof(first)=='Instance' and typeof(last)=='Instance' and first:IsDescendantOf(model) and last:IsDescendantOf(model),'joints must belong to the selected model')
@@ -62,6 +64,7 @@ function ChainBuilder.new(Config)
   end
   local folder=Instance.new('Folder'); folder.Name=name; folder:SetAttribute('SchemaVersion',1)
   folder:SetAttribute('Iterations',options.iterations); folder:SetAttribute('Tolerance',options.tolerance)
+  folder:SetAttribute('MaxStepDegrees',maxStepDegrees)
   local endpointRef=Instance.new('ObjectValue'); endpointRef.Name='Endpoint'; endpointRef.Value=endpoint; endpointRef.Parent=folder
   local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=folder
   for i,e in ipairs(entries) do
