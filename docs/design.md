@@ -22,6 +22,8 @@ The experimental model is `Workspace.Dino Auto` in Prehistoric Rumble, place 937
 
 The prototype's read-only rig inventory was run against Dino Auto in Studio: it reported 22 Motor6Ds, no Bones, one Animator and two enabled IKControls. These counts describe that inspection, not a guarantee that all transform writers have been found. The inspection code was tested; its editor button still needs interactive verification.
 
+An unparented clone of Dino Auto's left and right leg chains was also checked against the source-level solver. With an illustrative nearby target and no authored limits, each solve converged and its reported endpoint matched forward kinematics within 0.000002 studs. This is a geometry test on a clone, not visible movement, an Animator coexistence test, or evidence that the real leg axes and limits are correct. `tests/studio/DinoClone.integration.luau` preserves the check.
+
 ## Current solver prototype
 The portable CCD core and numerical limit handling are implemented and packaged separately from the metadata editor. Its API and coordinate conventions are in [runtime.md](runtime.md). An explicit position-only chain adapter and a manual single-axis joint adapter exist for Motor6D and Bone fixtures. The editor now resolves a selected root-to-end path and saves a chain definition; pole control, runtime ownership arbitration, visual preview and real-rig validation remain open.
 
