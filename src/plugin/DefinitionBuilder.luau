@@ -6,15 +6,32 @@ function DefinitionBuilder.new(Config)
  local function readJoint(joint)
   assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'unsupported or missing joint metadata: '..joint.Name)
   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees')})
-  assert(config.kind=='Hinge','direct-control actor currently supports hinge limits only: '..joint.Name)
-  assert(config.lower<=0 and config.upper>=0,'hinge limits must include zero: '..joint.Name)
+  if config.kind=='Hinge' then assert(config.lower<=0 and config.upper>=0,'hinge limits must include zero: '..joint.Name) end
   local drive=Config.validateDrive({control=joint:GetAttribute('EditRigIK_Control'),impulse=joint:GetAttribute('EditRigIK_Impulse'),frequency=joint:GetAttribute('EditRigIK_Frequency')},joint.Name)
   return config,drive
  end
  local function writeRef(ref,config,drive)
   ref:SetAttribute('Kind',config.kind); ref:SetAttribute('Axis',config.axis)
   ref:SetAttribute('LowerDegrees',config.lower); ref:SetAttribute('UpperDegrees',config.upper)
+  ref:SetAttribute('SwingDegrees',config.swing)
   ref:SetAttribute('Control',drive.control); ref:SetAttribute('Impulse',drive.impulse); ref:SetAttribute('Frequency',drive.frequency)
+ end
+ local function checkRoutes(entries,refs)
+  local controls,impulses={},{}
+  local function check(kind,control,impulse)
+   assert(kind=='Hinge' or kind=='Ball','invalid actor joint kind')
+   local mode=if kind=='Hinge' then 'scalar' else 'vector'
+   assert(type(control)=='string' and #control>0 and #control<=128,'invalid actor control')
+   assert(not controls[control] or controls[control]==mode,'control name cannot mix hinge and ball inputs: '..control)
+   controls[control]=mode
+   if impulse~=nil then
+    assert(type(impulse)=='string' and #impulse>0 and #impulse<=128,'invalid actor impulse')
+    assert(not impulses[impulse] or impulses[impulse]==mode,'impulse name cannot mix hinge and ball inputs: '..impulse)
+    impulses[impulse]=mode
+   end
+  end
+  for _,ref in ipairs(refs or {}) do check(ref:GetAttribute('Kind'),ref:GetAttribute('Control'),ref:GetAttribute('Impulse')) end
+  for _,entry in ipairs(entries) do check(entry.config.kind,entry.drive.control,entry.drive.impulse) end
  end
  function api.prepareRefresh(folder)
   assert(typeof(folder)=='Instance' and folder:IsA('Folder') and folder.Name=='EditRigIKActor' and folder:GetAttribute('EditRigIK_ActorSchemaVersion')==1 and folder.Parent and folder.Parent:IsA('Model'),'select a supported actor definition')
@@ -28,6 +45,7 @@ function DefinitionBuilder.new(Config)
    table.insert(entries,{ref=ref,config=config,drive=drive})
    seenNames[ref.Name]=true; seenJoints[joint]=true
   end
+  checkRoutes(entries)
   return entries
  end
  function api.refresh(folder)
@@ -54,6 +72,7 @@ function DefinitionBuilder.new(Config)
    end
   end
   table.sort(entries,function(a,b) return a.joint.Name<b.joint.Name end)
+  checkRoutes(entries,refs)
   return entries
  end
  function api.addNew(folder)
@@ -76,7 +95,8 @@ function DefinitionBuilder.new(Config)
     table.insert(entries,{joint=joint,config=config,drive=drive})
    end
   end
-  assert(#entries>0,'no configured joints found; save hinge settings on a Motor6D or Bone first')
+  assert(#entries>0,'no configured joints found; save settings on a Motor6D or Bone first')
+  checkRoutes(entries)
   table.sort(entries,function(a,b) return a.joint.Name<b.joint.Name end)
   local folder=Instance.new('Folder')
   folder.Name='EditRigIKActor'

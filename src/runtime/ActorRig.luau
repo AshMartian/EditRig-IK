@@ -8,7 +8,7 @@ function ActorRig.new(folder,components)
  assert(type(components)=='table' and components.Actor and components.JointDrive and components.JointAdapter,'runtime components required')
  local refs=folder:GetChildren()
  table.sort(refs,function(a,b) return a.Name<b.Name end)
- local jointConfigs,bindings,seen={}, {}, {}
+ local hingeConfigs,ballConfigs,bindings,seen={}, {}, {}, {}
  local controls,impulses={},{}
  local axes={X=Vector3.xAxis,Y=Vector3.yAxis,Z=Vector3.zAxis}
  for _,ref in ipairs(refs) do
@@ -19,18 +19,38 @@ function ActorRig.new(folder,components)
   local kind,axis=ref:GetAttribute('Kind'),ref:GetAttribute('Axis')
   local lower,upper=ref:GetAttribute('LowerDegrees'),ref:GetAttribute('UpperDegrees')
   local control,impulse,frequency=ref:GetAttribute('Control'),ref:GetAttribute('Impulse'),ref:GetAttribute('Frequency')
-  assert(kind=='Hinge' and axes[axis], 'only X/Y/Z hinge bindings are supported')
-  assert(finite(lower) and finite(upper) and lower>=-180 and lower<=0 and upper>=0 and upper<=180, 'hinge range must include zero')
+  assert((kind=='Hinge' or kind=='Ball') and axes[axis], 'invalid joint kind or axis')
+  assert(finite(lower) and finite(upper) and lower>=-180 and lower<=upper and upper<=180, 'invalid joint range')
+  if kind=='Hinge' then assert(lower<=0 and upper>=0, 'hinge range must include zero') end
   assert(type(control)=='string' and #control>0 and #control<=128, 'control name must be 1–128 characters')
   assert(impulse==nil or (type(impulse)=='string' and #impulse>0 and #impulse<=128), 'invalid impulse name')
   assert(finite(frequency) and frequency>=0.01 and frequency<=100, 'invalid frequency')
-  table.insert(jointConfigs,{name=ref.Name,control=control,impulse=impulse,frequency=frequency,lower=math.rad(lower),upper=math.rad(upper)})
-  table.insert(bindings,{name=ref.Name,joint=ref.Value,axis=axes[axis]})
-  controls[control]=true
-  if impulse then impulses[impulse]=true end
+  local mode=if kind=='Hinge' then 'scalar' else 'vector'
+  assert(not controls[control] or controls[control]==mode,'control name cannot mix hinge and ball inputs: '..control)
+  controls[control]=mode
+  if impulse then
+   assert(not impulses[impulse] or impulses[impulse]==mode,'impulse name cannot mix hinge and ball inputs: '..impulse)
+   impulses[impulse]=mode
+  end
+  local jointConfig={name=ref.Name,control=control,impulse=impulse,frequency=frequency,lower=math.rad(lower),upper=math.rad(upper)}
+  if kind=='Ball' then
+   local swing=ref:GetAttribute('SwingDegrees')
+   assert(finite(swing) and swing>=0 and swing<=180,'invalid ball swing')
+   local v=axes[axis]; jointConfig.axis={v.X,v.Y,v.Z}; jointConfig.swing=math.rad(swing)
+   table.insert(ballConfigs,jointConfig)
+  else table.insert(hingeConfigs,jointConfig) end
+  table.insert(bindings,{name=ref.Name,joint=ref.Value,axis=axes[axis],kind=kind})
  end
  assert(#bindings>0, 'actor has no configured joints')
- local actor=components.Actor.new({behaviors={{name='jointDrive',type='jointDrive',options={joints=jointConfigs}}}}, {jointDrive=components.JointDrive.new})
+ local behaviors,registry={},{}
+ if #hingeConfigs>0 then
+  table.insert(behaviors,{name='hinges',type='hinge',options={joints=hingeConfigs}}); registry.hinge=components.JointDrive.new
+ end
+ if #ballConfigs>0 then
+  assert(components.BallDrive and type(components.BallDrive.new)=='function','ball drive component required')
+  table.insert(behaviors,{name='balls',type='ball',options={joints=ballConfigs}}); registry.ball=components.BallDrive.new
+ end
+ local actor=components.Actor.new({behaviors=behaviors},registry)
  local ok,adapter=pcall(components.JointAdapter.new,bindings,{exclusive=true})
  if not ok then actor:destroy(); error(adapter) end
  local dead=false
@@ -44,11 +64,13 @@ function ActorRig.new(folder,components)
  function api:listImpulses() return list(impulses) end
  function api:validateControl(name,value)
   assert(not dead,'actor is destroyed'); assert(controls[name],'unknown actor control: '..tostring(name))
-  assert(finite(value),'joint control must be a finite number')
+  if controls[name]=='scalar' then assert(finite(value),'hinge control must be a finite number')
+  else assert(type(value)=='table' and #value==3 and finite(value[1]) and finite(value[2]) and finite(value[3]),'ball control must be a finite three-number vector') end
  end
  function api:validateImpulse(name,value)
   assert(not dead,'actor is destroyed'); assert(impulses[name],'unknown actor impulse: '..tostring(name))
-  assert(finite(value),'joint impulse must be a finite scalar')
+  if impulses[name]=='scalar' then assert(finite(value),'hinge impulse must be a finite scalar')
+  else assert(type(value)=='table' and #value==3 and finite(value[1]) and finite(value[2]) and finite(value[3]),'ball impulse must be a finite three-number vector') end
  end
  function api:setControl(name,value)
   self:validateControl(name,value); actor:setControl(name,value)
@@ -63,8 +85,10 @@ function ActorRig.new(folder,components)
   assert(not dead,'actor is destroyed')
   adapter:validate()
   local result=actor:step({},dt)
-  adapter:apply(result[1].value)
-  return result[1].value
+  local output={}
+  for _,entry in ipairs(result) do for name,value in pairs(entry.value) do output[name]=value end end
+  adapter:apply(output)
+  return output
  end
  function api:destroy()
   if dead then return {} end

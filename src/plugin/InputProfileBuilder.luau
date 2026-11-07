@@ -25,8 +25,14 @@ function InputProfileBuilder.create(definition)
  for _,ref in ipairs(definition:GetChildren()) do
   local joint=if ref:IsA('ObjectValue') then ref.Value else nil
   assert(joint and (joint:IsA('Motor6D') or joint:IsA('Bone')) and joint:IsDescendantOf(definition.Parent),'invalid actor joint reference')
-  add('Hold',ref:GetAttribute('Control'),InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_HoldKey')))
-  add('Impulse',ref:GetAttribute('Impulse'),InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_ImpulseKey')))
+  local holdKey=InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_HoldKey'))
+  local impulseKey=InputProfileBuilder.validateKey(joint:GetAttribute('EditRigIK_ImpulseKey'))
+  if ref:GetAttribute('Kind')=='Ball' then
+   assert(holdKey=='' and impulseKey=='','ball-joint keys require a vector input binding; use the scripting API')
+  else
+   add('Hold',ref:GetAttribute('Control'),holdKey)
+   add('Impulse',ref:GetAttribute('Impulse'),impulseKey)
+  end
  end
  local ordered={}
  for id in pairs(groups) do table.insert(ordered,id) end

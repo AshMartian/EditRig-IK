@@ -18,5 +18,12 @@ assert(hold:GetAttribute('Control')=='Bite' and #hold:GetChildren()==2,'hold act
 assert(impulse:GetAttribute('Control')=='Snap' and #impulse:GetChildren()==1,'impulse action must capture key')
 b:SetAttribute('EditRigIK_HoldKey','Q')
 assert(not pcall(function() InputProfileBuilder.create(definition) end),'conflicting key routes must be rejected')
+b:SetAttribute('EditRigIK_HoldKey','')
+definition.B:SetAttribute('Kind','Ball'); b:SetAttribute('EditRigIK_ImpulseKey','F')
+assert(not pcall(function() InputProfileBuilder.create(definition) end),'ball keys require vector binding rather than a scalar template')
+b:SetAttribute('EditRigIK_ImpulseKey','')
+local hingeOnly=InputProfileBuilder.create(definition)
+assert(#hingeOnly:GetChildren()==2,'unmapped ball joints should not block hinge bindings')
+hingeOnly:Destroy()
 context:Destroy(); model:Destroy()
 return 'Input profile groups shared routes and rejects collisions'

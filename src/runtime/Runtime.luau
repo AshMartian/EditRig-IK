@@ -48,7 +48,7 @@ end
 local ActorRig = require(script.ActorRig)
 function Runtime.createActor(definition, options)
     assert(type(options)=='table' and options.exclusive==true, 'explicit exclusive ownership is required')
-    return ActorRig.new(definition, {Actor=Runtime.Actor, JointDrive=Runtime.JointDrive, JointAdapter=Runtime.JointAdapter})
+    return ActorRig.new(definition, {Actor=Runtime.Actor, JointDrive=Runtime.JointDrive, BallDrive=Runtime.BallDrive, JointAdapter=Runtime.JointAdapter})
 end
 function Runtime.solve(chain, target, options)
     return engine.solve(chain, target, options)

@@ -92,7 +92,7 @@ inspect.MouseButton1Click:Connect(function()
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'impulseKey','Impulse KeyCode (optional)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (hinge)'}, {'impulseKey','Impulse KeyCode (hinge)'}}) do
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
