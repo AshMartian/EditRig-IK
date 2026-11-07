@@ -237,6 +237,15 @@ chainButton('Save settings to selected chain').MouseButton1Click:Connect(functio
     ChangeHistoryService:SetWaypoint('Edit EditRig IK chain settings')
     chainFeedback.Text='Saved '..definition.Name..'. Reopen any active runtime chain to use these settings.'
 end)
+chainButton('Refresh selected chain limits from joints').MouseButton1Click:Connect(function()
+    local definition=selectedOne()
+    local valid,err=pcall(ChainBuilder.prepareLimitRefresh,definition)
+    if not valid then chainFeedback.Text='Cannot refresh limits: '..tostring(err); return end
+    ChangeHistoryService:SetWaypoint('Before refresh EditRig IK chain limits')
+    ChainBuilder.refreshLimits(definition)
+    ChangeHistoryService:SetWaypoint('Refresh EditRig IK chain limits')
+    chainFeedback.Text='Refreshed '..definition.Name..'. Reopen any active runtime chain to use these limits.'
+end)
 chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the root.'; return end

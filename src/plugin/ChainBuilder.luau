@@ -27,6 +27,48 @@ function ChainBuilder.new(Config)
   definition:SetAttribute('Tolerance',settings.tolerance)
   definition:SetAttribute('MaxStepDegrees',settings.maxStepDegrees)
  end
+ function api.prepareLimitRefresh(definition)
+  checkDefinition(definition)
+  local model=definition.Parent.Parent
+  local list=definition:FindFirstChild('Joints')
+  local endpoint=definition:FindFirstChild('Endpoint')
+  assert(list:IsA('Folder') and endpoint:IsA('ObjectValue') and endpoint.Value and endpoint.Value.ClassName=='Attachment' and endpoint.Value:IsDescendantOf(model),'invalid chain references')
+  local refs=list:GetChildren()
+  assert(#refs>0 and #refs<=128,'invalid joint count')
+  for _,ref in ipairs(refs) do
+   local order=ref:GetAttribute('Order')
+   assert(ref:IsA('ObjectValue') and type(order)=='number' and order==order and math.abs(order)<math.huge,'invalid joint reference')
+  end
+  table.sort(refs,function(a,b) return a:GetAttribute('Order')<b:GetAttribute('Order') end)
+  local entries,seen,parts={},{},{}
+  local previous,kind=nil,nil
+  for i,ref in ipairs(refs) do
+   local joint=ref.Value
+   assert(ref:GetAttribute('Order')==i and joint and joint:IsDescendantOf(model) and (joint:IsA('Motor6D') or joint:IsA('Bone')) and not seen[joint],'invalid joint order or reference')
+   if not kind then kind=joint.ClassName end
+   assert(joint.ClassName==kind,'mixed joint types are unsupported')
+   if kind=='Motor6D' then
+    assert(joint.Enabled and joint.Part0 and joint.Part1 and joint.Part0~=joint.Part1,'invalid motor connection')
+    if previous then assert(previous.Part1==joint.Part0,'disconnected motor chain') end
+    if not previous then parts[joint.Part0]=true end
+    assert(not parts[joint.Part1],'cyclic motor chain')
+    parts[joint.Part1]=true
+   elseif previous then assert(joint.Parent==previous,'disconnected Bone chain') end
+   assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'save limit settings on every joint: '..joint.Name)
+   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees')})
+   table.insert(entries,{ref=ref,config=config}); seen[joint]=true; previous=joint
+  end
+  assert(endpoint.Value.Parent==(if kind=='Motor6D' then previous.Part1 else previous),'endpoint parent does not match chain')
+  return entries
+ end
+ function api.refreshLimits(definition)
+  local entries=api.prepareLimitRefresh(definition)
+  for _,entry in ipairs(entries) do
+   local ref,config=entry.ref,entry.config
+   ref:SetAttribute('Kind',config.kind); ref:SetAttribute('Axis',config.axis)
+   ref:SetAttribute('LowerDegrees',config.lower); ref:SetAttribute('UpperDegrees',config.upper); ref:SetAttribute('SwingDegrees',config.swing)
+  end
+ end
  function api.create(model,first,last,endpoint,name,options)
   options=api.validateSettings(options or {iterations=30,tolerance=0.01})
   assert(typeof(model)=='Instance' and model:IsA('Model'),'actor model required')

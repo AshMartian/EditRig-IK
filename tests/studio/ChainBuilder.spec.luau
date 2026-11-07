@@ -30,6 +30,16 @@ assert(def:GetAttribute('Iterations')==12 and def:GetAttribute('Tolerance')==0.0
 assert(not pcall(function() builder.writeSettings(container,{iterations=1,tolerance=0,maxStepDegrees=1}) end),'non-definition must be rejected')
 def:SetAttribute('MaxStepDegrees',nil)
 assert(builder.readSettings(def).maxStepDegrees==180,'legacy definition should load default')
+j1:SetAttribute('EditRigIK_UpperDegrees',60)
+j2:SetAttribute('EditRigIK_LowerDegrees',-10)
+builder.refreshLimits(def)
+assert(def.Joints.Joint001:GetAttribute('UpperDegrees')==60 and def.Joints.Joint002:GetAttribute('LowerDegrees')==-10,'updated limits should be captured')
+assert(def:GetAttribute('Iterations')==12 and def.Endpoint.Value==endpoint,'refresh should preserve settings and endpoint')
+j1:SetAttribute('EditRigIK_UpperDegrees',50)
+j2:SetAttribute('EditRigIK_UpperDegrees',-20)
+assert(not pcall(function() builder.refreshLimits(def) end),'invalid later joint must reject the refresh')
+assert(def.Joints.Joint001:GetAttribute('UpperDegrees')==60,'failed refresh must not partially update earlier joints')
+j2:SetAttribute('EditRigIK_UpperDegrees',90)
 assert(not pcall(function() builder.create(model,j2,j1,endpoint,'Bad') end),'reverse chain should fail')
 local invalid=Instance.new('Attachment'); invalid.Parent=a
 assert(not pcall(function() builder.create(model,j1,j2,invalid,'Bad') end),'endpoint must belong to end joint')
@@ -38,6 +48,10 @@ local bone2=Instance.new('Bone'); bone2.Parent=bone1; settings(bone2,'Hinge')
 local bend=Instance.new('Attachment'); bend.Parent=bone2
 local bones=builder.create(model,bone1,bone2,bend,'Tail')
 assert(bones.Joints.Joint001.Value==bone1 and bones.Joints.Joint002.Value==bone2)
+bones.Parent=container
+bone2:SetAttribute('EditRigIK_UpperDegrees',45)
+builder.refreshLimits(bones)
+assert(bones.Joints.Joint002:GetAttribute('UpperDegrees')==45,'Bone limits must refresh')
 local d=Instance.new('Part'); d.Parent=model
 local finish=Instance.new('Motor6D'); finish.Part0=c; finish.Part1=d; finish.Parent=c; settings(finish,'Hinge')
 local alternate=Instance.new('Motor6D'); alternate.Part0=b; alternate.Part1=c; alternate.Parent=b; settings(alternate,'Hinge')

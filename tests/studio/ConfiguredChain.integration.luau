@@ -40,9 +40,22 @@ local chain=ChainDefinition.new(definition,{exclusive=true},function(joints,loca
 end)
 local result=chain:solve(Vector3.new(1,1,0))
 assert(result.converged and result.error<=0.02,'authored tolerance should govern convergence')
-endpoint.Position=Vector3.new(2,0,0)
-assert(not pcall(function() chain:solve(Vector3.new(1,1,0)) end),'endpoint changes require rebuilding the chain')
 assert(#chain:destroy()==0)
+j2:SetAttribute('EditRigIK_LowerDegrees',-45)
+ChainBuilder.new(Config).refreshLimits(definition)
+local refreshedLimits
+local refreshed=ChainDefinition.new(definition,{exclusive=true},function(_,_,options)
+ refreshedLimits=options.limits
+ return {solve=function() end,destroy=function() return {} end}
+end)
+assert(math.abs(refreshedLimits[2].lower-math.rad(-45))<1e-8,'reopened chain must use refreshed joint limits')
+refreshed:destroy()
+local chain2=ChainDefinition.new(definition,{exclusive=true},function(joints,localPoint,options)
+ return ChainAdapter.new(joints,localPoint,options,Solver.new(Limits))
+end)
+endpoint.Position=Vector3.new(2,0,0)
+assert(not pcall(function() chain2:solve(Vector3.new(1,1,0)) end),'endpoint changes require rebuilding the chain')
+assert(#chain2:destroy()==0)
 local root=Instance.new('Bone'); root.Name='Root'; root.Parent=a
 local child=Instance.new('Bone'); child.CFrame=CFrame.new(1,0,0); child.Parent=root
 local boneTip=Instance.new('Attachment'); boneTip.Position=Vector3.new(1,0,0); boneTip.Parent=child
