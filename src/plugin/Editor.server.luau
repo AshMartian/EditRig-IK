@@ -10,6 +10,7 @@ local ChainDiscovery = require(script.ChainDiscovery)
 local IKConstraintBuilder = require(script.IKConstraintBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
+local RigOverlay = require(script.RigOverlay)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
 local RuntimeInstaller = require(script.RuntimeInstaller)
 local InputProfileBuilder = require(script.InputProfileBuilder)
@@ -92,6 +93,43 @@ inspect.MouseButton1Click:Connect(function()
     local ok,result=pcall(RigInspector.inspect,model,Config)
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
+local overlayButton=Instance.new('TextButton')
+overlayButton.Size=UDim2.new(1,0,0,32); overlayButton.BackgroundColor3=Color3.fromRGB(61,109,172)
+overlayButton.TextColor3=Color3.new(1,1,1); overlayButton.Text='Show selected model joints in 3D'; overlayButton.Font=Enum.Font.SourceSansBold; overlayButton.TextSize=16
+order(overlayButton); overlayButton.Parent=root
+local overlayStatus=label('Select a model, then show its joints. Click a marker to select that joint.',40)
+local rigOverlay,overlayFolder,overlayModel=nil,nil,nil
+local function hideRigOverlay()
+    if rigOverlay then rigOverlay:destroy(); rigOverlay=nil end
+    if overlayFolder then overlayFolder:Destroy(); overlayFolder=nil end
+    overlayModel=nil; overlayButton.Text='Show selected model joints in 3D'
+end
+overlayButton.MouseButton1Click:Connect(function()
+    if rigOverlay then hideRigOverlay(); overlayStatus.Text='3D joints hidden.'; return end
+    if RunService:IsRunning() then overlayStatus.Text='Stop Play before opening the 3D joint overlay.'; return end
+    local items=Selection:Get(); local model=if #items==1 then items[1] else nil
+    local folder=Instance.new('Folder'); folder.Name='EditRigIKRigOverlay'
+    local ok,result=pcall(function()
+        folder.Parent=game:GetService('CoreGui')
+        return RigOverlay.new(model,folder,function(joint) Selection:Set({joint}) end)
+    end)
+    if not ok then folder:Destroy(); overlayStatus.Text='Cannot show joints: '..tostring(result); return end
+    overlayFolder=folder; rigOverlay=result; overlayModel=model
+    local updated,err=pcall(function() rigOverlay:update() end)
+    if not updated then hideRigOverlay(); overlayStatus.Text='Cannot update joints: '..tostring(err); return end
+    overlayButton.Text='Hide 3D joints'
+    overlayStatus.Text=tostring(rigOverlay:count())..' joints. Cyan markers select joints; yellow marks the selection. Hide RigEdit joints to avoid overlap.'
+end)
+local overlayUpdate=RunService.Heartbeat:Connect(function()
+    if rigOverlay then
+        if RunService:IsRunning() or not overlayModel:IsDescendantOf(workspace) then hideRigOverlay(); overlayStatus.Text='3D joints hidden.'; return end
+        local items=Selection:Get(); local selected=if #items==1 then items[1] else nil
+        local ok=pcall(function() rigOverlay:update(selected) end)
+        if not ok then hideRigOverlay(); overlayStatus.Text='3D joints hidden after an update error.' end
+    end
+end)
+widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then hideRigOverlay() end end)
+plugin.Unloading:Connect(function() overlayUpdate:Disconnect(); hideRigOverlay() end)
 local fields: {[string]: TextBox} = {}
 for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'reverseHoldKey','Reverse hold KeyCode (optional)'}, {'holdValue','Hold value'}, {'impulseKey','Impulse KeyCode (optional)'}, {'impulseValue','Impulse value (rad/s)'}}) do
     local row = Instance.new('Frame')

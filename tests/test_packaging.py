@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 root = Path(__file__).resolve().parents[1]
 rojo = os.environ.get('ROJO_BIN', 'rojo')
 expected = {
-    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'IKConstraintBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'LimitGeometry', 'PreviewSession', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder', 'GaitExampleInstaller', 'DinoGaitExample', 'JointBatch'}),
+    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'IKConstraintBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'RigOverlay', 'LimitGeometry', 'PreviewSession', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder', 'GaitExampleInstaller', 'DinoGaitExample', 'JointBatch'}),
     'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'BallDrive', 'InputBindings', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'TargetStepper', 'Ownership', 'Limits', 'Solver'}),
 }
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:

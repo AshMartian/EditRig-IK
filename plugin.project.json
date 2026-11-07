@@ -17,6 +17,9 @@
     "AxisGizmo": {
       "$path": "src/plugin/AxisGizmo.luau"
     },
+    "RigOverlay": {
+      "$path": "src/plugin/RigOverlay.luau"
+    },
     "LimitGeometry": {
       "$path": "src/plugin/LimitGeometry.luau"
     },
