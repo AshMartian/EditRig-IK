@@ -96,4 +96,13 @@ assert(not pcall(function() solver.solve(weighted,{0,1,0},{iterations=1,toleranc
 weighted.joints[1].weight=1.1
 assert(not pcall(function() solver.solve(weighted,{0,1,0},{iterations=1,tolerance=0}) end),'weight above one must be rejected')
 
+-- Diagnostics describe a guaranteed outside-reach case and observed clamps.
+assert(result.status=='converged' and #result.limitedJoints==0,'unconstrained reachable solve should report convergence')
+assert(unreachable.status=='outsideReach' and math.abs(unreachable.maxReach-2)<1e-8,'distance beyond total link length must be reported')
+assert(limited.status=='notConverged' and #limited.limitedJoints==1 and limited.limitedJoints[1]==1,'a clamped candidate must identify the joint without claiming the cause')
+assert(enforced.limitedJoints[1]==1,'initial-pose limit projection must be reported')
+local signEquivalent={root={0,0,0},joints={{rest=identity,rotation={0,0,0,-1},offset={1,0,0},limit={kind='Hinge',axis={0,0,1},lower=-1,upper=1}}}}
+local signResult=solver.solve(signEquivalent,{1,0,0},{iterations=1,tolerance=.001})
+assert(#signResult.limitedJoints==0,'equivalent quaternion signs must not report a clamp')
+
 print('solver tests passed')

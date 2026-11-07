@@ -68,11 +68,15 @@ end
 function Solver.new(limits)
  assert(type(limits)=='table' and type(limits.hinge)=='function' and type(limits.ball)=='function','limit functions required')
  local api={}
- local function constrain(rotation,limit)
+ local function constrain(rotation,limit,index,limited)
   if not limit then return rotation end
-  if limit.kind=='Hinge' then return limits.hinge(rotation,limit.axis,limit.lower,limit.upper) end
-  if limit.kind=='Ball' then return limits.ball(rotation,limit.axis,limit.swing,limit.lower,limit.upper) end
-  error('unknown limit kind')
+  local result
+  if limit.kind=='Hinge' then result=limits.hinge(rotation,limit.axis,limit.lower,limit.upper)
+  elseif limit.kind=='Ball' then result=limits.ball(rotation,limit.axis,limit.swing,limit.lower,limit.upper)
+  else error('unknown limit kind') end
+  local similarity=math.abs(rotation[1]*result[1]+rotation[2]*result[2]+rotation[3]*result[3]+rotation[4]*result[4])
+  if similarity<1-1e-10 then limited[index]=true end
+  return result
  end
  function api.solve(chain,target,options)
   assert(type(chain)=='table' and finiteVector(chain.root) and type(chain.joints)=='table' and #chain.joints>0,'invalid chain')
@@ -84,16 +88,20 @@ function Solver.new(limits)
   local gain=if options.gain==nil then 1 else options.gain
   assert(type(gain)=='number' and gain==gain and gain>0 and gain<=1,'invalid correction gain')
   assert(options.pole==nil or finiteVector(options.pole),'invalid pole')
-  local rotations,weights={},{}
+  local rotations,weights,limited={},{},{}
   local hasReach=false
+  local maxReach=0
   for i,j in ipairs(chain.joints) do
    assert(finiteVector(j.offset),'invalid offset')
    local weight=if j.weight==nil then 1 else j.weight
    assert(type(weight)=='number' and weight==weight and weight>=0 and weight<=1,'invalid joint influence')
    weights[i]=weight
-   if length(j.offset)>EPS then hasReach=true end
+   local linkLength=length(j.offset)
+   assert(linkLength<math.huge,'link length is too large')
+   maxReach+=linkLength; assert(maxReach<math.huge,'chain length is too large')
+   if linkLength>EPS then hasReach=true end
    normalize(j.rest)
-   rotations[i]=constrain(normalize(j.rotation),j.limit)
+   rotations[i]=constrain(normalize(j.rotation),j.limit,i,limited)
   end
   assert(hasReach,'chain has no nonzero links')
   local count=0
@@ -115,7 +123,7 @@ function Solver.new(limits)
      local half=math.min(maxStep,0.1*gain*weights[1])/2; local s=math.sin(half)
      local worldDelta={turn[1]*s,turn[2]*s,turn[3]*s,math.cos(half)}
      local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
-     rotations[1]=constrain(normalize(quat(localDelta,rotations[1])),chain.joints[1].limit)
+     rotations[1]=constrain(normalize(quat(localDelta,rotations[1])),chain.joints[1].limit,1,limited)
      _,_,endpoint=forward(chain.root,chain.joints,rotations)
     end
    end
@@ -143,7 +151,7 @@ function Solver.new(limits)
       localDelta={localDelta[1]*s,localDelta[2]*s,localDelta[3]*s,math.cos(corrected/2)}
      end
      local rotation=normalize(quat(localDelta,rotations[i]))
-     rotations[i]=constrain(rotation,limit)
+     rotations[i]=constrain(rotation,limit,i,limited)
     end
    end
    _,_,endpoint=forward(chain.root,chain.joints,rotations)
@@ -164,7 +172,7 @@ function Solver.new(limits)
       local worldDelta={axis[1]*s,axis[2]*s,axis[3]*s,math.cos(half)}
       local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
       local original=rotations[1]
-      rotations[1]=constrain(normalize(quat(localDelta,original)),chain.joints[1].limit)
+      rotations[1]=constrain(normalize(quat(localDelta,original)),chain.joints[1].limit,1,limited)
       local _,_,candidate=forward(chain.root,chain.joints,rotations)
       local similarity=math.abs(original[1]*rotations[1][1]+original[2]*rotations[1][2]+original[3]*rotations[1][3]+original[4]*rotations[1][4])
       if similarity<1-1e-10 and length(sub(target,candidate))<=length(sub(target,endpoint))+1e-8 then
@@ -175,7 +183,10 @@ function Solver.new(limits)
    end
   end
   local err=length(sub(target,endpoint))
-  return {rotations=rotations,endpoint=endpoint,error=err,iterations=count,converged=err<=options.tolerance,poleStatus=poleStatus}
+  local converged=err<=options.tolerance
+  local status=if converged then 'converged' elseif length(sub(target,chain.root))>maxReach+options.tolerance then 'outsideReach' else 'notConverged'
+  local limitedJoints={}; for i=1,#chain.joints do if limited[i] then table.insert(limitedJoints,i) end end
+  return {rotations=rotations,endpoint=endpoint,error=err,iterations=count,converged=converged,poleStatus=poleStatus,status=status,maxReach=maxReach,limitedJoints=limitedJoints}
  end
  return api
 end

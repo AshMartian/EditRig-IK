@@ -554,7 +554,7 @@ chainButton('Solve clone preview').MouseButton1Click:Connect(function()
     if not x or not y or not z then previewStatus.Text='Enter numeric target offsets.'; return end
     local ok,result=pcall(function() return preview:solveOffset(Vector3.new(x,y,z)) end)
     if not ok then previewStatus.Text='Preview solve failed: '..tostring(result); return end
-    previewStatus.Text=string.format('Converged: %s  |  error: %.4f studs  |  pole: %s',tostring(result.converged),result.error,tostring(result.poleStatus))
+    previewStatus.Text=string.format('%s | error %.4f studs | pole %s | limited joints: %s',result.status,result.error,tostring(result.poleStatus),if #result.limitedJoints>0 then table.concat(result.limitedJoints,', ') else 'none')
 end)
 chainButton('Close clone preview').MouseButton1Click:Connect(function() closePreview(); previewStatus.Text='Preview closed.' end)
 previewStatus=status
