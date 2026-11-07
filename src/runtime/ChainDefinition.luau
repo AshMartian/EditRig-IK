@@ -17,17 +17,20 @@ function ChainDefinition.new(definition,options,createChain)
  assert(#refs>0 and #refs<=128,'invalid joint count')
  for _,ref in ipairs(refs) do assert(ref:IsA('ObjectValue') and finite(ref:GetAttribute('Order')),'invalid joint reference') end
  table.sort(refs,function(a,b) return a:GetAttribute('Order')<b:GetAttribute('Order') end)
- local joints,limits={},{}
+ local joints,limits,weights={},{},{}
  local axes={X={1,0,0},Y={0,1,0},Z={0,0,1}}
  for i,ref in ipairs(refs) do
   assert(ref:GetAttribute('Order')==i and ref.Value and ref.Value:IsDescendantOf(model),'invalid joint order or reference')
   local kind,axis=ref:GetAttribute('Kind'),ref:GetAttribute('Axis')
   local lower,upper,swing=ref:GetAttribute('LowerDegrees'),ref:GetAttribute('UpperDegrees'),ref:GetAttribute('SwingDegrees')
+  local weight=ref:GetAttribute('Weight'); if weight==nil then weight=1 end
   assert((kind=='Hinge' or kind=='Ball') and axes[axis],'invalid joint limit kind or axis')
   assert(finite(lower) and finite(upper) and lower>=-180 and upper<=180 and lower<=upper,'invalid angular limits')
   assert(finite(swing) and swing>=0 and swing<=180,'invalid swing angle')
+  assert(finite(weight) and weight>=0 and weight<=1,'invalid joint influence')
   table.insert(joints,ref.Value)
   table.insert(limits,{kind=kind,axis=axes[axis],lower=math.rad(lower),upper=math.rad(upper),swing=math.rad(swing)})
+  table.insert(weights,weight)
  end
  local last=joints[#joints]; local endpoint=endpointRef.Value
  assert(endpoint.Parent==(if last:IsA('Motor6D') then last.Part1 else last),'endpoint parent does not match chain')
@@ -41,7 +44,7 @@ function ChainDefinition.new(definition,options,createChain)
  assert(finite(maxStepDegrees) and maxStepDegrees>0 and maxStepDegrees<=180,'invalid maximum correction angle')
  assert(finite(gain) and gain>0 and gain<=1,'invalid correction gain')
  local endpointParent,endpointPosition=endpoint.Parent,endpoint.Position
- local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits})
+ local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits,weights=weights})
  local api={}
  function api:solve(target,overrides)
   assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')

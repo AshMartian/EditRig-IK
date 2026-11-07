@@ -92,7 +92,7 @@ inspect.MouseButton1Click:Connect(function()
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
 local fields: {[string]: TextBox} = {}
-for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'impulseKey','Impulse KeyCode (optional)'}}) do
+for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name (hinge)'}, {'impulse','Impulse name (hinge)'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'impulseKey','Impulse KeyCode (optional)'}}) do
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
@@ -197,8 +197,8 @@ local axisUpdate=RunService.Heartbeat:Connect(function()
     end
 end)
 plugin.Unloading:Connect(function() axisUpdate:Disconnect(); hideAxes() end)
-local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees'}
-local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90,holdKey='',impulseKey=''}
+local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees',weight='EditRigIK_Weight'}
+local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90,weight=1,holdKey='',impulseKey=''}
 local driveAttrs = {control='EditRigIK_Control',impulse='EditRigIK_Impulse',frequency='EditRigIK_Frequency'}
 local inputAttrs = {holdKey='EditRigIK_HoldKey',impulseKey='EditRigIK_ImpulseKey'}
 local function refresh()
@@ -225,7 +225,9 @@ Selection.SelectionChanged:Connect(refresh)
 apply.MouseButton1Click:Connect(function()
     local item = current
     if not item or not item.Parent then status.Text = 'Select a valid joint first.'; return end
-    local ok, result = pcall(Config.validate, {kind=fields.kind.Text, axis=string.upper(fields.axis.Text), lower=tonumber(fields.lower.Text), upper=tonumber(fields.upper.Text), swing=tonumber(fields.swing.Text)})
+    local weight=tonumber(fields.weight.Text)
+    if not weight then status.Text='Enter a joint influence.'; return end
+    local ok, result = pcall(Config.validate, {kind=fields.kind.Text, axis=string.upper(fields.axis.Text), lower=tonumber(fields.lower.Text), upper=tonumber(fields.upper.Text), swing=tonumber(fields.swing.Text), weight=weight})
     if not ok then status.Text = 'Invalid settings: ' .. tostring(result); return end
     local frequency=tonumber(fields.frequency.Text)
     if not frequency then status.Text='Enter a damping frequency.'; return end
@@ -243,7 +245,9 @@ apply.MouseButton1Click:Connect(function()
 end)
 applyBatch.MouseButton1Click:Connect(function()
     local items=Selection:Get()
-    local settings={kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,impulseKey=fields.impulseKey.Text}
+    local weight=tonumber(fields.weight.Text)
+    if not weight then status.Text='Enter a joint influence.'; return end
+    local settings={kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=weight,control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),holdKey=fields.holdKey.Text,impulseKey=fields.impulseKey.Text}
     local ok,entries=pcall(JointBatch.prepare,items,settings,Config,InputProfileBuilder)
     if not ok then status.Text='Cannot apply joint settings: '..tostring(entries); return end
     local saved,err=pcall(function()

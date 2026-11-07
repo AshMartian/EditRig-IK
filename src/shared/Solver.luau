@@ -84,10 +84,13 @@ function Solver.new(limits)
   local gain=if options.gain==nil then 1 else options.gain
   assert(type(gain)=='number' and gain==gain and gain>0 and gain<=1,'invalid correction gain')
   assert(options.pole==nil or finiteVector(options.pole),'invalid pole')
-  local rotations={}
+  local rotations,weights={},{}
   local hasReach=false
   for i,j in ipairs(chain.joints) do
    assert(finiteVector(j.offset),'invalid offset')
+   local weight=if j.weight==nil then 1 else j.weight
+   assert(type(weight)=='number' and weight==weight and weight>=0 and weight<=1,'invalid joint influence')
+   weights[i]=weight
    if length(j.offset)>EPS then hasReach=true end
    normalize(j.rest)
    rotations[i]=constrain(normalize(j.rotation),j.limit)
@@ -109,7 +112,7 @@ function Solver.new(limits)
     local straightTolerance=1e-6*math.max(1,distance,length(endVector))
     if length(bend)<straightTolerance and length(endSide)<straightTolerance and dot(endVector,axis)>distance and length(desired)>straightTolerance then
      local turn=cross(axis,desired); turn=scale(turn,1/length(turn))
-     local half=math.min(maxStep,0.1*gain)/2; local s=math.sin(half)
+     local half=math.min(maxStep,0.1*gain*weights[1])/2; local s=math.sin(half)
      local worldDelta={turn[1]*s,turn[2]*s,turn[3]*s,math.cos(half)}
      local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
      rotations[1]=constrain(normalize(quat(localDelta,rotations[1])),chain.joints[1].limit)
@@ -134,7 +137,7 @@ function Solver.new(limits)
      localDelta=normalize(localDelta)
      local magnitude=math.sqrt(localDelta[1]^2+localDelta[2]^2+localDelta[3]^2)
      local angle=2*math.atan2(magnitude,localDelta[4])
-     local corrected=math.min(angle*gain,maxStep)
+     local corrected=math.min(angle*gain*weights[i],maxStep)
      if corrected<angle and magnitude>EPS then
       local s=math.sin(corrected/2)/magnitude
       localDelta={localDelta[1]*s,localDelta[2]*s,localDelta[3]*s,math.cos(corrected/2)}
@@ -156,7 +159,7 @@ function Solver.new(limits)
     if length(bend)>EPS and length(desired)>EPS then
      local angle=math.atan2(dot(axis,cross(bend,desired)),dot(bend,desired))
      if math.abs(angle)<=EPS then poleStatus='aligned' else
-      angle=math.clamp(angle*gain,-maxStep,maxStep)
+      angle=math.clamp(angle*gain*weights[1],-maxStep,maxStep)
       local half=angle/2; local s=math.sin(half)
       local worldDelta={axis[1]*s,axis[2]*s,axis[3]*s,math.cos(half)}
       local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])

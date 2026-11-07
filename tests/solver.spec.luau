@@ -84,4 +84,16 @@ near(dampedCapped.endpoint[2],.5,1e-6)
 assert(not pcall(function() solver.solve(one,{0,1,0},{iterations=1,tolerance=0,gain=0}) end),'zero gain must be rejected')
 assert(not pcall(function() solver.solve(one,{0,1,0},{iterations=1,tolerance=0,gain=1.1}) end),'gain above one must be rejected')
 
+-- Per-joint weight scales each correction independently of the chain gain.
+local weighted={root={0,0,0},joints={{rest=identity,rotation=identity,offset={1,0,0},weight=.5}}}
+local weightedResult=solver.solve(weighted,{0,1,0},{iterations=1,tolerance=0})
+near(weightedResult.endpoint[1],math.sqrt(.5),1e-6); near(weightedResult.endpoint[2],math.sqrt(.5),1e-6)
+weighted.joints[1].weight=0
+local fixed=solver.solve(weighted,{0,1,0},{iterations=10,tolerance=0})
+near(fixed.endpoint[1],1,1e-6); near(fixed.endpoint[2],0,1e-6)
+weighted.joints[1].weight=-.1
+assert(not pcall(function() solver.solve(weighted,{0,1,0},{iterations=1,tolerance=0}) end),'invalid weight must be rejected')
+weighted.joints[1].weight=1.1
+assert(not pcall(function() solver.solve(weighted,{0,1,0},{iterations=1,tolerance=0}) end),'weight above one must be rejected')
+
 print('solver tests passed')

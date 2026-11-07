@@ -41,6 +41,14 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
  end
  local limits=options.limits or {}
  assert(type(limits)=='table','limits must be a table')
+ local suppliedWeights=options.weights or {}
+ assert(type(suppliedWeights)=='table','weights must be a table')
+ local weights={}
+ for i=1,#entries do
+  local value=if suppliedWeights[i]==nil then 1 else suppliedWeights[i]
+  assert(finite(value) and value>=0 and value<=1,'joint influence must be between 0 and 1')
+  weights[i]=value
+ end
  local release=if options.ownership then options.ownership:acquire(joints) else function() end
  local function rootFrame()
   if kind=='Motor6D' then return entries[1].p0.CFrame*entries[1].c0 end
@@ -74,7 +82,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
    local rel
    if kind=='Motor6D' then rel=e.c1:Inverse()*(if nextEntry then nextEntry.c0 else CFrame.new(endpointLocal))
    else rel=if nextEntry then nextEntry.rest else CFrame.new(endpointLocal) end
-   table.insert(data.joints,{rest=quaternion(prevRest),rotation=quaternion(e.last),offset=vector(rel.Position),limit=limits[i]})
+   table.insert(data.joints,{rest=quaternion(prevRest),rotation=quaternion(e.last),offset=vector(rel.Position),limit=limits[i],weight=weights[i]})
    prevRest=rel.Rotation
   end
   local result=solver.solve(data,vector(relative),solverOptions)

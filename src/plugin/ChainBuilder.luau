@@ -58,7 +58,7 @@ function ChainBuilder.new(Config)
     parts[joint.Part1]=true
    elseif previous then assert(joint.Parent==previous,'disconnected Bone chain') end
    assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'save limit settings on every joint: '..joint.Name)
-   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees')})
+   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees'),weight=joint:GetAttribute('EditRigIK_Weight')})
    table.insert(entries,{ref=ref,config=config}); seen[joint]=true; previous=joint
   end
   assert(endpoint.Value.Parent==(if kind=='Motor6D' then previous.Part1 else previous),'endpoint parent does not match chain')
@@ -69,7 +69,7 @@ function ChainBuilder.new(Config)
   for _,entry in ipairs(entries) do
    local ref,config=entry.ref,entry.config
    ref:SetAttribute('Kind',config.kind); ref:SetAttribute('Axis',config.axis)
-   ref:SetAttribute('LowerDegrees',config.lower); ref:SetAttribute('UpperDegrees',config.upper); ref:SetAttribute('SwingDegrees',config.swing)
+   ref:SetAttribute('LowerDegrees',config.lower); ref:SetAttribute('UpperDegrees',config.upper); ref:SetAttribute('SwingDegrees',config.swing); ref:SetAttribute('Weight',config.weight)
   end
  end
  function api.create(model,first,last,endpoint,name,options)
@@ -126,7 +126,7 @@ function ChainBuilder.new(Config)
   local entries={}
   for _,joint in ipairs(path) do
    assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'save limit settings on every joint: '..joint.Name)
-   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees')})
+   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees'),weight=joint:GetAttribute('EditRigIK_Weight')})
    table.insert(entries,{joint=joint,config=config})
   end
   local folder=Instance.new('Folder'); folder.Name=name; folder:SetAttribute('SchemaVersion',1)
@@ -139,7 +139,7 @@ function ChainBuilder.new(Config)
   for i,e in ipairs(entries) do
    local ref=Instance.new('ObjectValue'); ref.Name=string.format('Joint%03d',i); ref.Value=e.joint
    ref:SetAttribute('Order',i); ref:SetAttribute('Kind',e.config.kind); ref:SetAttribute('Axis',e.config.axis)
-   ref:SetAttribute('LowerDegrees',e.config.lower); ref:SetAttribute('UpperDegrees',e.config.upper); ref:SetAttribute('SwingDegrees',e.config.swing)
+   ref:SetAttribute('LowerDegrees',e.config.lower); ref:SetAttribute('UpperDegrees',e.config.upper); ref:SetAttribute('SwingDegrees',e.config.swing); ref:SetAttribute('Weight',e.config.weight)
    ref.Parent=list
   end
   return folder

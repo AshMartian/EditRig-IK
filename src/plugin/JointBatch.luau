@@ -23,7 +23,7 @@ function JointBatch.apply(entries)
  for _,entry in ipairs(entries) do
   local joint,limit,drive=entry.joint,entry.limit,entry.drive
   joint:SetAttribute('EditRigIK_Kind',limit.kind); joint:SetAttribute('EditRigIK_Axis',limit.axis)
-  joint:SetAttribute('EditRigIK_LowerDegrees',limit.lower); joint:SetAttribute('EditRigIK_UpperDegrees',limit.upper); joint:SetAttribute('EditRigIK_SwingDegrees',limit.swing)
+  joint:SetAttribute('EditRigIK_LowerDegrees',limit.lower); joint:SetAttribute('EditRigIK_UpperDegrees',limit.upper); joint:SetAttribute('EditRigIK_SwingDegrees',limit.swing); joint:SetAttribute('EditRigIK_Weight',limit.weight)
   joint:SetAttribute('EditRigIK_Control',drive.control); joint:SetAttribute('EditRigIK_Impulse',drive.impulse); joint:SetAttribute('EditRigIK_Frequency',drive.frequency)
   joint:SetAttribute('EditRigIK_HoldKey',entry.holdKey); joint:SetAttribute('EditRigIK_ImpulseKey',entry.impulseKey)
   joint:SetAttribute('EditRigIK_SchemaVersion',1)
