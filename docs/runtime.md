@@ -194,6 +194,20 @@ controller.stop()
 
 The driver commits its internal joint states only after all of its inputs for a step validate. A rejected control or impulse therefore does not partially advance earlier joints. This guarantee applies to the driver itself: the actor coordinator cannot roll back other behaviors that already ran, or adapter writes that fail later.
 
+`IK.BallDrive.new(options)` is an experimental, instance-free behavior for the general `IK.Actor` coordinator. Each joint binding supplies `name`, `control`, optional `impulse`, local twist `axis` as a three-number array, `lower` and `upper` twist angles, `swing` cone half-angle in radians, and damping `frequency` in 1/s. Controls are local three-number rotation vectors in radians; impulses are three-number angular-velocity vectors in radians/second. Each control component and each accumulated impulse velocity is bounded to ±100; the combined rotation-vector magnitude is limited to π before the swing/twist constraint is applied. The result maps each name to an `{x,y,z,w}` quaternion. For example:
+
+```lua
+local actor = IK.Actor.new({behaviors = {{name='shoulder', type='ball', options={joints={{
+    name='Shoulder', control='Aim', impulse='Nudge', axis={0,1,0},
+    lower=-math.rad(30), upper=math.rad(30), swing=math.rad(60), frequency=4,
+}}}}}}, {ball=IK.BallDrive.new})
+actor:setControl('Aim', {0.2, 0.1, 0})
+actor:impulse('Nudge', {0, 0, 1})
+local quaternion = actor:step({}, dt)[1].value.Shoulder
+```
+
+This behavior does not yet connect ball joints to the generated direct-control actor or apply quaternions to a rig. A Studio fixture manually applied its output to a Motor6D and a Bone and exercised a scriptable input impulse; no live avatar, skin deformation, networking, or Animator interaction has been tested. The authored direct-control workflow still rejects ball-joint definitions until that integration exists.
+
 `IK.JointAdapter.new(bindings, {exclusive=true})` captures each `Motor6D.Transform` or `Bone.Transform` and applies angles relative to that captured transform around the configured local `Vector3` axis. Call `adapter:apply(actor:step(input, dt)[1].value)` when this is the first behavior result. It validates all inputs and detects an externally changed transform before writing. `adapter:destroy()` restores transforms it last wrote, leaves externally changed transforms alone, and returns their names. Ownership checks use a tolerance and are not a lock; the caller must ensure no Animator, IKControl, script or other adapter writes the same transforms and must choose appropriate scheduling. A configured actor checks its joint transforms before advancing its behavior and consuming queued impulses, so a detected pre-existing conflict leaves those impulses queued. This is not a general transaction: errors after the check or during writes do not guarantee rollback. There is no automatic arbitration or editor connection yet. Avoid enabling this on Dino Auto's IK-driven legs without first resolving ownership.
 
 In Studio Edit mode, isolated tests created unparented Motor6D and Bone instances, exercised controls, an impulse, application and restoration, and checked that external changes are reported without being overwritten. These checks do not establish behavior in an animated or networked actor, skinned mesh deformation, a packaged module, or a playtest.

@@ -6,6 +6,10 @@ local engine = Solver.new(Limits)
 local Runtime = {}
 Runtime.Actor = require(script.Actor)
 Runtime.JointDrive = require(script.JointDrive)
+local BallDrive = require(script.BallDrive)
+Runtime.BallDrive = {new=function(options)
+    return BallDrive.new(options, Limits)
+end}
 Runtime.InputBindings = require(script.InputBindings)
 Runtime.StepTrajectory = require(script.StepTrajectory)
 local FootstepBehavior = require(script.FootstepBehavior)

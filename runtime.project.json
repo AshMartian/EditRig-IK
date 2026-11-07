@@ -17,6 +17,9 @@
     "JointDrive": {
       "$path": "src/runtime/JointDrive.luau"
     },
+    "BallDrive": {
+      "$path": "src/runtime/BallDrive.luau"
+    },
     "InputBindings": {
       "$path": "src/runtime/InputBindings.luau"
     },

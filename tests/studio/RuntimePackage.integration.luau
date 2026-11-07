@@ -12,6 +12,7 @@ assert(solved.converged and solved.error<.001,'installed cloned runtime must be 
 assert(type(runtime.createFootstepChain)=='function' and type(runtime.createActor)=='function','installed API must include actor and footstep factories')
 assert(type(runtime.InputBindings.new)=='function','installed runtime must include InputAction bindings')
 assert(type(runtime.createTargetStepper)=='function','installed runtime must include target stepper')
+assert(type(runtime.BallDrive.new)=='function','installed runtime must include ball-joint behavior')
 assert(not pcall(function() RuntimeInstaller.prepare(storage,bundle) end),'second installation must not overwrite')
 storage:Destroy(); bundle:Destroy()
 return 'Cloned runtime package loads and solves in Studio'
