@@ -88,7 +88,7 @@ inspect.MouseButton1Click:Connect(function()
     local items=Selection:Get()
     local model=if #items==1 then items[1] else nil
     if not model or not model:IsA('Model') then inspection.Text='Select exactly one model in Explorer to inspect.'; return end
-    local ok,result=pcall(RigInspector.inspect,model)
+    local ok,result=pcall(RigInspector.inspect,model,Config)
     inspection.Text=if ok then RigInspector.format(result) else 'Inspection failed: '..tostring(result)
 end)
 local fields: {[string]: TextBox} = {}
