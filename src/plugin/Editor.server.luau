@@ -219,7 +219,7 @@ end)
 
 -- Select each item in Explorer, then capture it explicitly so selection order
 -- never decides chain direction.
-local chainTitle=label('IK chain: capture root joint, end joint, then endpoint attachment.',42)
+local chainTitle=label('IK chain: capture root, end, endpoint and optional pole attachment.',42)
 local chainName=Instance.new('TextBox')
 chainName.Size=UDim2.new(1,0,0,28)
 chainName.BackgroundColor3=Color3.fromRGB(60,63,72)
@@ -242,8 +242,9 @@ local chainFeedback: TextLabel
 local firstJoint: Instance?=nil
 local lastJoint: Instance?=nil
 local endpoint: Instance?=nil
+local pole: Instance?=nil
 local function refreshChainStatus()
-    chainStatus.Text='Root: '..(if firstJoint then firstJoint.Name else '—')..'  |  End: '..(if lastJoint then lastJoint.Name else '—')..'  |  Endpoint: '..(if endpoint then endpoint.Name else '—')
+    chainStatus.Text='Root: '..(if firstJoint then firstJoint.Name else '—')..'  |  End: '..(if lastJoint then lastJoint.Name else '—')..'  |  Endpoint: '..(if endpoint then endpoint.Name else '—')..'  |  Pole: '..(if pole then pole.Name else 'none')
 end
 local function chainButton(text: string): TextButton
     local item=Instance.new('TextButton')
@@ -305,6 +306,14 @@ chainButton('Set endpoint attachment from selection').MouseButton1Click:Connect(
     if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the endpoint.'; return end
     endpoint=item; refreshChainStatus()
 end)
+chainButton('Set optional pole attachment from selection').MouseButton1Click:Connect(function()
+    local item=selectedOne()
+    if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the pole.'; return end
+    pole=item; refreshChainStatus()
+end)
+chainButton('Clear captured pole').MouseButton1Click:Connect(function()
+    pole=nil; refreshChainStatus(); chainFeedback.Text='Pole cleared for the next chain.'
+end)
 chainButton('Create idle IK chain definition').MouseButton1Click:Connect(function()
     local first,last,tip=firstJoint,lastJoint,endpoint
     if not first or not last or not tip then chainFeedback.Text='Capture the root, end and endpoint first.'; return end
@@ -322,7 +331,7 @@ chainButton('Create idle IK chain definition').MouseButton1Click:Connect(functio
     if existingController and (not existingController:IsA('ModuleScript') or existingController:GetAttribute('EditRigIK_GeneratedControllerVersion')~=1) then chainFeedback.Text='An incompatible controller exists; rename it before creating the chain.'; return end
     local maxStep=tonumber(maxStepField.Text)
     if not maxStep then chainFeedback.Text='Enter a maximum correction angle in degrees.'; return end
-    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep}
+    local options={iterations=tonumber(iterationsField.Text),tolerance=tonumber(toleranceField.Text),maxStepDegrees=maxStep,pole=pole}
     local ok,definition=pcall(ChainBuilder.create,model,first,last,tip,chainName.Text,options)
     if not ok then chainFeedback.Text='Cannot create chain: '..tostring(definition); return end
     ChangeHistoryService:SetWaypoint('Before create EditRig IK chain')

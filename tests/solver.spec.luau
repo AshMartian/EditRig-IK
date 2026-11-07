@@ -12,6 +12,17 @@ local solver = Solver.new(Limits)
 local result = solver.solve(chain(), {1,1,0}, {iterations=30,tolerance=1e-4})
 assert(result.error < 1e-3, 'reachable target should converge: '..result.error)
 near(result.endpoint[1],1,0.001); near(result.endpoint[2],1,0.001)
+local function rotatedX(q)
+ return {1-2*(q[2]^2+q[3]^2),2*(q[1]*q[2]+q[4]*q[3]),2*(q[1]*q[3]-q[4]*q[2])}
+end
+local poleUp=solver.solve(chain(),{1,1,0},{iterations=30,tolerance=1e-4,pole={0,0,1}})
+local poleDown=solver.solve(chain(),{1,1,0},{iterations=30,tolerance=1e-4,pole={0,0,-1}})
+assert(poleUp.converged and poleDown.converged and rotatedX(poleUp.rotations[1])[3]>.1 and rotatedX(poleDown.rotations[1])[3]<-.1,'pole must choose opposite bend sides')
+local noDirection=solver.solve(chain(),{1,1,0},{iterations=30,tolerance=1e-4,pole={0,0,0}})
+assert(noDirection.converged and noDirection.poleStatus=='degenerate','pole at root is degenerate')
+local hingePole=solver.solve(chain({kind='Hinge',axis={0,0,1},lower=-math.pi,upper=math.pi}),{1,1,0},{iterations=30,tolerance=1e-4,pole={0,0,1}})
+assert(hingePole.converged and hingePole.poleStatus=='blocked','pole must report when the hinge prevents reorientation')
+assert(not pcall(function() solver.solve(chain(),{1,1,0},{iterations=2,tolerance=.1,pole={0/0,0,1}}) end),'invalid pole must be rejected')
 local single = {root={0,0,0},joints={{rest=identity,rotation=identity,offset={1,0,0},limit={kind='Hinge',axis={0,0,1},lower=0,upper=math.pi/4}}}}
 local limited = solver.solve(single, {0,1,0}, {iterations=10,tolerance=1e-6})
 near(limited.endpoint[1],math.sqrt(.5),1e-5); near(limited.endpoint[2],math.sqrt(.5),1e-5)

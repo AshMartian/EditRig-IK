@@ -81,6 +81,7 @@ function Solver.new(limits)
   assert(type(options.tolerance)=='number' and options.tolerance==options.tolerance and options.tolerance>=0 and options.tolerance<math.huge,'invalid tolerance')
   local maxStep=if options.maxStep==nil then math.pi else options.maxStep
   assert(type(maxStep)=='number' and maxStep==maxStep and maxStep>0 and maxStep<=math.pi,'invalid maximum correction angle')
+  assert(options.pole==nil or finiteVector(options.pole),'invalid pole')
   local rotations={}
   for i,j in ipairs(chain.joints) do
    assert(finiteVector(j.offset) and length(j.offset)>EPS,'invalid or zero-length offset')
@@ -116,8 +117,34 @@ function Solver.new(limits)
    end
    _,_,endpoint=forward(chain.root,chain.joints,rotations)
   end
+  local poleStatus=if options.pole then 'degenerate' else 'none'
+  if options.pole and #chain.joints>1 then
+   local positions,bases=forward(chain.root,chain.joints,rotations)
+   local axis=sub(endpoint,positions[1]); local axisLength=length(axis)
+   if axisLength>EPS then
+    axis=scale(axis,1/axisLength)
+    local bend=sub(positions[2],positions[1]); bend=sub(bend,scale(axis,dot(bend,axis)))
+    local desired=sub(options.pole,positions[1]); desired=sub(desired,scale(axis,dot(desired,axis)))
+    if length(bend)>EPS and length(desired)>EPS then
+     local angle=math.atan2(dot(axis,cross(bend,desired)),dot(bend,desired))
+     if math.abs(angle)<=EPS then poleStatus='aligned' else
+      angle=math.clamp(angle,-maxStep,maxStep)
+      local half=angle/2; local s=math.sin(half)
+      local worldDelta={axis[1]*s,axis[2]*s,axis[3]*s,math.cos(half)}
+      local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
+      local original=rotations[1]
+      rotations[1]=constrain(normalize(quat(localDelta,original)),chain.joints[1].limit)
+      local _,_,candidate=forward(chain.root,chain.joints,rotations)
+      local similarity=math.abs(original[1]*rotations[1][1]+original[2]*rotations[1][2]+original[3]*rotations[1][3]+original[4]*rotations[1][4])
+      if similarity<1-1e-10 and length(sub(target,candidate))<=length(sub(target,endpoint))+1e-8 then
+       endpoint=candidate; poleStatus='applied'
+      else rotations[1]=original; poleStatus='blocked' end
+     end
+    end
+   end
+  end
   local err=length(sub(target,endpoint))
-  return {rotations=rotations,endpoint=endpoint,error=err,iterations=count,converged=err<=options.tolerance}
+  return {rotations=rotations,endpoint=endpoint,error=err,iterations=count,converged=err<=options.tolerance,poleStatus=poleStatus}
  end
  return api
 end

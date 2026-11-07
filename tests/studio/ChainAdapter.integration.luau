@@ -42,6 +42,18 @@ assert(boneResult.converged,'Bone chain should converge')
 local boneEnd=a.CFrame*root.CFrame*root.Transform*child.CFrame*child.Transform*CFrame.new(1,0,0)
 assert((boneEnd.Position-target).Magnitude<0.002,'applied Bone transforms must reproduce target')
 assert(#boneChain:destroy()==0)
+local poleChain=ChainAdapter.new({j1,j2},Vector3.xAxis,{exclusive=true},solver)
+local poleWorld=a.CFrame:PointToWorldSpace(Vector3.new(0,0,2))
+local poleResult=poleChain:solve(target,{iterations=40,tolerance=.001,pole=poleWorld})
+local poleElbow=(a.CFrame*j1.C0*j1.Transform*j1.C1:Inverse()*j2.C0).Position
+assert(poleResult.converged and poleResult.poleStatus=='applied','world pole should be applied')
+assert(a.CFrame:PointToObjectSpace(poleElbow).Z>.1,'bend should point toward world pole')
+poleChain:destroy()
+local bonePole=ChainAdapter.new({root,child},Vector3.xAxis,{exclusive=true},solver)
+local bonePoleResult=bonePole:solve(target,{iterations=40,tolerance=.001,pole=poleWorld})
+local boneElbow=(a.CFrame*root.CFrame*root.Transform*child.CFrame).Position
+assert(bonePoleResult.converged and bonePoleResult.poleStatus=='applied' and a.CFrame:PointToObjectSpace(boneElbow).Z>.1,'Bone chain must follow world pole')
+bonePole:destroy()
 -- Non-coplanar rest frames and starting transforms must agree with actual FK,
 -- even when a target is unreachable or the iteration budget is exhausted.
 a.CFrame=CFrame.new(3,-2,4)*CFrame.Angles(.3,-.5,.7)

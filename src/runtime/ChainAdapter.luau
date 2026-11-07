@@ -61,6 +61,12 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   end
   local root=rootFrame()
   local relative=root:PointToObjectSpace(target)
+  assert(type(solveOptions)=='table','solver options required')
+  local solverOptions=table.clone(solveOptions)
+  if solverOptions.pole~=nil then
+   assert(validVector(solverOptions.pole),'pole must be a finite world-space Vector3')
+   solverOptions.pole=vector(root:PointToObjectSpace(solverOptions.pole))
+  end
   local data={root={0,0,0},joints={}}
   local prevRest=CFrame.identity
   for i,e in ipairs(entries) do
@@ -71,7 +77,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
    table.insert(data.joints,{rest=quaternion(prevRest),rotation=quaternion(e.last),offset=vector(rel.Position),limit=limits[i]})
    prevRest=rel.Rotation
   end
-  local result=solver.solve(data,vector(relative),solveOptions)
+  local result=solver.solve(data,vector(relative),solverOptions)
   local output={}
   for i,q in ipairs(result.rotations) do output[i]=frame(q) end
   for i,e in ipairs(entries) do e.joint.Transform=output[i]; e.last=e.joint.Transform; e.written=true end

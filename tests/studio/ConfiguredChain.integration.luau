@@ -10,7 +10,9 @@ for _,j in ipairs({j1,j2}) do
  j:SetAttribute('EditRigIK_LowerDegrees',-180); j:SetAttribute('EditRigIK_UpperDegrees',180); j:SetAttribute('EditRigIK_SwingDegrees',90)
 end
 local folder=Instance.new('Folder'); folder.Name='EditRigIKChains'; folder.Parent=model
-local definition=ChainBuilder.new(Config).create(model,j1,j2,endpoint,'Leg',{iterations=48,tolerance=0.02,maxStepDegrees=20}); definition.Parent=folder
+local pole=Instance.new('Attachment'); pole.Position=Vector3.new(0,0,2); pole.Parent=a
+local definition=ChainBuilder.new(Config).create(model,j1,j2,endpoint,'Leg',{iterations=48,tolerance=0.02,maxStepDegrees=20,pole=pole}); definition.Parent=folder
+assert(definition.Pole.Value==pole,'pole attachment reference should persist')
 assert(definition:GetAttribute('MaxStepDegrees')==20,'authored correction angle must persist')
 local captured
 local optionsChain=ChainDefinition.new(definition,{exclusive=true},function()
@@ -18,6 +20,12 @@ local optionsChain=ChainDefinition.new(definition,{exclusive=true},function()
 end)
 optionsChain:solve(Vector3.zero,{iterations=7})
 assert(captured.iterations==7 and captured.tolerance==0.02 and math.abs(captured.maxStep-math.rad(20))<1e-8,'partial override must preserve saved settings')
+assert(captured.pole==pole.WorldPosition,'saved pole attachment must reach runtime')
+pole.Position=Vector3.new(0,0,3)
+optionsChain:solve(Vector3.zero)
+assert(captured.pole==pole.WorldPosition,'moving pole attachment must be read each solve')
+optionsChain:solve(Vector3.zero,{pole=Vector3.new(4,5,6)})
+assert(captured.pole==Vector3.new(4,5,6),'world pole override must take precedence')
 optionsChain:solve(Vector3.zero,{maxStep=math.rad(10)})
 assert(math.abs(captured.maxStep-math.rad(10))<1e-8 and captured.iterations==48,'runtime correction angle override must reach solver')
 optionsChain:solve(Vector3.zero,{tolerance=0})

@@ -8,9 +8,11 @@ function ChainDefinition.new(definition,options,createChain)
  assert(type(options)=='table' and options.exclusive==true and type(createChain)=='function','explicit ownership and chain factory required')
  local model=definition.Parent.Parent
  local endpointRef=definition:FindFirstChild('Endpoint')
+ local poleRef=definition:FindFirstChild('Pole')
  local list=definition:FindFirstChild('Joints')
  assert(endpointRef and endpointRef:IsA('ObjectValue') and endpointRef.Value and endpointRef.Value.ClassName=='Attachment' and endpointRef.Value:IsDescendantOf(model),'endpoint reference is invalid')
  assert(list and list:IsA('Folder'),'joint references missing')
+ assert(not poleRef or (poleRef:IsA('ObjectValue') and poleRef.Value and poleRef.Value.ClassName=='Attachment' and poleRef.Value:IsDescendantOf(model)),'pole reference is invalid')
  local refs=list:GetChildren()
  assert(#refs>0 and #refs<=128,'invalid joint count')
  for _,ref in ipairs(refs) do assert(ref:IsA('ObjectValue') and finite(ref:GetAttribute('Order')),'invalid joint reference') end
@@ -42,9 +44,13 @@ function ChainDefinition.new(definition,options,createChain)
   assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')
   assert(overrides==nil or type(overrides)=='table','solver overrides must be a table')
   local settings={iterations=iterations,tolerance=tolerance,maxStep=math.rad(maxStepDegrees)}
+  if poleRef then
+   assert(poleRef.Value and poleRef.Value.ClassName=='Attachment' and poleRef.Value:IsDescendantOf(model),'pole reference changed or left model')
+   settings.pole=poleRef.Value.WorldPosition
+  end
   if overrides then
    for key,value in pairs(overrides) do
-    assert(key=='iterations' or key=='tolerance' or key=='maxStep','unknown solver option: '..tostring(key))
+    assert(key=='iterations' or key=='tolerance' or key=='maxStep' or key=='pole','unknown solver option: '..tostring(key))
     settings[key]=value
    end
   end

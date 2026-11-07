@@ -70,8 +70,10 @@ function ChainBuilder.new(Config)
   end
  end
  function api.create(model,first,last,endpoint,name,options)
+  local pole=if options then options.pole else nil
   options=api.validateSettings(options or {iterations=30,tolerance=0.01})
   assert(typeof(model)=='Instance' and model:IsA('Model'),'actor model required')
+  assert(pole==nil or (typeof(pole)=='Instance' and pole.ClassName=='Attachment' and pole:IsDescendantOf(model)),'pole must be an Attachment in the model')
   assert(type(name)=='string' and #name>0 and #name<=64,'chain name must be 1–64 characters')
   assert(typeof(first)=='Instance' and typeof(last)=='Instance' and first:IsDescendantOf(model) and last:IsDescendantOf(model),'joints must belong to the selected model')
   assert((first:IsA('Motor6D') and last:IsA('Motor6D')) or (first:IsA('Bone') and last:IsA('Bone')),'root and end must both be Motor6Ds or both Bones')
@@ -128,6 +130,7 @@ function ChainBuilder.new(Config)
   folder:SetAttribute('Iterations',options.iterations); folder:SetAttribute('Tolerance',options.tolerance)
   folder:SetAttribute('MaxStepDegrees',options.maxStepDegrees)
   local endpointRef=Instance.new('ObjectValue'); endpointRef.Name='Endpoint'; endpointRef.Value=endpoint; endpointRef.Parent=folder
+  if pole then local poleRef=Instance.new('ObjectValue'); poleRef.Name='Pole'; poleRef.Value=pole; poleRef.Parent=folder end
   local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=folder
   for i,e in ipairs(entries) do
    local ref=Instance.new('ObjectValue'); ref.Name=string.format('Joint%03d',i); ref.Value=e.joint
