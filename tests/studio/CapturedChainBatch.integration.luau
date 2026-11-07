@@ -11,6 +11,10 @@ local entries=JointBatch.prepare(stable,settings,Config,InputProfileBuilder)
 assert(hip:GetAttribute('EditRigIK_SchemaVersion')==nil and knee:GetAttribute('EditRigIK_SchemaVersion')==nil,'preparation must not modify rig')
 JointBatch.apply(entries)
 assert(hip:GetAttribute('EditRigIK_Axis')=='Z' and knee:GetAttribute('EditRigIK_Axis')=='Z' and ik.Enabled,'captured joints should receive settings without changing IKControl')
+local constraints=IKConstraintBuilder.new(Config)
+local created=constraints.applyBatch(constraints.prepareBatch(ChainDiscovery.verifyCapture(ik,capture)))
+assert(#created==2 and ik.Enabled,'captured motor chain must produce constraints without changing the IKControl')
+for _,item in ipairs(created) do item.Attachment0:Destroy(); item.Attachment1:Destroy(); item:Destroy() end
 local alternate=Instance.new('Motor6D'); alternate.Part0=upper; alternate.Part1=endPart; alternate.Parent=upper
 assert(not pcall(function() ChainDiscovery.verifyCapture(ik,capture) end),'changed ambiguous path must be rejected')
 alternate:Destroy(); ik.EndEffector=upper
@@ -21,5 +25,6 @@ local bones=ChainDiscovery.inspect(ik)
 local verified=ChainDiscovery.verifyCapture(ik,bones)
 JointBatch.apply(JointBatch.prepare(verified,settings,Config,InputProfileBuilder))
 assert(root:GetAttribute('EditRigIK_Axis')=='Z' and child:GetAttribute('EditRigIK_Axis')=='Z','Bone chains should support captured settings')
+assert(not pcall(function() constraints.prepareBatch(verified) end),'built-in physical constraint generation must reject Bones')
 model:Destroy()
 return 'Captured IKControl chains validate before batch Motor6D and Bone authoring'

@@ -140,6 +140,10 @@ local createIKHinge=Instance.new('TextButton')
 createIKHinge.Size=UDim2.new(1,0,0,32); createIKHinge.BackgroundColor3=Color3.fromRGB(61,109,172)
 createIKHinge.TextColor3=Color3.new(1,1,1); createIKHinge.Text='Create built-in IK constraint for selected Motor6D'
 createIKHinge.Font=Enum.Font.SourceSansBold; createIKHinge.TextSize=15; order(createIKHinge); createIKHinge.Parent=root
+local createIKBatch=Instance.new('TextButton')
+createIKBatch.Size=UDim2.new(1,0,0,32); createIKBatch.BackgroundColor3=Color3.fromRGB(61,109,172)
+createIKBatch.TextColor3=Color3.new(1,1,1); createIKBatch.Text='Create IK constraints for selected Motor6Ds'
+createIKBatch.Font=Enum.Font.SourceSansBold; createIKBatch.TextSize=15; order(createIKBatch); createIKBatch.Parent=root
 local refreshIKConstraint=Instance.new('TextButton')
 refreshIKConstraint.Size=UDim2.new(1,0,0,32); refreshIKConstraint.BackgroundColor3=Color3.fromRGB(61,109,172)
 refreshIKConstraint.TextColor3=Color3.new(1,1,1); refreshIKConstraint.Text='Refresh generated IK constraint from saved settings'
@@ -246,6 +250,18 @@ createIKHinge.MouseButton1Click:Connect(function()
     end)
     if not saved then status.Text='Cannot create IK constraint: '..tostring(result); return end
     status.Text='Created '..result.Name..'. Test the rig in Play; use Undo to remove.'
+end)
+createIKBatch.MouseButton1Click:Connect(function()
+    local ok,prepared=pcall(IKConstraintBuilder.prepareBatch,Selection:Get())
+    if not ok then status.Text='Cannot create IK constraints: '..tostring(prepared); return end
+    local saved,result=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before create EditRig IK constraint batch')
+        local created=IKConstraintBuilder.applyBatch(prepared)
+        ChangeHistoryService:SetWaypoint('Create EditRig IK constraint batch')
+        return created
+    end)
+    if not saved then status.Text='Cannot create IK constraints: '..tostring(result); return end
+    status.Text='Created '..#result..' IK constraints. Test in Play; use Undo to remove.'
 end)
 refreshIKConstraint.MouseButton1Click:Connect(function()
     local items=Selection:Get(); local joint=if #items==1 then items[1] else nil
@@ -552,6 +568,21 @@ chainButton('Apply joint settings to captured IK chain').MouseButton1Click:Conne
     end)
     if not saved then chainFeedback.Text='Cannot apply captured settings: '..tostring(err); return end
     chainFeedback.Text='Saved '..#entries..' joints. Review limits and axes; existing IKControl is unchanged.'
+end)
+chainButton('Create IK constraints for captured motor chain').MouseButton1Click:Connect(function()
+    local ok,prepared=pcall(function()
+        local joints=ChainDiscovery.verifyCapture(capturedControl,capturedChain)
+        return IKConstraintBuilder.prepareBatch(joints)
+    end)
+    if not ok then chainFeedback.Text='Cannot create captured constraints: '..tostring(prepared); return end
+    local saved,result=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before create captured IK constraints')
+        local created=IKConstraintBuilder.applyBatch(prepared)
+        ChangeHistoryService:SetWaypoint('Create captured IK constraints')
+        return created
+    end)
+    if not saved then chainFeedback.Text='Cannot create captured constraints: '..tostring(result); return end
+    chainFeedback.Text='Created '..#result..' physical constraints. Test in Play; use Undo to remove.'
 end)
 chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()

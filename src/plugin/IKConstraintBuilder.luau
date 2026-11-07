@@ -51,6 +51,42 @@ function IKConstraintBuilder.new(Config)
   if not ok then constraint:Destroy(); a0:Destroy(); a1:Destroy(); error(err) end
   return constraint
  end
+ function api.prepareBatch(joints)
+  assert(type(joints)=='table' and #joints>=2 and #joints<=128,'select 2–128 Motor6Ds')
+  local plans,seen,pairsByPart,names={},{},{},{}
+  local function reserve(part,name)
+   local partNames=names[part] or {}; names[part]=partNames
+   assert(not partNames[name],'generated names collide within selection: '..name)
+   partNames[name]=true
+  end
+  for _,joint in ipairs(joints) do
+   assert(not seen[joint],'duplicate joint in selection'); seen[joint]=true
+   local entry=api.prepare(joint)
+   assert(not (pairsByPart[entry.p0] and pairsByPart[entry.p0][entry.p1]),'selected motors connect the same parts')
+   pairsByPart[entry.p0]=pairsByPart[entry.p0] or {}; pairsByPart[entry.p1]=pairsByPart[entry.p1] or {}
+   pairsByPart[entry.p0][entry.p1]=true; pairsByPart[entry.p1][entry.p0]=true
+   reserve(entry.p0,entry.name..'_0'); reserve(entry.p1,entry.name..'_1'); reserve(entry.p1,entry.name..'_'..entry.kind)
+   table.insert(plans,entry)
+  end
+  return plans
+ end
+ function api.applyBatch(plans)
+  assert(type(plans)=='table' and #plans>=2 and #plans<=128,'prepared constraint batch required')
+  local joints={}
+  for _,plan in ipairs(plans) do assert(type(plan)=='table','invalid prepared constraint'); table.insert(joints,plan.joint) end
+  local current=api.prepareBatch(joints)
+  for i,plan in ipairs(plans) do assert(same(current[i],plan),'joint changed; prepare batch again') end
+  local created={}
+  local ok,err=pcall(function() for _,plan in ipairs(plans) do table.insert(created,api.apply(plan)) end end)
+  if not ok then
+   for i=#created,1,-1 do
+    local constraint=created[i]; local a0,a1=constraint.Attachment0,constraint.Attachment1
+    constraint:Destroy(); if a0 then a0:Destroy() end; if a1 then a1:Destroy() end
+   end
+   error(err)
+  end
+  return created
+ end
  function api.prepareRefresh(joint)
   local data=jointSettings(joint)
   local found=nil
