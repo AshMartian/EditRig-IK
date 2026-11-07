@@ -37,6 +37,12 @@ assert(not unreachable.converged and (targetMarker.Position-endMarker.Position).
 assert(not view.CurrentCamera.CFrame:FuzzyEq(cameraBefore,1e-4),'camera should reframe distant targets')
 assert(session:solveOffset(Vector3.new(-.9,1,0)).converged,'preview must accept repeated solves')
 local previewRig=view:FindFirstChildOfClass('WorldModel'):FindFirstChild('Rig')
+local motorSkeleton=view:FindFirstChildOfClass('WorldModel'):FindFirstChild('EditRigIKSkeleton')
+local motorFirst=motorSkeleton and motorSkeleton:FindFirstChild('Link001')
+local clonedRoot=previewRig.Base.Root; local clonedEnd=previewRig.Mid.Elbow
+local pivot0=(clonedRoot.Part0.CFrame*clonedRoot.C0).Position
+local pivot1=(clonedEnd.Part0.CFrame*clonedEnd.C0).Position
+assert(motorFirst and motorFirst.Transparency==0 and (motorFirst.Position-(pivot0+pivot1)*.5).Magnitude<1e-5,'Motor6D preview link must follow joint pivots')
 local previewTip=previewRig:FindFirstChild('Tip'); local previewBranch=previewRig:FindFirstChild('Branch'); local previewAccessory=previewRig:FindFirstChild('Accessory')
 assert(previewBranch.CFrame:FuzzyEq(previewTip.CFrame*CFrame.new(0,1,0),1e-5),'branch Motor6D must follow the preview chain')
 assert(previewAccessory.CFrame:FuzzyEq(previewBranch.CFrame*CFrame.new(0,0,.4),1e-5),'welded accessory must follow the preview branch')
@@ -57,7 +63,17 @@ local bones=ChainBuilder.new(Config).create(model,root,child,boneTip,'Tail'); bo
 local boneSession=PreviewSession.new(bones,view,{createChain=function(def)
  return ChainDefinition.new(def,{exclusive=true},function(joints,point,opts) return ChainAdapter.new(joints,point,opts,engine) end)
 end})
+local boneWorld=view:FindFirstChildOfClass('WorldModel')
+local skeleton=boneWorld and boneWorld:FindFirstChild('EditRigIKSkeleton')
+assert(skeleton and #skeleton:GetChildren()==2,'Bone preview must create visible chain links')
 assert(boneSession:solveOffset(Vector3.new(-1,1,0)).converged,'Bone preview must solve')
+local cloned=boneWorld:FindFirstChild('Rig'); local clonedRootBone=cloned.Base.BoneRoot; local clonedEndBone=clonedRootBone.BoneEnd
+local firstLink=skeleton:FindFirstChild('Link001'); local lastLink=skeleton:FindFirstChild('Link002')
+local p0=clonedRootBone.TransformedWorldCFrame.Position; local p1=clonedEndBone.TransformedWorldCFrame.Position
+local p2=clonedEndBone.TransformedWorldCFrame:PointToWorldSpace(clonedEndBone.Attachment.Position)
+assert(firstLink and lastLink and firstLink.Transparency==0 and lastLink.Transparency==0,'nonzero links must be visible')
+assert((firstLink.Position-(p0+p1)*.5).Magnitude<1e-5 and math.abs(firstLink.Size.Z-(p1-p0).Magnitude)<1e-5,'first link must follow cloned Bones')
+assert((lastLink.Position-(p1+p2)*.5).Magnitude<1e-5 and math.abs(lastLink.Size.Z-(p2-p1).Magnitude)<1e-5,'last link must follow the endpoint')
 assert(root.Transform:FuzzyEq(CFrame.identity,1e-5) and child.Transform:FuzzyEq(CFrame.identity,1e-5),'Bone source must remain unchanged')
 boneSession:destroy()
 assert(not pcall(function() PreviewSession.new(definition,view,{createChain=function() error('failed construction') end}) end))
