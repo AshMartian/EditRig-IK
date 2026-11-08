@@ -882,9 +882,13 @@ local ghostOffset=Instance.new('TextBox'); ghostOffset.Size=UDim2.new(1,0,0,30);
 ghostOffset.TextColor3=Color3.new(1,1,1); ghostOffset.Font=Enum.Font.SourceSans; ghostOffset.TextSize=16
 ghostOffset.Text='0, 0, 0'; ghostOffset.ClearTextOnFocus=false; order(ghostOffset); ghostOffset.Parent=root
 local ghost,ghostGuard,ghostTarget,ghostWorld,ghostGui,ghostAncestry=nil,nil,nil,nil,nil,nil
+local surfacePanel,surfaceGuide,surfaceSource=nil,nil,nil
 local pendingTarget=nil
 local function closeGhost()
     pendingTarget=nil
+    if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+    surfaceSource=nil
+    if surfacePanel then surfacePanel:setContext('Start a viewport simulation for a saved chain.',false) end
     if ghostAncestry then ghostAncestry:Disconnect(); ghostAncestry=nil end
     if ghostGuard then ghostGuard:destroy(); ghostGuard=nil end
     if ghostTarget then ghostTarget:destroy(); ghostTarget=nil end
@@ -936,6 +940,10 @@ ghostStartButton.MouseButton1Click:Connect(function()
         return true
     end)
     if not ok then closeGhost(); ghostStatus.Text='Cannot start simulation: '..tostring(result); return end
+    surfaceSource=definition.Parent.Parent
+    local endpointRef=definition:FindFirstChild('Endpoint')
+    local endpointName=if endpointRef and endpointRef:IsA('ObjectValue') and endpointRef.Value then endpointRef.Value:GetFullName() else '(unavailable)'
+    if surfacePanel then surfacePanel:setContext('Chain: '..definition.Name..' · starting endpoint: '..endpointName,true) end
     ghostOffset.Text=ChainDiscovery.formatOffset(Vector3.zero)
     ghostStatus.Text='Preview uses saved chain limits. Refresh limits from joints after editing. Red: target; green: endpoint.'
 end)
@@ -966,6 +974,10 @@ end)
 local ghostEndButton=chainButton('End viewport simulation')
 ghostEndButton.MouseButton1Click:Connect(function() closeGhost(); ghostStatus.Text='Simulation closed.' end)
 local ghostUpdate=RunService.Heartbeat:Connect(function()
+    if surfaceGuide and not surfaceGuide:isValid() then
+        surfaceGuide:destroy(); surfaceGuide=nil
+        if surfacePanel then surfacePanel:setResult('Contact guide was removed. Check the scene surface again.') end
+    end
     if not ghost or not checkGhostResources() or not pendingTarget then return end
     if not ghostGuard or not ghostGuard:check() then return end
     local target=pendingTarget; pendingTarget=nil
@@ -1007,10 +1019,45 @@ ghostStatus:GetPropertyChangedSignal('Text'):Connect(function() panel:setStatus(
 panel:setStatus('Select a rig or joint to begin.')
 local alignTabs=Instance.new('Frame'); alignTabs.Name='AlignmentTabs'; alignTabs.Size=UDim2.new(1,0,0,38)
 alignTabs.BackgroundTransparency=1; alignTabs.LayoutOrder=1; alignTabs.Parent=panel.pages.Alignment
-local feetCard=panel:section('Alignment','Feet','Surface contact and foot orientation are not available yet. Select a foot chain when this workflow is implemented.')
+local feetCard=panel:section('Alignment','Feet','Foot orientation is not available yet. The scene contact check below is a diagnostic only.')
 feetCard.LayoutOrder=2
 local bodyCard=panel:section('Alignment','Body','Body support, tilt and height alignment are not available yet. These settings will require an actor and valid support contacts.')
 bodyCard.LayoutOrder=2; bodyCard.Visible=false
+surfacePanel=panel:contactProbe(function(options)
+    if not ghost or not surfaceSource or not checkGhostResources() or not ghostGuard or not ghostGuard:check() then
+        if surfacePanel then surfacePanel:setResult('Start a viewport simulation for a saved chain before checking contact.') end
+        return
+    end
+    if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+    local origin=ghost:startTarget()
+    local ray=require(script.SurfaceProbe).new(workspace,surfaceSource,{ghostWorld})
+    local ok,result=pcall(function()
+        return require(script.SurfaceContact).probe({origin={origin.X,origin.Y,origin.Z},direction={0,-1,0},up={0,1,0},distance=options.distance,maxSlopeDegrees=options.maxSlopeDegrees,soleOffset=options.soleOffset,supporting=false},function(start,delta)
+            return ray:cast(start,delta)
+        end)
+    end)
+    ray:destroy()
+    if not ok then surfacePanel:setResult('Contact check failed: '..tostring(result)); return end
+    if result.status=='contact' then
+        local p,n,t=result.position,result.normal,result.target
+        local shown,showError=pcall(function()
+            surfaceGuide=require(script.SurfaceContactGizmo).new(ghostWorld)
+            surfaceGuide:update({status='contact',position=Vector3.new(p[1],p[2],p[3]),normal=Vector3.new(n[1],n[2],n[3])})
+        end)
+        if not shown then
+            if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+            surfacePanel:setResult('Contact was detected, but its guide could not be shown: '..tostring(showError)); return
+        end
+        surfacePanel:setResult(string.format('Surface detected · slope %.1f°\nCandidate: %.2f, %.2f, %.2f studs\nContact does not establish support.',result.slopeDegrees,t[1],t[2],t[3]))
+    elseif result.status=='excluded slope' then
+        surfacePanel:setResult(string.format('Surface excluded: %.1f° exceeds the maximum slope.',result.slopeDegrees))
+    elseif result.status=='no contact' then surfacePanel:setResult('No surface found within the probe distance.')
+    else surfacePanel:setResult('Contact result was invalid.') end
+end)
+surfacePanel.root.LayoutOrder=3; surfacePanel.root.Parent=feetCard
+for _,field in ipairs({surfacePanel.distance,surfacePanel.slope,surfacePanel.soleOffset}) do
+    field:GetPropertyChangedSignal('Text'):Connect(function() if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end end)
+end
 local feetTab=Instance.new('TextButton'); feetTab.Name='FeetTab'; feetTab.Text='Feet'; feetTab.Size=UDim2.new(.5,-2,1,0); feetTab.Parent=alignTabs
 local bodyTab=Instance.new('TextButton'); bodyTab.Name='BodyTab'; bodyTab.Text='Body'; bodyTab.Position=UDim2.new(.5,2,0,0); bodyTab.Size=UDim2.new(.5,-2,1,0); bodyTab.Parent=alignTabs
 local function selectAlignment(feet)
@@ -1024,10 +1071,6 @@ end
 feetTab.Activated:Connect(function() selectAlignment(true) end)
 bodyTab.Activated:Connect(function() selectAlignment(false) end)
 selectAlignment(true)
-local contact=Instance.new('TextLabel'); contact.Name='ContactStatus'; contact.LayoutOrder=3
-contact.Size=UDim2.new(1,0,0,40); contact.BackgroundTransparency=1; contact.Text='Contact: not evaluated'
-contact.TextColor3=Color3.fromRGB(192,201,215); contact.Font=Enum.Font.SourceSans; contact.TextSize=16
-contact.TextXAlignment=Enum.TextXAlignment.Left; contact.Parent=panel.pages.Alignment
 local simulateLink=Instance.new('TextButton'); simulateLink.Name='OpenSimulate'; simulateLink.Text='Open simulation'
 simulateLink.Size=UDim2.fromScale(1,1); simulateLink.BackgroundColor3=Color3.fromRGB(42,115,151)
 simulateLink.TextColor3=Color3.new(1,1,1); simulateLink.Font=Enum.Font.SourceSansBold; simulateLink.TextSize=16

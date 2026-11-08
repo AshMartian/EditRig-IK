@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / 'tools' / 'bundle_studio_test.py'
 FIXTURES = {
     'PanelComponents': ('src/plugin/PanelComponents.luau', 'tests/studio/PanelComponents.integration.luau'),
+    'SurfaceProbe': ('src/runtime/SurfaceContact.luau', 'src/runtime/SurfaceProbe.luau', 'tests/studio/SurfaceProbe.integration.luau'),
+    'SurfaceContactGizmo': ('src/plugin/SurfaceContactGizmo.luau', 'tests/studio/SurfaceContactGizmo.integration.luau'),
     'ViewportTargetHandle': ('src/plugin/ViewportTargetHandle.luau', 'tests/studio/ViewportTargetHandle.integration.luau'),
     'WorldGhostSession': ('src/plugin/WorldGhostSession.luau', 'tests/studio/WorldGhostSession.integration.luau'),
     'ChainDiscovery': ('src/plugin/ChainDiscovery.luau', 'tests/studio/ChainDiscovery.spec.luau'),

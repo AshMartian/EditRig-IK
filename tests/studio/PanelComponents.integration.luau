@@ -28,4 +28,37 @@ assert(panel.status.Text == 'Select a supported chain.' and action.Parent == pan
 panel:destroy(); panel:destroy()
 assert(#host:GetChildren() == 0, 'destroy removes the panel and is idempotent')
 host:Destroy()
-return 'Panel page navigation, status, sections, and cleanup passed'
+-- Contact probe is a session-only scene diagnostic; a ray hit is not a planted foot.
+local probeHost = Instance.new('Frame')
+local diagnosticPanel = PanelComponents.new(probeHost)
+local requests = {}
+local probe = diagnosticPanel:contactProbe(function(options)
+    table.insert(requests, options)
+end)
+assert(probe.root.Parent == diagnosticPanel.pages.Alignment, 'contact diagnostic belongs to Alignment')
+assert(probe.context.Text:find('simulation', 1, true), 'missing simulation prerequisite is visible')
+assert(not probe:request() and #requests == 0, 'missing chain prevents a probe')
+probe:setContext('Left foot chain — Endpoint', true)
+probe.distance.Text = '4'; probe.slope.Text = '45'; probe.soleOffset.Text = '-0.1'
+assert(probe:request() and #requests == 1, 'valid inputs submit one request')
+assert(requests[1].distance == 4 and requests[1].maxSlopeDegrees == 45 and requests[1].soleOffset == -0.1, 'settings preserve numeric values')
+probe.distance.Text = '0'
+assert(not probe:request() and #requests == 1 and probe.result.Text:find('distance', 1, true), 'invalid distance is explained and never submitted')
+probe.distance.Text = '4'; probe.slope.Text = '91'
+assert(not probe:request() and #requests == 1 and probe.result.Text:find('slope', 1, true), 'invalid slope is explained and never submitted')
+probe.slope.Text = 'nan'
+assert(not probe:request() and #requests == 1, 'nonfinite or nonnumeric values are rejected')
+probe.slope.Text = '45'; probe.distance.Text = '15001'
+assert(not probe:request() and #requests == 1, 'distances beyond the Studio raycast maximum are rejected')
+probe.distance.Text = '4'; probe.soleOffset.Text = 'nan'
+assert(not probe:request() and #requests == 1 and probe.result.Text:find('offset', 1, true), 'invalid offset is explained')
+probe:setResult('No contact')
+assert(probe.result.Text == 'No contact', 'scene result is visible')
+probe.slope.Text = '35'
+task.wait()
+assert(probe.result.Text:find('not evaluated', 1, true), 'editing probe inputs clears a stale scene result')
+probe:setContext('Select a saved chain.', false)
+assert(probe.result.Text:find('not evaluated', 1, true), 'changing selection clears stale contact results')
+diagnosticPanel:destroy(); probeHost:Destroy()
+
+return 'Panel page navigation, contact diagnostic, status, sections, and cleanup passed'

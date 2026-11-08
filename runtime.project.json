@@ -35,6 +35,8 @@
     "TargetStepper": {
       "$path": "src/runtime/TargetStepper.luau"
     },
+    "SurfaceContact": {"$path": "src/runtime/SurfaceContact.luau"},
+    "SurfaceProbe": {"$path": "src/runtime/SurfaceProbe.luau"},
     "Ownership": {
       "$path": "src/runtime/Ownership.luau"
     },

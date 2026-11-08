@@ -202,6 +202,98 @@ function PanelComponents.new(parent: Instance)
         card.Parent = page
         return card
     end
+    -- A one-shot scene query, not an authored foot-alignment setting. The
+    -- caller supplies the selected chain and performs the actual raycast.
+    function api:contactProbe(onRequest)
+        assert(type(onRequest) == 'function', 'contact diagnostic requires a request callback')
+        local card = self:section('Alignment', 'Scene contact check',
+            'Unsaved snapshot; check again after the scene changes. Requires a running viewport simulation. Probes straight down in world space from the ghost chain’s starting endpoint, not the draggable target. A hit does not establish foot support or move the ghost.')
+        local context = textLabel('ChainContext', 'Start a viewport simulation for a saved chain.', 20)
+        context.LayoutOrder = 3
+        context.TextColor3 = colors.muted
+        context.Parent = card
+
+        local function numericField(name: string, caption: string, initial: string, position: number): TextBox
+            local title = textLabel(name .. 'Label', caption, 20)
+            title.LayoutOrder = position
+            title.Parent = card
+            local box = Instance.new('TextBox')
+            box.Name = name
+            box.LayoutOrder = position + 1
+            box.Size = UDim2.new(1, 0, 0, 30)
+            box.BackgroundColor3 = Color3.fromRGB(55, 61, 72)
+            box.BorderSizePixel = 0
+            box.TextColor3 = colors.text
+            box.TextSize = 16
+            box.Font = Enum.Font.SourceSans
+            box.Text = initial
+            box.ClearTextOnFocus = false
+            box.Parent = card
+            return box
+        end
+        local distance = numericField('ProbeDistance', 'Probe distance (studs)', '4', 4)
+        local slope = numericField('MaximumSlope', 'Maximum slope (degrees)', '45', 6)
+        local soleOffset = numericField('SoleOffset', 'Candidate offset along surface normal (studs)', '0', 8)
+        local button = Instance.new('TextButton')
+        button.Name = 'CheckSceneSurface'
+        button.Text = 'Check scene surface'
+        button.Size = UDim2.new(1, 0, 0, 36)
+        button.LayoutOrder = 10
+        button.BackgroundColor3 = Color3.fromRGB(42, 115, 151)
+        button.BorderSizePixel = 0
+        button.TextColor3 = colors.text
+        button.Font = Enum.Font.SourceSansBold
+        button.TextSize = 16
+        button.Parent = card
+        local result = textLabel('ContactResult', 'Contact: not evaluated.', 20)
+        result.LayoutOrder = 11
+        result.TextColor3 = colors.muted
+        result.Parent = card
+        for _, field in ipairs({distance, slope, soleOffset}) do
+            field:GetPropertyChangedSignal('Text'):Connect(function()
+                result.Text = 'Settings changed. Contact not evaluated.'
+            end)
+        end
+
+        local ready = false
+        local probe = {root = card, context = context, distance = distance, slope = slope, soleOffset = soleOffset, result = result, button = button}
+        function probe:setContext(description: string, available: boolean)
+            context.Text = description
+            ready = available
+            result.Text = 'Contact: not evaluated.'
+        end
+        function probe:setResult(message: string)
+            result.Text = message
+        end
+        function probe:request(): boolean
+            if not ready then
+                result.Text = 'Start a viewport simulation for a saved chain before checking contact.'
+                return false
+            end
+            local distanceValue, slopeValue, offsetValue = tonumber(distance.Text), tonumber(slope.Text), tonumber(soleOffset.Text)
+            if not distanceValue or distanceValue ~= distanceValue or distanceValue <= 0 or distanceValue > 15000 then
+                result.Text = 'Probe distance must be greater than zero and at most 15000 studs.'
+                return false
+            end
+            if not slopeValue or slopeValue ~= slopeValue or slopeValue < 0 or slopeValue > 90 then
+                result.Text = 'Maximum slope must be a number from 0 to 90 degrees.'
+                return false
+            end
+            if not offsetValue or offsetValue ~= offsetValue or math.abs(offsetValue) == math.huge then
+                result.Text = 'Candidate offset must be a finite number.'
+                return false
+            end
+            result.Text = 'Checking scene surface…'
+            local ok, err = pcall(onRequest, {distance = distanceValue, maxSlopeDegrees = slopeValue, soleOffset = offsetValue})
+            if not ok then
+                result.Text = 'Contact check failed: ' .. tostring(err)
+                return false
+            end
+            return true
+        end
+        button.Activated:Connect(function() probe:request() end)
+        return probe
+    end
     function api:destroy()
         shell:Destroy()
     end

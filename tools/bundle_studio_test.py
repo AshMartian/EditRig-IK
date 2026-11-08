@@ -13,6 +13,9 @@ MODULES = {
     'ChainAdapter': 'src/runtime/ChainAdapter.luau',
     'ChainDefinition': 'src/runtime/ChainDefinition.luau',
     'PanelComponents': 'src/plugin/PanelComponents.luau',
+    'SurfaceContact': 'src/runtime/SurfaceContact.luau',
+    'SurfaceProbe': 'src/runtime/SurfaceProbe.luau',
+    'SurfaceContactGizmo': 'src/plugin/SurfaceContactGizmo.luau',
     'ViewportTargetHandle': 'src/plugin/ViewportTargetHandle.luau',
     'WorldGhostSession': 'src/plugin/WorldGhostSession.luau',
     'ChainDiscovery': 'src/plugin/ChainDiscovery.luau',
@@ -22,6 +25,8 @@ MODULES = {
 }
 FIXTURES = {
     'PanelComponents': (('PanelComponents',), 'tests/studio/PanelComponents.integration.luau'),
+    'SurfaceProbe': (('SurfaceContact', 'SurfaceProbe'), 'tests/studio/SurfaceProbe.integration.luau'),
+    'SurfaceContactGizmo': (('SurfaceContactGizmo',), 'tests/studio/SurfaceContactGizmo.integration.luau'),
     'ViewportTargetHandle': (('ViewportTargetHandle',), 'tests/studio/ViewportTargetHandle.integration.luau'),
     'WorldGhostSession': (('Config', 'ChainBuilder', 'Limits', 'Solver', 'ChainAdapter', 'ChainDefinition', 'WorldGhostSession'), 'tests/studio/WorldGhostSession.integration.luau'),
     'ChainDiscovery': (('ChainDiscovery',), 'tests/studio/ChainDiscovery.spec.luau'),

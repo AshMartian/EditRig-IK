@@ -316,7 +316,29 @@ The experimental **Open selected chain clone preview** creates a script-free clo
 
 Select a saved chain definition in Explorer, open **Simulate**, and choose **Start viewport simulation**. The plugin creates a translucent, anchored temporary clone in the main workspace and shows a red target and green solved endpoint. The simulation uses the saved chain's limit snapshot: after editing joint settings, use **Refresh selected chain limits from joints** before starting again. Enter an X, Y, Z world-space offset from the starting endpoint and choose **Set viewport target offset** to solve it; the target's axis handles are also intended for dragging, but physical pointer interaction has not yet been verified. The displayed gap is the distance between target and endpoint. **Not reached** does not claim why the solve stopped short; the count of joints clamped during the solve does not establish the cause or final limit contact. Solves are capped at 40 iterations per update, with the saved speed cap disabled for this static preview.
 
-Reset returns the clone and target to their starting pose. End, closing the panel, unloading the plugin, observed source or selection changes, leaving Edit mode and errors clean up the temporary session. The clone excludes scripts and active controllers, is non-colliding and is not intended to save with the place. As with the docked preview, source-change detection depends on Studio events and is not a guarantee against every concurrent change. The preview does not simulate Animator or physics, calculate foot contacts, align orientations or drive the original rig. The Alignment page is a placeholder. A two-Motor6D fixture exercised numeric target updates, reset and selection cleanup through the installed panel, and a separate 15-Bone skinned fixture exercised numeric solving and source isolation. Actual handle dragging and skinned deformation in this particular main-viewport preview remain unverified; see [debugging](debugging.md#viewport-simulation-observations).
+Reset returns the clone and target to their starting pose. End, closing the panel, unloading the plugin, observed source or selection changes, leaving Edit mode and errors clean up the temporary session. The clone excludes scripts and active controllers, is non-colliding and is not intended to save with the place. As with the docked preview, source-change detection depends on Studio events and is not a guarantee against every concurrent change. The preview does not simulate Animator or physics, align orientations or drive the original rig. A two-Motor6D fixture exercised numeric target updates, reset and selection cleanup through the installed panel, and a separate 15-Bone skinned fixture exercised numeric solving and source isolation. Actual handle dragging and skinned deformation in this particular main-viewport preview remain unverified; see [debugging](debugging.md#viewport-simulation-observations).
+
+## Surface-contact diagnostics
+
+With a saved chain's viewport simulation open, choose **Alignment → Feet → Check scene surface**. This unsaved snapshot casts straight down from the chain's starting endpoint, excluding the source model and temporary preview. Set the distance, maximum slope, and signed candidate offset along the surface normal. A valid hit displays its slope, candidate world position, a contact point and a normal guide. A surface steeper than the threshold is reported as excluded; no hit is reported separately. Check again after moving the scene. Editing a field clears the result and guide; closing the simulation removes them. A hit does not establish that a foot is planted, move the ghost, orient a foot or affect the source rig. The Body page and orientation settings remain unavailable.
+
+The packaged runtime exposes the same query as `Runtime.SurfaceContact` and the Roblox raycast adapter as `Runtime.SurfaceProbe`. The caller must provide a world-space contact point and explicit locomotion support state; neither joint type nor ray contact establishes that state. For example, given `Runtime`, a rig `Model`, a world-space `Vector3` named `footPoint`, and an explicit boolean `isSupporting` from the caller's locomotion system:
+
+```luau
+local probe = Runtime.SurfaceProbe.new(workspace, rig, {})
+local result = Runtime.SurfaceContact.probe({
+    origin = {footPoint.X, footPoint.Y, footPoint.Z},
+    direction = {0, -1, 0}, up = {0, 1, 0},
+    distance = 4, maxSlopeDegrees = 45, soleOffset = 0.05,
+    supporting = isSupporting,
+}, function(origin, delta)
+    return probe:cast(origin, delta)
+end)
+-- Inspect result.status and result.supporting before consuming result.target.
+probe:destroy()
+```
+
+The adapter always excludes the source model. Pass any ghost or temporary folders as its third argument and update them with `setExtraExclusions` as needed; other scene filtering uses Roblox's default raycast settings. Directions and up vectors must be finite and nonzero, the distance must be positive and at most 15,000 studs for the Roblox adapter, the slope must be 0–90 degrees, and the signed offset must be finite. Status is `contact`, `no contact`, `excluded slope` or `invalid contact`; a valid hit returns normal, slope and candidate position. Custom cast callbacks are trusted to return hits on the requested ray; use the supplied adapter for Roblox raycasts. This is an observation API, not an orientation-capable solver, gait system, smoothing filter or body controller. The caller owns update timing, animation interaction and multiplayer authority. A Studio fixture checked real flat-surface raycasts and exclusion; the installed diagnostic was also checked on flat, steep and no-contact temporary surfaces. Skinned contact-frame resolution, moving surfaces and gameplay integration remain unverified.
 
 With the runtime installed in ReplicatedStorage, and after resolving all competing writers:
 

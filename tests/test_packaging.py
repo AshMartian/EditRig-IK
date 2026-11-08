@@ -9,8 +9,8 @@ import xml.etree.ElementTree as ET
 root = Path(__file__).resolve().parents[1]
 rojo = os.environ.get('ROJO_BIN', 'rojo')
 expected = {
-    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'ChainInference', 'IKConstraintBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'RigOverlay', 'OverlaySelection', 'SavedLimitOverlay', 'LimitGeometry', 'LimitDraft', 'PreviewSession', 'PreviewGuard', 'WorldGhostSession', 'ViewportTargetHandle', 'PanelComponents', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder', 'GaitExampleInstaller', 'DinoGaitExample', 'JointBatch'}),
-    'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'BallDrive', 'InputBindings', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'TargetStepper', 'Ownership', 'Limits', 'Solver'}),
+    'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'ChainInference', 'IKConstraintBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'RigOverlay', 'OverlaySelection', 'SavedLimitOverlay', 'LimitGeometry', 'LimitDraft', 'PreviewSession', 'PreviewGuard', 'WorldGhostSession', 'ViewportTargetHandle', 'PanelComponents', 'SurfaceContact', 'SurfaceProbe', 'SurfaceContactGizmo', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder', 'GaitExampleInstaller', 'DinoGaitExample', 'JointBatch'}),
+    'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'BallDrive', 'InputBindings', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'TargetStepper', 'Ownership', 'Limits', 'Solver', 'SurfaceContact', 'SurfaceProbe'}),
 }
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:
     roots = {}
