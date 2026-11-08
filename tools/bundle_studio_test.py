@@ -7,7 +7,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     'Config': 'src/shared/Config.luau',
+    'RigInspector': 'src/plugin/RigInspector.luau',
     'LimitFrame': 'src/shared/LimitFrame.luau',
+    'LimitDraft': 'src/plugin/LimitDraft.luau',
+    'CircularDraft': 'src/plugin/CircularDraft.luau',
     'CircularHinge': 'src/shared/CircularHinge.luau',
     'ChainBuilder': 'src/plugin/ChainBuilder.luau',
     'Limits': 'src/shared/Limits.luau',
@@ -16,6 +19,7 @@ MODULES = {
     'ChainDefinition': 'src/runtime/ChainDefinition.luau',
     'PanelComponents': 'src/plugin/PanelComponents.luau',
     'JointAuthoring': 'src/plugin/JointAuthoring.luau',
+    'JointBatch': 'src/plugin/JointBatch.luau',
     'InputProfileBuilder': 'src/plugin/InputProfileBuilder.luau',
     'SurfaceContact': 'src/runtime/SurfaceContact.luau',
     'SurfaceFrame': 'src/runtime/SurfaceFrame.luau',
@@ -24,6 +28,7 @@ MODULES = {
     'SurfaceContactGizmo': 'src/plugin/SurfaceContactGizmo.luau',
     'ViewportTargetHandle': 'src/plugin/ViewportTargetHandle.luau',
     'WorldGhostSession': 'src/plugin/WorldGhostSession.luau',
+    'PreviewSession': 'src/plugin/PreviewSession.luau',
     'ChainDiscovery': 'src/plugin/ChainDiscovery.luau',
     'ChainPathView': 'src/plugin/ChainPathView.luau',
     'AxisGizmo': 'src/plugin/AxisGizmo.luau',
@@ -33,6 +38,11 @@ MODULES = {
     'SavedLimitOverlay': 'src/plugin/SavedLimitOverlay.luau',
 }
 FIXTURES = {
+    'JointBatch': (('Config', 'InputProfileBuilder', 'JointBatch'), 'tests/studio/JointBatch.integration.luau'),
+    'RigInspector': (('Config', 'RigInspector'), 'tests/studio/RigInspector.spec.luau'),
+    'LimitDraft': (('Config', 'LimitDraft'), 'tests/studio/LimitDraft.spec.luau'),
+    'ChainBuilder': (('Config', 'ChainBuilder'), 'tests/studio/ChainBuilder.spec.luau'),
+    'CircularChainPreview': (('Config', 'ChainBuilder', 'LimitFrame', 'CircularHinge', 'Limits', 'Solver', 'ChainAdapter', 'ChainDefinition', 'WorldGhostSession', 'PreviewSession'), 'tests/studio/CircularChainPreview.integration.luau'),
     'CircularAngularSpeed': (('CircularHinge', 'Limits', 'Solver', 'ChainAdapter'), 'tests/studio/CircularAngularSpeed.integration.luau'),
     'ChainPathView': (('ChainPathView',), 'tests/studio/ChainPathView.integration.luau'),
     'JointAuthoring': (('Config', 'InputProfileBuilder', 'JointAuthoring'), 'tests/studio/JointAuthoring.integration.luau'),
@@ -40,6 +50,7 @@ FIXTURES = {
     'LimitGeometry': (('Config', 'LimitFrame', 'LimitGeometryFactory'), 'tests/studio/LimitGeometry.spec.luau'),
     'ConfiguredLimitFrame': (('ChainDefinition', 'LimitFrame', 'CircularHinge', 'Limits', 'Solver', 'ChainAdapter'), 'tests/studio/ConfiguredLimitFrame.integration.luau'),
     'HingeLimitHandles': (('Config', 'AxisGizmo', 'HingeDragMath', 'HingeLimitHandles'), 'tests/studio/HingeLimitHandles.integration.luau'),
+    'CircularHandleDraft': (('Config', 'CircularDraft', 'PanelComponents', 'AxisGizmo', 'HingeDragMath', 'HingeLimitHandles'), 'tests/studio/CircularHandleDraft.integration.luau'),
     'ConfiguredOrientation': (('Config', 'ChainBuilder', 'ChainDefinition'), 'tests/studio/ConfiguredOrientation.integration.luau'),
     'OrientationChain': (('Limits', 'Solver', 'ChainAdapter'), 'tests/studio/OrientationChain.integration.luau'),
     'SurfaceOrientation': (('SurfaceFrame', 'SurfaceOrientation'), 'tests/studio/SurfaceOrientation.integration.luau'),

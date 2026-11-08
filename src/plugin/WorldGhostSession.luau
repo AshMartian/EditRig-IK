@@ -16,7 +16,7 @@ local function unique(parent,name)
  return found
 end
 function WorldGhostSession.new(definition,parent,components)
- assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a chain definition')
+ assert(typeof(definition)=='Instance' and definition:IsA('Folder') and (definition:GetAttribute('SchemaVersion')==1 or definition:GetAttribute('SchemaVersion')==2 or definition:GetAttribute('SchemaVersion')==3),'select a chain definition')
  assert(typeof(parent)=='Instance','ghost parent required')
  assert(type(components)=='table' and type(components.createChain)=='function','ghost chain factory required')
  local moveForeign=components.moveForeign or function(child,destination) child.Parent=destination end

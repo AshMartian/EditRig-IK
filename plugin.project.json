@@ -17,6 +17,8 @@
     "LimitFrame": {
       "$path": "src/shared/LimitFrame.luau"
     },
+    "CircularDraft": {"$path": "src/plugin/CircularDraft.luau"},
+    "PreviewCircularHinge": {"$path": "src/shared/CircularHinge.luau"},
     "IKConstraintBuilder": {
       "$path": "src/plugin/IKConstraintBuilder.luau"
     },

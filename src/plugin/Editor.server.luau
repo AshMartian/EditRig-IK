@@ -5,6 +5,7 @@ local ChangeHistoryService = game:GetService('ChangeHistoryService')
 local RunService = game:GetService('RunService')
 local Config = require(script.Config)
 local LimitFrame = require(script.LimitFrame)
+local CircularDraft = require(script.CircularDraft)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local ChainDiscovery = require(script.ChainDiscovery)
@@ -184,6 +185,8 @@ local fields: {[string]: TextBox} = {}
 local axisPresetButtons={}
 local rangeShiftButtons={}
 local rangeShiftFeedback: TextLabel?=nil
+local circularNotice: TextLabel?=nil
+local replaceCircularButton: TextButton?=nil
 local apply = Instance.new('TextButton')
 apply.Name='SaveJointLimits'
 apply.Size = UDim2.new(1, 0, 0, 32)
@@ -239,6 +242,14 @@ for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','
         end
     end
     if entry[1]=='upper' then
+        circularNotice=label('',30)
+        circularNotice.AutomaticSize=Enum.AutomaticSize.Y; circularNotice.TextYAlignment=Enum.TextYAlignment.Top
+        circularNotice.TextColor3=Color3.fromRGB(255,204,111)
+        replaceCircularButton=Instance.new('TextButton'); replaceCircularButton.Name='ReplaceCircularRange'
+        replaceCircularButton.Size=UDim2.new(1,0,0,32); replaceCircularButton.BackgroundColor3=Color3.fromRGB(49,55,66)
+        replaceCircularButton.TextColor3=Color3.new(1,1,1); replaceCircularButton.Text='Replace with linear −90° to 90°'
+        replaceCircularButton.Font=Enum.Font.SourceSansBold; replaceCircularButton.TextSize=16
+        replaceCircularButton.Visible=false; order(replaceCircularButton); replaceCircularButton.Parent=root
         local note=label('Rotate hinge range · shifts both bounds by 5° without changing its width. Draft only.',34)
         note.AutomaticSize=Enum.AutomaticSize.Y; note.TextYAlignment=Enum.TextYAlignment.Top
         note.TextColor3=Color3.fromRGB(192,201,215)
@@ -320,6 +331,8 @@ statusPadding.Parent = status
 local current: Instance? = nil
 local limitKeys={'kind','axis','lower','upper','swing','weight'}
 local baseline: {[string]: string}={}
+local draftCircular,baselineCircular=nil,nil
+local replaceCircularDraft=false
 local updatingFields=false
 local limitDiscardNotice=false
 local attributeConnection: RBXScriptConnection?=nil
@@ -329,6 +342,7 @@ local hingeActive=false
 local viewportOwned=false
 local pendingViewportRelease=0
 local commitLimitFields=function() end
+local setCircularDraft,updateLimitState,updateLimitPreview,limitInput
 local hingeButton=Instance.new('TextButton')
 hingeButton.Name='EditHingeLimits3D'
 hingeButton.Size=UDim2.new(1,0,0,32); hingeButton.BackgroundColor3=Color3.fromRGB(61,109,172)
@@ -336,7 +350,17 @@ hingeButton.TextColor3=Color3.new(1,1,1); hingeButton.Text='Resume 3D joint edit
 hingeButton.Font=Enum.Font.SourceSansBold; hingeButton.TextSize=16; order(hingeButton); hingeButton.Parent=root
 local limitBinding=PanelComponents.bindLimitInputs({lower=fields.lower,upper=fields.upper,swing=fields.swing,weight=fields.weight},function(key)
     if hingeHandles then hingeHandles:select(if key=='lower' or key=='upper' then key else nil) end
-end,function(_,joint) if joint then commitLimitFields(joint) else status.Text='Select a valid joint before editing limits.' end end,function() return current end)
+end,function(_,context) if context and context.joint then commitLimitFields(context.joint) else status.Text='Select a valid joint before editing limits.' end end,function()
+    return {joint=current,circular=if draftCircular then {start=draftCircular.start,width=draftCircular.width} else nil,lower=fields.lower.Text,upper=fields.upper.Text,replace=replaceCircularDraft}
+end,function(key,context,original)
+    local selected=Selection:Get()
+    if not context or context.joint~=current or #selected~=1 or selected[1]~=current then return end
+    updatingFields=true; setCircularDraft(context.circular); replaceCircularDraft=context.replace
+    fields.lower.Text=context.lower; fields.upper.Text=context.upper
+    if key~='lower' and key~='upper' then fields[key].Text=original end
+    updatingFields=false; updateLimitState(); updateLimitPreview()
+    if hingeHandles then hingeHandles:sync(current,limitInput()) end
+end)
 local function stopHingeEdit(message)
     if not hingeActive then return end
     hingeActive=false
@@ -357,17 +381,35 @@ local function releaseViewport()
     local ok=pcall(function() plugin:Deactivate() end)
     if not ok then pendingViewportRelease-=1 end
 end
-local function limitInput()
-    return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=tonumber(fields.weight.Text) or fields.weight.Text}
+limitInput=function()
+    return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=tonumber(fields.weight.Text) or fields.weight.Text,circular=draftCircular,replaceCircular=replaceCircularDraft}
 end
 local function rememberLimitFields()
     for _,key in ipairs(limitKeys) do baseline[key]=fields[key].Text end
+    baselineCircular=if draftCircular then {start=draftCircular.start,width=draftCircular.width} else nil
 end
 local function limitFieldsChanged(): boolean
     for _,key in ipairs(limitKeys) do if baseline[key]~=fields[key].Text then return true end end
+    if (baselineCircular==nil)~=(draftCircular==nil) then return true end
+    if baselineCircular and (baselineCircular.start~=draftCircular.start or baselineCircular.width~=draftCircular.width) then return true end
     return false
 end
-local function updateLimitState()
+setCircularDraft=function(interval)
+    draftCircular=if interval then {start=interval.start,width=interval.width} else nil
+    if circularNotice then
+        circularNotice.Text=if draftCircular and type(draftCircular.width)=='number' then string.format('Circular hinge · %.1f° allowed. Works with custom IK chains; direct actors and built-in constraints do not yet support it.',draftCircular.width) elseif draftCircular then 'Circular hinge metadata is incomplete; review it before saving.' else ''
+    end
+    if replaceCircularButton then replaceCircularButton.Visible=draftCircular~=nil end
+end
+for _,key in ipairs({'lower','upper'}) do
+    fields[key]:GetPropertyChangedSignal('Text'):Connect(function()
+        if updatingFields or not draftCircular then return end
+        local value=tonumber(fields[key].Text)
+        local ok,interval=pcall(CircularDraft.setBound,draftCircular,key,value)
+        if ok then setCircularDraft(interval) end
+    end)
+end
+updateLimitState=function()
     if updatingFields then return end
     local state=LimitDraft.classify(current,limitInput(),limitExamplePreview or limitFieldsChanged())
     local messages={
@@ -397,7 +439,7 @@ local function hideAxes()
     if axisFolder then axisFolder:Destroy(); axisFolder=nil end
     axisButton.Text='Show selected joint axes and limits'
 end
-local function updateLimitPreview()
+updateLimitPreview=function()
     if updatingFields then return end
     if not axisGizmo then return end
     local classification=LimitDraft.classify(current,limitInput(),limitExamplePreview or limitFieldsChanged())
@@ -405,6 +447,14 @@ local function updateLimitPreview()
     -- as if they were an authored limit.
     axisGizmo:setLimits(if OverlaySelection.showLimit(classification) then limitInput() else nil)
 end
+replaceCircularButton.Activated:Connect(function()
+    if not draftCircular or not current then return end
+    updatingFields=true; setCircularDraft(nil); replaceCircularDraft=true
+    fields.lower.Text='-90'; fields.upper.Text='90'; updatingFields=false
+    updateLimitState(); updateLimitPreview()
+    if hingeHandles then hingeHandles:sync(current,limitInput()) end
+    status.Text='Replaced with a linear −90° to 90° draft. Save joint limits to apply.'
+end)
 for _,key in ipairs(limitKeys) do
     fields[key]:GetPropertyChangedSignal('Text'):Connect(updateLimitPreview)
     fields[key]:GetPropertyChangedSignal('Text'):Connect(function()
@@ -422,6 +472,16 @@ for step,button in pairs(rangeShiftButtons) do
         if fields.kind.Text~='Hinge' then
             rangeShiftFeedback.Text='Range rotation is available for hinge limits.'; return
         end
+        if draftCircular then
+            local ok,shifted=pcall(CircularDraft.shift,draftCircular,step)
+            if not ok then rangeShiftFeedback.Text='Enter a valid circular hinge range first.'; return end
+            updatingFields=true; setCircularDraft(shifted)
+            fields.lower.Text=tostring(shifted.start); fields.upper.Text=tostring(CircularDraft.endpoint(shifted))
+            updatingFields=false
+            updateLimitState(); updateLimitPreview()
+            if hingeHandles then hingeHandles:sync(current,limitInput()) end
+            rangeShiftFeedback.Text='Range rotated by '..tostring(step)..'°. Unsaved draft; save joint limits to apply.'; return
+        end
         local lower,upper=tonumber(fields.lower.Text),tonumber(fields.upper.Text)
         local ok,shifted=pcall(function() return LimitFrame.shiftInterval(math.rad(lower),math.rad(upper),math.rad(step)) end)
         if not ok then
@@ -435,7 +495,13 @@ for step,button in pairs(rangeShiftButtons) do
         -- can yield a non-wrapping normalized interval after crossing 180°.
         local nextLower,nextUpper=lower+step,upper+step
         if nextLower < -180 or nextUpper > 180 or (shifted.wraps and nextUpper < 180-1e-9) then
-            rangeShiftFeedback.Text='Cannot rotate across ±180°: wrapping ranges are not supported. Bounds were not changed.'; return
+            local interval={start=(nextLower+180)%360-180,width=upper-lower}
+            updatingFields=true; setCircularDraft(interval)
+            fields.lower.Text=tostring(interval.start); fields.upper.Text=tostring(CircularDraft.endpoint(interval))
+            updatingFields=false
+            updateLimitState(); updateLimitPreview()
+            if hingeHandles then hingeHandles:sync(current,limitInput()) end
+            rangeShiftFeedback.Text='Range rotated across ±180°. Unsaved draft; save joint limits to apply.'; return
         end
         updatingFields=true
         fields.lower.Text=tostring(nextLower); fields.upper.Text=tostring(nextUpper)
@@ -476,8 +542,17 @@ local function startHingeEdit()
     local folder=Instance.new('Folder'); folder.Name='EditRigIKHingeHandles'; folder.Parent=game:GetService('CoreGui')
     local joint=current
     local created,handles=pcall(function()
-        return HingeLimitHandles.new(folder,plugin:GetMouse(),Config,HingeDragMath,AxisGizmo.restFrame,function(bound,value)
-            if hingeActive and current==joint then limitBinding:select(bound); limitBinding:setValue(bound,value) end
+        return HingeLimitHandles.new(folder,plugin:GetMouse(),Config,HingeDragMath,AxisGizmo.restFrame,function(bound,value,interval,restoreLegacy)
+            if hingeActive and current==joint then
+                limitBinding:select(bound)
+                if interval or restoreLegacy then
+                    updatingFields=true; setCircularDraft(interval)
+                    if restoreLegacy then fields.lower.Text=tostring(restoreLegacy.lower); fields.upper.Text=tostring(restoreLegacy.upper)
+                    else fields.lower.Text=tostring(interval.start); fields.upper.Text=tostring(CircularDraft.endpoint(interval)) end
+                    updatingFields=false
+                    updateLimitState(); updateLimitPreview()
+                else limitBinding:setValue(bound,value) end
+            end
         end,function(bound)
             limitBinding:select(bound)
             if panel then
@@ -543,6 +618,9 @@ local function refresh()
     updatingFields=true
     if item and (item:IsA('Motor6D') or item:IsA('Bone')) then
         current = item
+        replaceCircularDraft=false
+        local start,width=item:GetAttribute('EditRigIK_CircularStartDegrees'),item:GetAttribute('EditRigIK_CircularWidthDegrees')
+        setCircularDraft(if item:GetAttribute('EditRigIK_SchemaVersion')==2 then {start=start,width=width} else nil)
         selectedLabel.Text = item.ClassName .. ': ' .. item:GetFullName()
         for key, box in pairs(fields) do
             local value = item:GetAttribute(attrs[key] or driveAttrs[key] or inputAttrs[key])
@@ -650,8 +728,8 @@ commitLimitFields=function(expected)
         ChangeHistoryService:SetWaypoint('Save EditRig IK joint limits')
     end)
     if not saved then status.Text='Joint limits not saved: '..tostring(err); return end
-    rememberLimitFields(); limitExamplePreview=false; limitDiscardNotice=false; updateLimitState()
-    status.Text = 'Saved joint limits to ' .. item.Name .. '. Control settings were not changed; review them if the joint type changed. Refresh actor and chain snapshots to use the changes.'
+    rememberLimitFields(); replaceCircularDraft=false; limitExamplePreview=false; limitDiscardNotice=false; updateLimitState()
+    status.Text = if draftCircular then 'Saved circular joint limits to '..item.Name..'. Refresh chain snapshots; direct actors and built-in constraints do not support circular limits yet.' else 'Saved joint limits to ' .. item.Name .. '. Control settings were not changed; review them if the joint type changed. Refresh actor and chain snapshots to use the changes.'
 end
 apply.MouseButton1Click:Connect(function() commitLimitFields() end)
 saveControls.MouseButton1Click:Connect(function()
@@ -671,6 +749,7 @@ saveControls.MouseButton1Click:Connect(function()
     status.Text='Saved control and input settings to '..item.Name..'. Joint limits were not changed. Refresh the actor to use the changes.'
 end)
 local function batchValues()
+    assert(not draftCircular,'batch editing circular hinge ranges is not supported')
     local weight=tonumber(fields.weight.Text)
     assert(weight,'enter a joint influence')
     local holdValue,impulseValue=tonumber(fields.holdValue.Text),tonumber(fields.impulseValue.Text)
@@ -967,7 +1046,7 @@ chainButton('Capture chain from selected IKControl').MouseButton1Click:Connect(f
     rootSource='explicit'; endSource='explicit'; endpointSource=if endpoint then 'explicit' else nil
     chainName.Text=string.sub(item.Name,1,64)
     local missing=0
-    for _,joint in ipairs(result.joints) do if joint:GetAttribute('EditRigIK_SchemaVersion')~=1 then missing+=1 end end
+    for _,joint in ipairs(result.joints) do local version=joint:GetAttribute('EditRigIK_SchemaVersion'); if version~=1 and version~=2 then missing+=1 end end
     refreshChainStatus()
     chainFeedback.Text=string.format('Found %d joints; %d need limit metadata. %s Existing IKControl is unchanged; offsets are not copied. Custom solver is position-only.',#result.joints,missing,if endpoint then 'Endpoint captured.' else 'Select an endpoint attachment.')
 end)
@@ -1102,13 +1181,13 @@ chainButton('Open selected chain clone preview').MouseButton1Click:Connect(funct
     if not RunService:IsEdit() then previewStatus.Text='Stop Play before opening a preview.'; return end
     local definition=selectedOne()
     local ok,result=pcall(function()
-        local solver=require(script.PreviewSolver).new(require(script.PreviewLimits))
+        local solver=require(script.PreviewSolver).new(require(script.PreviewLimits),require(script.PreviewCircularHinge).v1)
         local adapter=require(script.PreviewChainAdapter)
         local chainDefinition=require(script.PreviewChainDefinition)
         return require(script.PreviewSession).new(definition,previewFrame,{createChain=function(copy)
             return chainDefinition.new(copy,{exclusive=true},function(joints,point,options)
                 return adapter.new(joints,point,options,solver)
-            end)
+            end,LimitFrame)
         end})
     end)
     if not ok then previewStatus.Text='Cannot open preview: '..tostring(result); return end
@@ -1186,20 +1265,21 @@ ghostStartButton.MouseButton1Click:Connect(function()
     closeGhost(); closePreview()
     if not RunService:IsEdit() then ghostStatus.Text='Stop Play before starting simulation.'; return end
     local definition=selectedOne()
-    if not definition or not definition:IsA('Folder') or definition:GetAttribute('SchemaVersion')~=1 or not definition.Parent or definition.Parent.Name~='EditRigIKChains' or not definition.Parent.Parent or not definition.Parent.Parent:IsA('Model') then
+    local schema=definition and definition:GetAttribute('SchemaVersion')
+    if not definition or not definition:IsA('Folder') or (schema~=1 and schema~=2 and schema~=3) or not definition.Parent or definition.Parent.Name~='EditRigIKChains' or not definition.Parent.Parent or not definition.Parent.Parent:IsA('Model') then
         ghostStatus.Text='Select a saved chain definition first.'; return
     end
     local ok,result=pcall(function()
         assert(not workspace:FindFirstChild('EditRigIKGhostSession'),'another temporary ghost session already exists')
         ghostWorld=Instance.new('Folder'); ghostWorld.Name='EditRigIKGhostSession'; ghostWorld.Archivable=false
         ghostGui=Instance.new('Folder'); ghostGui.Name='EditRigIKGhostGui'; ghostGui.Archivable=false
-        local solver=require(script.PreviewSolver).new(require(script.PreviewLimits))
+        local solver=require(script.PreviewSolver).new(require(script.PreviewLimits),require(script.PreviewCircularHinge).v1)
         local adapter=require(script.PreviewChainAdapter)
         local chainDefinition=require(script.PreviewChainDefinition)
         ghost=require(script.WorldGhostSession).new(definition,ghostWorld,{createChain=function(copy)
             return chainDefinition.new(copy,{exclusive=true},function(joints,point,options)
                 return adapter.new(joints,point,options,solver)
-            end)
+            end,LimitFrame)
         end})
         ghostJointCount=#definition.Joints:GetChildren()
         poseQueue=require(script.PosePreviewQueue).new(math.min(40,definition:GetAttribute('Iterations')))

@@ -49,11 +49,12 @@ end
 -- Bind the existing precision fields to viewport limit handles.  This only
 -- changes the draft text; the editor remains responsible for validation and
 -- the separate, undoable Save action.
-function PanelComponents.bindLimitInputs(fields, onSelected, onCommit, onBegin)
+function PanelComponents.bindLimitInputs(fields, onSelected, onCommit, onBegin, onCancel)
     assert(type(fields) == 'table', 'limit fields are required')
     assert(onSelected == nil or type(onSelected) == 'function', 'selection callback must be a function')
     assert(onCommit == nil or type(onCommit) == 'function', 'commit callback must be a function')
     assert(onBegin == nil or type(onBegin) == 'function', 'begin callback must be a function')
+    assert(onCancel == nil or type(onCancel) == 'function', 'cancel callback must be a function')
     local userInput = game:GetService('UserInputService')
     local strokes, connections = {}, {}
     local editingKey, editingText, editingContext = nil, nil, nil
@@ -108,9 +109,9 @@ function PanelComponents.bindLimitInputs(fields, onSelected, onCommit, onBegin)
     end
     function api:cancel(): boolean
         if destroyed or not editingKey then return false end
-        local key, original = editingKey, editingText
+        local key, original, context = editingKey, editingText, editingContext
         editingKey, editingText, editingContext = nil, nil, nil
-        fields[key].Text = original
+        if onCancel then onCancel(key, context, original) else fields[key].Text = original end
         return true
     end
     -- Call before replacing fields for a different joint; Escape must never

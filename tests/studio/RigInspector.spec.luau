@@ -26,6 +26,14 @@ local active
 for _,entry in ipairs(updated.ikControls) do if entry.path==ik:GetFullName() then active=entry end end
 assert(active and active.hasPole,'assigned pole must be reported')
 assert(string.find(RigInspector.format(updated),'not proof',1,true),'constraint counts must not imply they are configured correctly')
+bone:SetAttribute('EditRigIK_SchemaVersion',2); bone:SetAttribute('EditRigIK_Kind','Hinge'); bone:SetAttribute('EditRigIK_Axis','Z')
+bone:SetAttribute('EditRigIK_LowerDegrees',170); bone:SetAttribute('EditRigIK_UpperDegrees',-150)
+bone:SetAttribute('EditRigIK_CircularStartDegrees',170); bone:SetAttribute('EditRigIK_CircularWidthDegrees',40)
+bone:SetAttribute('EditRigIK_SwingDegrees',90); bone:SetAttribute('EditRigIK_Weight',1)
+local circular=RigInspector.inspect(model,Config)
+assert(circular.configured==1 and circular.invalidSettings==0,'valid circular joint is reported as configured')
+bone:SetAttribute('EditRigIK_CircularWidthDegrees',nil)
+assert(RigInspector.inspect(model,Config).invalidSettings==1,'incomplete circular joint metadata is invalid')
 assert(not pcall(function() RigInspector.inspect(part,Config) end))
 model:Destroy()
 return 'Rig inspector reports joints and potential animation writers'

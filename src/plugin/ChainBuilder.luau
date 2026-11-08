@@ -1,8 +1,40 @@
 --!strict
 -- Resolve one unambiguous directed path and snapshot authored joint metadata.
 local ChainBuilder={}
-function ChainBuilder.new(Config)
+function ChainBuilder.new(Config, testHook)
+ assert(testHook==nil or type(testHook)=='function','invalid refresh test hook')
  local api={}
+ local function readJoint(joint)
+  local version=joint:GetAttribute('EditRigIK_SchemaVersion')
+  assert(version==1 or version==2,'save limit settings on every joint: '..joint.Name)
+  local kind=joint:GetAttribute('EditRigIK_Kind')
+  local circular=nil
+  if version==2 then
+   assert(kind=='Hinge','circular metadata is only supported for hinge joints')
+   circular={start=joint:GetAttribute('EditRigIK_CircularStartDegrees'),width=joint:GetAttribute('EditRigIK_CircularWidthDegrees')}
+  end
+  local config=Config.validate({kind=kind,axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees'),weight=joint:GetAttribute('EditRigIK_Weight'),circular=circular})
+  assert(version~=2 or config.circular,'circular joint metadata must not be ignored')
+  return config
+ end
+ local function snapshot(ref,config,schema,preserveFrame,write)
+  local function set(name,value)
+   if write then write(ref,name,value) else ref:SetAttribute(name,value) end
+  end
+  set('Kind',config.kind); set('Axis',config.axis)
+  set('SwingDegrees',config.swing); set('Weight',config.weight)
+  if schema==3 and config.kind=='Hinge' then
+   local circular=config.circular or {start=if config.lower==180 then -180 else config.lower,width=config.upper-config.lower}
+   set('LowerDegrees',nil); set('UpperDegrees',nil)
+   set('CircularStartDegrees',circular.start); set('CircularWidthDegrees',circular.width)
+  else
+   set('CircularStartDegrees',nil); set('CircularWidthDegrees',nil)
+   set('LowerDegrees',config.lower); set('UpperDegrees',config.upper)
+  end
+  if schema==3 and not preserveFrame then
+   set('FrameX',0); set('FrameY',0); set('FrameZ',0); set('FrameW',1)
+  end
+ end
  function api.validateSettings(options)
   assert(type(options)=='table' and type(options.iterations)=='number' and options.iterations%1==0 and options.iterations>=1 and options.iterations<=1000,'iterations must be an integer from 1 to 1000')
   assert(type(options.tolerance)=='number' and options.tolerance==options.tolerance and options.tolerance>=0 and options.tolerance<math.huge,'tolerance must be finite and nonnegative')
@@ -17,7 +49,7 @@ function ChainBuilder.new(Config)
   return {iterations=options.iterations,tolerance=options.tolerance,maxStepDegrees=maxStepDegrees,gain=gain,maxSpeedDegrees=maxSpeedDegrees,baseMode=baseMode}
  end
  local function checkDefinition(definition)
-  assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a supported chain definition')
+  assert(typeof(definition)=='Instance' and definition:IsA('Folder') and (definition:GetAttribute('SchemaVersion')==1 or definition:GetAttribute('SchemaVersion')==3),'select a supported chain definition')
   local parent=definition.Parent
   assert(parent and parent:IsA('Folder') and parent.Name=='EditRigIKChains' and parent.Parent and parent.Parent:IsA('Model'),'chain must belong to a model EditRigIKChains folder')
   assert(definition:FindFirstChild('Joints') and definition:FindFirstChild('Endpoint'),'chain references missing')
@@ -53,6 +85,15 @@ function ChainBuilder.new(Config)
   local previous,kind=nil,nil
   for i,ref in ipairs(refs) do
    local joint=ref.Value
+   if definition:GetAttribute('SchemaVersion')==3 then
+    local maxComponent=0
+    for _,component in ipairs({'FrameX','FrameY','FrameZ','FrameW'}) do
+     local value=ref:GetAttribute(component)
+     assert(type(value)=='number' and value==value and math.abs(value)<math.huge,'invalid saved limit frame')
+     maxComponent=math.max(maxComponent,math.abs(value))
+    end
+    assert(maxComponent>0,'saved limit frame must be nonzero')
+   end
    assert(ref:GetAttribute('Order')==i and joint and joint:IsDescendantOf(model) and (joint:IsA('Motor6D') or joint:IsA('Bone')) and not seen[joint],'invalid joint order or reference')
    if not kind then kind=joint.ClassName end
    assert(joint.ClassName==kind,'mixed joint types are unsupported')
@@ -63,8 +104,7 @@ function ChainBuilder.new(Config)
     assert(not parts[joint.Part1],'cyclic motor chain')
     parts[joint.Part1]=true
    elseif previous then assert(joint.Parent==previous,'disconnected Bone chain') end
-   assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'save limit settings on every joint: '..joint.Name)
-   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees'),weight=joint:GetAttribute('EditRigIK_Weight')})
+   local config=readJoint(joint)
    table.insert(entries,{ref=ref,config=config}); seen[joint]=true; previous=joint
   end
   assert(endpoint.Value.Parent==(if kind=='Motor6D' then previous.Part1 else previous),'endpoint parent does not match chain')
@@ -72,10 +112,36 @@ function ChainBuilder.new(Config)
  end
  function api.refreshLimits(definition)
   local entries=api.prepareLimitRefresh(definition)
-  for _,entry in ipairs(entries) do
-   local ref,config=entry.ref,entry.config
-   ref:SetAttribute('Kind',config.kind); ref:SetAttribute('Axis',config.axis)
-   ref:SetAttribute('LowerDegrees',config.lower); ref:SetAttribute('UpperDegrees',config.upper); ref:SetAttribute('SwingDegrees',config.swing); ref:SetAttribute('Weight',config.weight)
+  local oldSchema=definition:GetAttribute('SchemaVersion')
+  local schema=oldSchema
+  for _,entry in ipairs(entries) do if entry.config.circular then schema=3 end end
+  local keys={'Kind','Axis','SwingDegrees','Weight','LowerDegrees','UpperDegrees','CircularStartDegrees','CircularWidthDegrees','FrameX','FrameY','FrameZ','FrameW'}
+  local before={}
+  for _,entry in ipairs(entries) do before[entry.ref]=entry.ref:GetAttributes() end
+  -- Schema 0 is never a readable definition. Publish it before touching any
+  -- reference, and publish the finished schema only after every write.
+  definition:SetAttribute('SchemaVersion',0)
+  local ok,err=pcall(function()
+   local function write(ref,name,value)
+    assert(definition:GetAttribute('SchemaVersion')==0,'chain changed during refresh')
+    ref:SetAttribute(name,value)
+    if testHook then testHook(definition,ref,name) end
+   end
+   for _,entry in ipairs(entries) do snapshot(entry.ref,entry.config,schema,oldSchema==3,write) end
+   assert(definition:GetAttribute('SchemaVersion')==0,'chain changed during refresh')
+   definition:SetAttribute('SchemaVersion',schema)
+  end)
+  if not ok then
+   -- Keep the invalid marker visible until the entire old snapshot is back.
+   local restored=pcall(function()
+    definition:SetAttribute('SchemaVersion',0)
+    for _,entry in ipairs(entries) do
+     for _,key in ipairs(keys) do entry.ref:SetAttribute(key,before[entry.ref][key]) end
+    end
+    definition:SetAttribute('SchemaVersion',oldSchema)
+   end)
+   if not restored then pcall(function() definition:SetAttribute('SchemaVersion',0) end) end
+   error(err)
   end
  end
  function api.create(model,first,last,endpoint,name,options)
@@ -131,11 +197,12 @@ function ChainBuilder.new(Config)
   assert(endpoint.Parent==(if last:IsA('Motor6D') then last.Part1 else last),'endpoint must be a direct child of the final part or Bone')
   local entries={}
   for _,joint in ipairs(path) do
-   assert(joint:GetAttribute('EditRigIK_SchemaVersion')==1,'save limit settings on every joint: '..joint.Name)
-   local config=Config.validate({kind=joint:GetAttribute('EditRigIK_Kind'),axis=joint:GetAttribute('EditRigIK_Axis'),lower=joint:GetAttribute('EditRigIK_LowerDegrees'),upper=joint:GetAttribute('EditRigIK_UpperDegrees'),swing=joint:GetAttribute('EditRigIK_SwingDegrees'),weight=joint:GetAttribute('EditRigIK_Weight')})
+   local config=readJoint(joint)
    table.insert(entries,{joint=joint,config=config})
   end
-  local folder=Instance.new('Folder'); folder.Name=name; folder:SetAttribute('SchemaVersion',1)
+  local schema=1
+  for _,entry in ipairs(entries) do if entry.config.circular then schema=3 end end
+  local folder=Instance.new('Folder'); folder.Name=name; folder:SetAttribute('SchemaVersion',schema)
   folder:SetAttribute('Iterations',options.iterations); folder:SetAttribute('Tolerance',options.tolerance)
   folder:SetAttribute('MaxStepDegrees',options.maxStepDegrees)
   folder:SetAttribute('CorrectionGain',options.gain)
@@ -146,8 +213,7 @@ function ChainBuilder.new(Config)
   local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=folder
   for i,e in ipairs(entries) do
    local ref=Instance.new('ObjectValue'); ref.Name=string.format('Joint%03d',i); ref.Value=e.joint
-   ref:SetAttribute('Order',i); ref:SetAttribute('Kind',e.config.kind); ref:SetAttribute('Axis',e.config.axis)
-   ref:SetAttribute('LowerDegrees',e.config.lower); ref:SetAttribute('UpperDegrees',e.config.upper); ref:SetAttribute('SwingDegrees',e.config.swing); ref:SetAttribute('Weight',e.config.weight)
+   ref:SetAttribute('Order',i); snapshot(ref,e.config,schema)
    ref.Parent=list
   end
   return folder

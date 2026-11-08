@@ -11,7 +11,7 @@ local function unique(parent,name)
 end
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
 function PreviewSession.new(definition,viewport,components)
- assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a chain definition')
+ assert(typeof(definition)=='Instance' and definition:IsA('Folder') and (definition:GetAttribute('SchemaVersion')==1 or definition:GetAttribute('SchemaVersion')==2 or definition:GetAttribute('SchemaVersion')==3),'select a chain definition')
  assert(typeof(viewport)=='Instance' and viewport:IsA('ViewportFrame') and #viewport:GetChildren()==0 and viewport.CurrentCamera==nil,'empty preview viewport required')
  assert(type(components)=='table' and type(components.createChain)=='function','preview chain factory required')
  local container=definition.Parent

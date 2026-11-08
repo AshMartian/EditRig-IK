@@ -15,10 +15,17 @@ function LimitDraft.new(Config)
    if stored[key]~=nil then any=true end
   end
   if not any then return if started then 'draft' else 'unconfigured' end
-  if joint:GetAttribute('EditRigIK_SchemaVersion')~=1 then return 'invalidSaved' end
+  local version=joint:GetAttribute('EditRigIK_SchemaVersion')
+  if version~=1 and version~=2 then return 'invalidSaved' end
+  if version==2 then stored.circular={start=joint:GetAttribute('EditRigIK_CircularStartDegrees'),width=joint:GetAttribute('EditRigIK_CircularWidthDegrees')} end
   local savedOk,saved=pcall(Config.validate,stored)
   if not savedOk then return 'invalidSaved' end
-  for key,value in pairs(saved) do if displayed[key]~=value then return 'draft' end end
+  for key,value in pairs(saved) do
+   if key=='circular' then
+    if not displayed.circular or displayed.circular.start~=value.start or displayed.circular.width~=value.width then return 'draft' end
+   elseif displayed[key]~=value then return 'draft' end
+  end
+  if displayed.circular and not saved.circular then return 'draft' end
   return 'saved'
  end
  return api

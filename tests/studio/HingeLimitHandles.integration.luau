@@ -6,7 +6,7 @@ local parent=Instance.new('Part'); parent.CFrame=CFrame.new(5,4,3)*CFrame.Angles
 local motor=Instance.new('Motor6D'); motor.Part0=parent; motor.C0=CFrame.Angles(.2,.5,-.3)
 local original=motor.C0
 local changes={}; local focus={}
-local h=HingeLimitHandles.new(gui,mouse,Config,HingeDragMath,AxisGizmo.restFrame,function(bound,value) table.insert(changes,{bound,value}) end,function(bound) table.insert(focus,bound) end)
+local h=HingeLimitHandles.new(gui,mouse,Config,HingeDragMath,AxisGizmo.restFrame,function(bound,value,circular,restore) table.insert(changes,{bound,value,circular,restore}) end,function(bound) table.insert(focus,bound) end)
 local config={kind='Hinge',axis='Z',lower=-45,upper=45,swing=30}
 assert(h:set(motor,config),'rotated Motor6D rest frame supported')
 local frame=parent.CFrame*motor.C0
@@ -47,6 +47,20 @@ local count=#changes; h:cancel(true); assert(#changes==count,'second cancel has 
 assert(h:begin('lower',rayAt(-45))); h:move(rayAt(-15)); count=#changes; h:cancel(); assert(#changes==count,'normal cancellation retains draft')
 assert(h:set(motor,{kind='Hinge',axis='Z',lower=-180,upper=180,swing=30}))
 assert(((parent.CFrame*lower.CFrame).Position-(parent.CFrame*upper.CFrame).Position).Magnitude>.25,'coincident angular bounds have independently clickable radial positions')
+-- Legacy hinges promote atomically only when an endpoint crosses the seam.
+assert(h:set(motor,{kind='Hinge',axis='Z',lower=-90,upper=170,swing=30}))
+assert(h:begin('upper',rayAt(170))); assert(h:move(rayAt(-170)))
+local crossing=changes[#changes]
+assert(crossing[3] and math.abs(crossing[3].start+90)<1e-4 and math.abs(crossing[3].width-280)<1e-4,'crossing promotes to a circular interval')
+assert(math.abs(crossing[2]+170)<1e-4,'dragged endpoint crosses seam without jumping or clamping')
+h:cancel(true)
+local restored=changes[#changes]
+assert(not restored[3] and restored[4] and restored[4].lower==-90 and restored[4].upper==170,'cancel restores both legacy bounds and demotes')
+assert(h:set(motor,{kind='Hinge',axis='Z',lower=150,upper=-150,swing=30,circular={start=150,width=60}}))
+assert(h:begin('upper',rayAt(-150))); assert(h:move(rayAt(-140)))
+assert(math.abs(changes[#changes][3].width-70)<1e-4,'existing circular interval remains circular')
+h:cancel(true); assert(math.abs(changes[#changes][3].width-60)<1e-4,'cancel restores original circular interval')
+assert(changes[#changes][4] and changes[#changes][4].lower==150 and changes[#changes][4].upper==-150,'circular cancel also returns original displayed endpoints')
 assert(h:set(motor,config)); assert(h:begin('lower',rayAt(-45)))
 parent.CFrame=parent.CFrame*CFrame.new(1,0,0); count=#changes
 assert(not h:move(rayAt(-20)) and #changes==count,'frame movement interrupts drag without emitting a draft')

@@ -36,6 +36,22 @@ assert(not fields.lower:FindFirstChild('LimitSelection').Enabled and not fields.
 assert(#focusEvents > 0 and focusEvents[1] == 'lower', 'selection notifies the linked viewport')
 binding:destroy(); binding:destroy()
 for _, box in pairs(fields) do assert(not box:FindFirstChild('LimitSelection'), 'destroy removes owned highlights'); box:Destroy() end
+-- Cancellation can restore a multi-field circular draft in one transaction.
+local atomicFields={lower=Instance.new('TextBox'),upper=Instance.new('TextBox')}
+atomicFields.lower.Text='0'; atomicFields.upper.Text='0'
+local interval={start=0,width=360}
+local restored
+local atomic=PanelComponents.bindLimitInputs(atomicFields,nil,nil,function()
+ return {lower=atomicFields.lower.Text,upper=atomicFields.upper.Text,start=interval.start,width=interval.width}
+end,function(key,snapshot,original)
+ restored={key=key,original=original}
+ atomicFields.lower.Text=snapshot.lower; atomicFields.upper.Text=snapshot.upper
+ interval={start=snapshot.start,width=snapshot.width}
+end)
+atomic:begin('upper'); atomicFields.upper.Text='45'; interval={start=0,width=45}
+assert(atomic:cancel() and interval.width==360 and atomicFields.upper.Text=='0','custom cancel restores unrestricted width and endpoint together')
+assert(restored and restored.key=='upper' and restored.original=='0','cancel callback receives the original field and captured context')
+atomic:destroy(); atomicFields.lower:Destroy(); atomicFields.upper:Destroy()
 local host = Instance.new('Frame')
 host.Size = UDim2.fromOffset(320, 420)
 local panel = PanelComponents.new(host)

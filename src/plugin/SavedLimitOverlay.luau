@@ -21,8 +21,12 @@ function SavedLimitOverlay.new(rig,holder,config,gizmo,geometry,maxVisible)
    if item:IsA('Motor6D') or item:IsA('Bone') then
     table.insert(watchers,item.AttributeChanged:Connect(function() dirty=true end))
     local input={kind=item:GetAttribute('EditRigIK_Kind'),axis=item:GetAttribute('EditRigIK_Axis'),lower=item:GetAttribute('EditRigIK_LowerDegrees'),upper=item:GetAttribute('EditRigIK_UpperDegrees'),swing=item:GetAttribute('EditRigIK_SwingDegrees'),weight=item:GetAttribute('EditRigIK_Weight')}
+    local schema=item:GetAttribute('EditRigIK_SchemaVersion')
+    if schema==2 then
+     input.circular={start=item:GetAttribute('EditRigIK_CircularStartDegrees'),width=item:GetAttribute('EditRigIK_CircularWidthDegrees')}
+    end
     local ok,valid=pcall(config.validate,input)
-    if item:GetAttribute('EditRigIK_SchemaVersion')==1 and ok then
+    if (schema==1 or schema==2) and ok then
      eligible+=1
      if #entries<maxVisible then
       local guide=gizmo.new(holder,geometry,true)

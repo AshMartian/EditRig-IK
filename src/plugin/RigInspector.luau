@@ -15,9 +15,11 @@ function RigInspector.inspect(model,config)
    else result.bones+=1 end
    local version=item:GetAttribute('EditRigIK_SchemaVersion')
    if version==nil then result.missingSettings+=1; issue(item,'no IK settings')
-   elseif version~=1 then result.invalidSettings+=1; issue(item,'unsupported settings version')
+   elseif version~=1 and version~=2 then result.invalidSettings+=1; issue(item,'unsupported settings version')
    else
-    local valid=pcall(config.validate,{kind=item:GetAttribute('EditRigIK_Kind'),axis=item:GetAttribute('EditRigIK_Axis'),lower=item:GetAttribute('EditRigIK_LowerDegrees'),upper=item:GetAttribute('EditRigIK_UpperDegrees'),swing=item:GetAttribute('EditRigIK_SwingDegrees'),weight=item:GetAttribute('EditRigIK_Weight')})
+    local input={kind=item:GetAttribute('EditRigIK_Kind'),axis=item:GetAttribute('EditRigIK_Axis'),lower=item:GetAttribute('EditRigIK_LowerDegrees'),upper=item:GetAttribute('EditRigIK_UpperDegrees'),swing=item:GetAttribute('EditRigIK_SwingDegrees'),weight=item:GetAttribute('EditRigIK_Weight')}
+    if version==2 then input.circular={start=item:GetAttribute('EditRigIK_CircularStartDegrees'),width=item:GetAttribute('EditRigIK_CircularWidthDegrees')} end
+    local valid=pcall(config.validate,input)
     if valid then result.configured+=1 else result.invalidSettings+=1; issue(item,'invalid IK settings') end
    end
   elseif item:IsA('Animator') then result.animators+=1

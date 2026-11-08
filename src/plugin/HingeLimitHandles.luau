@@ -34,6 +34,12 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   local axis=axes[config.axis]; local reference=references[config.axis]; local tangent=axis:Cross(reference)
   return reference*math.cos(math.rad(angle))+tangent*math.sin(math.rad(angle))
  end
+ local function endpoints()
+  if config.circular then
+   return config.circular.start,(config.circular.start+config.circular.width+180)%360-180
+  end
+  return config.lower,config.upper
+ end
  local function sameFrame(part,frame)
   if not drag then return true end
   return part==drag.part and (frame.Position-drag.frame.Position).Magnitude<1e-5
@@ -55,9 +61,10 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   if not part or not frame then hide(); self:cancel(); return false end
   if not sameFrame(part,frame) then self:cancel() end
   lower.Color3=axisColors[config.axis]; upper.Color3=axisColors[config.axis]
-  local separation=(point(config.lower)-point(config.upper)).Magnitude
+  local lowerAngle,upperAngle=endpoints()
+  local separation=(point(lowerAngle)-point(upperAngle)).Magnitude
   local upperRadius=if separation<.4 then 1.4 else 1
-  for _,entry in ipairs({{lower,config.lower,1,lowerLabel,'Lower'},{upper,config.upper,upperRadius,upperLabel,'Upper'}}) do
+  for _,entry in ipairs({{lower,lowerAngle,1,lowerLabel,'Lower'},{upper,upperAngle,upperRadius,upperLabel,'Upper'}}) do
    local worldPoint=frame:PointToWorldSpace(point(entry[2])*entry[3])
    entry[1].Adornee=part
    entry[1].CFrame=part.CFrame:ToObjectSpace(CFrame.new(worldPoint))
@@ -80,8 +87,10 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   end
   drag=nil
   if canRestore then
-   config[previous.bound]=previous.initial
-   if self:update() then onDraft(previous.bound,previous.initial) end
+   config.lower=previous.initialLower; config.upper=previous.initialUpper
+   config.circular=previous.initialCircular
+   local a,b=endpoints(); local value=if previous.bound=='lower' then a else b
+   if self:update() then onDraft(previous.bound,value,previous.initialCircular,{lower=previous.initialLower,upper=previous.initialUpper}) end
   end
  end
  function api:set(nextJoint,input)
@@ -102,6 +111,8 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
    for _,key in ipairs({'lower','upper','swing','weight'}) do
     if math.abs(nextConfig[key]-config[key])>0.001 then same=false; break end
    end
+   local a,b=config.circular,nextConfig.circular
+   if (a==nil)~=(b==nil) or (a and (math.abs(a.start-b.start)>.001 or math.abs(a.width-b.width)>.001)) then same=false end
   end
   if same then return self:update() end
   return self:set(nextJoint,input)
@@ -128,8 +139,11 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   if not pointer then return false end
   local part,frame=restFrame(joint)
   if not part or not frame then return false end
-  drag=DragMath.begin(bound,config.lower,config.upper,pointer)
-  drag.part=part; drag.frame=frame; drag.initial=config[bound]
+  local interval=config.circular or {start=config.lower,width=config.upper-config.lower}
+  drag=DragMath.beginCircular(bound,interval.start,interval.width,pointer)
+  drag.part=part; drag.frame=frame; drag.initialLower=config.lower; drag.initialUpper=config.upper
+  drag.initialCircular=if config.circular then {start=config.circular.start,width=config.circular.width} else nil
+  drag.promoted=false
   self:select(bound)
   if onFocus then onFocus(bound) end
   return true
@@ -137,10 +151,20 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
  function api:move(ray)
   if dead or not drag then return false end
   local pointer=pointerAngle(ray); if not pointer then return false end
-  local bound=drag.bound; local value=DragMath.move(drag,pointer)
-  config[bound]=value
+  local bound=drag.bound; local start,width=DragMath.moveCircular(drag,pointer)
+  local circular=config.circular~=nil or start+width>180+1e-7
+  local value
+  if circular then
+   config.circular={start=start,width=width}
+   config.lower=start; config.upper=(start+width+180)%360-180
+   if not drag.initialCircular then drag.promoted=true end
+   value=config[bound]
+  else
+   config.lower=start; config.upper=start+width
+   value=config[bound]
+  end
   if not self:update() then return false end
-  onDraft(bound,value)
+  onDraft(bound,value,config.circular)
   return true
  end
  function api:finish() self:cancel() end

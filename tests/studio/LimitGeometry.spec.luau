@@ -36,4 +36,9 @@ assert(not pcall(function() geometry.build({kind='Hinge',axis='X',lower=-20,uppe
 assert(not pcall(function() oriented.build({kind='Hinge',axis='X',lower=-20,upper=20,swing=0},{0,0,0,0}) end),'invalid limit frame is rejected')
 assert(not pcall(function() geometry.build({kind='Hinge',axis='X',lower=-20,upper=20,swing=0},{0,0,0,0}) end),'zero frame is rejected without the dependency')
 assert(not pcall(function() geometry.build({kind='Hinge',axis='X',lower=-20,upper=20,swing=0},{0,0,0,math.huge}) end),'nonfinite identity-like frame is rejected')
+local wrapped=geometry.build({kind='Hinge',axis='Z',lower=150,upper=-150,swing=0,circular={start=150,width=60}})
+local halfway=wrapped[24][2]
+assert((halfway-Vector3.new(-1,0,0)).Magnitude<1e-5,'circular arc crosses the seam along its allowed 60 degree interval')
+local unrestricted=geometry.build({kind='Hinge',axis='Z',lower=0,upper=0,swing=0,circular={start=0,width=360}})
+assert((unrestricted[24][2]-Vector3.new(-1,0,0)).Magnitude<1e-5,'full revolution remains distinct from locked interval')
 return 'Hinge arc and ball swing cone geometry passed'

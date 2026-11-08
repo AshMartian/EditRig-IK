@@ -33,6 +33,10 @@ function LimitGeometry.new(Config,LimitFrame)
   local segments,twistSegments={},{}
   if config.kind=='Hinge' then
    local lower,upper=math.rad(config.lower),math.rad(config.upper)
+   if config.circular then
+    lower=math.rad(config.circular.start)
+    upper=lower+math.rad(config.circular.width)
+   end
    local function point(angle) return reference*math.cos(angle)+tangent*math.sin(angle) end
    local start=point(lower)
    local previous=start
