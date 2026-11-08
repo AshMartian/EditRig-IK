@@ -760,18 +760,22 @@ end)
 chainFeedback=status
 
 local previewTitle=label('Clone pose preview: select a saved chain, then enter a world-space target offset in studs.',50)
+local previewStatus=label('Preview is closed.',55)
+previewStatus.TextYAlignment=Enum.TextYAlignment.Top
 local previewFrame=Instance.new('ViewportFrame')
 previewFrame.Size=UDim2.new(1,0,0,260); previewFrame.BackgroundColor3=Color3.fromRGB(24,26,31)
 previewFrame.Ambient=Color3.fromRGB(160,160,160); previewFrame.LightColor=Color3.fromRGB(255,255,255)
 previewFrame.Visible=false
 local preview: any=nil
-local previewStatus: TextLabel
+local previewGuard: any=nil
 local function closePreview()
+    if previewGuard then previewGuard:destroy(); previewGuard=nil end
     if preview then preview:destroy(); preview=nil end
     previewFrame.Visible=false
 end
 chainButton('Open selected chain clone preview').MouseButton1Click:Connect(function()
     closePreview()
+    if not RunService:IsEdit() then previewStatus.Text='Stop Play before opening a preview.'; return end
     local definition=selectedOne()
     local ok,result=pcall(function()
         local solver=require(script.PreviewSolver).new(require(script.PreviewLimits))
@@ -785,6 +789,14 @@ chainButton('Open selected chain clone preview').MouseButton1Click:Connect(funct
     end)
     if not ok then previewStatus.Text='Cannot open preview: '..tostring(result); return end
     preview=result; previewFrame.Visible=true
+    local guarded,guard=pcall(function()
+        local model=definition.Parent.Parent
+        return require(script.PreviewGuard).new(model,definition,Selection,RunService,function(reason)
+            closePreview(); previewStatus.Text='Preview closed: '..reason..'. Reopen the chain to preview again.'
+        end)
+    end)
+    if not guarded then closePreview(); previewStatus.Text='Cannot monitor preview: '..tostring(guard); return end
+    previewGuard=guard
     previewStatus.Text='Clone ready. Red is target; green is solved endpoint. Source model stays unchanged.'
 end)
 order(previewFrame); previewFrame.Parent=root
@@ -793,19 +805,19 @@ local previewY=chainNumberField('Preview target offset Y (studs)','1')
 local previewZ=chainNumberField('Preview target offset Z (studs)','0')
 chainButton('Solve clone preview').MouseButton1Click:Connect(function()
     if not preview then previewStatus.Text='Open a chain preview first.'; return end
+    if not previewGuard or not previewGuard:check() then return end
     local x,y,z=tonumber(previewX.Text),tonumber(previewY.Text),tonumber(previewZ.Text)
     if not x or not y or not z then previewStatus.Text='Enter numeric target offsets.'; return end
     local ok,result=pcall(function() return preview:solveOffset(Vector3.new(x,y,z)) end)
-    if not ok then previewStatus.Text='Preview solve failed: '..tostring(result); return end
+    if not ok then closePreview(); previewStatus.Text='Preview closed after solve error: '..tostring(result); return end
     local limited={}
     for i,index in ipairs(result.limitedJoints) do
         if i>3 then table.insert(limited,'+'..(#result.limitedJoints-3)..' more'); break end
         table.insert(limited,tostring(index)..':'..string.sub(result.limitedJointNames[i],1,24))
     end
-    previewStatus.Text=string.format('%s | error %.4f studs | pole %s | limited: %s',result.status,result.error,tostring(result.poleStatus),if #limited>0 then table.concat(limited,', ') else 'none')
+    previewStatus.Text=string.format('%s | error %.4f studs | pole %s | clamped during solve: %s',if result.converged then 'Reached' else 'Not reached',result.error,tostring(result.poleStatus),if #limited>0 then table.concat(limited,', ') else 'none')
 end)
 chainButton('Close clone preview').MouseButton1Click:Connect(function() closePreview(); previewStatus.Text='Preview closed.' end)
-previewStatus=status
 widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then closePreview() end end)
 plugin.Unloading:Connect(closePreview)
 

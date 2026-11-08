@@ -32,6 +32,9 @@
     "PreviewSession": {
       "$path": "src/plugin/PreviewSession.luau"
     },
+    "PreviewGuard": {
+      "$path": "src/plugin/PreviewGuard.luau"
+    },
     "PreviewSolver": {
       "$path": "src/shared/Solver.luau"
     },
