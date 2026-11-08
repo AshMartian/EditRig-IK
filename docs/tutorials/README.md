@@ -29,3 +29,6 @@ are examples and are not recommended anatomical settings.*
 
 Need more detail? Read [runtime conventions](../runtime.md),
 [troubleshooting and logs](../debugging.md), or the [code tour](../code-tour.md).
+
+Maintainers: see the [documentation and publishing guide](../maintainer-guide.md)
+for updating these tutorials, screenshots, and the optional GitHub wiki.

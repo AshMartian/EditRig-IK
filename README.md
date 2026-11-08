@@ -58,6 +58,8 @@ The command-line build **does not execute Studio integration tests** or prove vi
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, test expectations, and how to report problems. The [code tour](docs/code-tour.md) maps the editor, runtime, and important handoffs; the [runtime guide](docs/runtime.md) describes data conventions and APIs.
 
+Maintainers can follow the [publishing and documentation guide](docs/maintainer-guide.md) for releases, tutorials, screenshots, and the optional wiki.
+
 ## License
 
 [MIT](LICENSE). Roblox and RigEdit are separate projects and are not included under this license.
