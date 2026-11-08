@@ -1,6 +1,14 @@
 --!strict
 -- Temporary Studio adornments; never insert visualization objects into the rig.
 local RigOverlay={}
+local function finite(value)
+ return type(value)=='number' and value==value and math.abs(value)<math.huge
+end
+function RigOverlay.radiusFromProjection(pixelsPerStud,selected)
+ if not finite(pixelsPerStud) or pixelsPerStud<=0 then return if selected then .22 else .16 end
+ local radius=math.clamp(7/pixelsPerStud,.04,.4)
+ return if selected then math.min(radius*1.4,.5) else radius
+end
 local function anchorAndPosition(joint,rig)
  if not joint:IsDescendantOf(rig) then return nil,nil end
  if joint:IsA('Motor6D') then
@@ -38,18 +46,44 @@ function RigOverlay.new(rig,holder,onSelect)
   end)
   table.insert(entries,{joint=joint,marker=marker,line=line,connection=connection})
  end
+ local selectedOutline=Instance.new('WireframeHandleAdornment'); selectedOutline.Name='EditRigIKSelectedOutline'
+ selectedOutline.Color3=Color3.fromRGB(255,245,205); selectedOutline.Thickness=2
+ selectedOutline.AlwaysOnTop=true; selectedOutline.ZIndex=6; selectedOutline.Parent=holder
  local dead=false
  local api={}
  function api:count() return #entries end
  function api:update(selected)
   assert(not dead,'overlay is destroyed')
+  local camera=workspace.CurrentCamera
+  selectedOutline:Clear(); selectedOutline.Adornee=nil
   for _,entry in ipairs(entries) do
    local joint=entry.joint
    local part,position=anchorAndPosition(joint,rig)
    local marker,line=entry.marker,entry.line
    marker.Adornee=part
    marker.Color3=if joint==selected then Color3.fromRGB(255,205,70) else Color3.fromRGB(75,205,255)
-   if part then marker.CFrame=CFrame.new(part.CFrame:PointToObjectSpace(position)) end
+   if part then
+    if camera then
+     -- Sampling the actual projection handles perspective, orthographic,
+     -- FOV modes and viewport stretching without guessing the camera mode.
+     local screen=camera:WorldToViewportPoint(position)
+     local screenUp=camera:WorldToViewportPoint(position+camera.CFrame.UpVector)
+     marker.Radius=RigOverlay.radiusFromProjection(math.abs(screenUp.Y-screen.Y),joint==selected)
+    else marker.Radius=if joint==selected then .22 else .16 end
+    marker.CFrame=CFrame.new(part.CFrame:PointToObjectSpace(position))
+    if joint==selected then
+     local right=if camera then camera.CFrame.RightVector else Vector3.xAxis
+     local up=if camera then camera.CFrame.UpVector else Vector3.yAxis
+     local r=marker.Radius*1.55
+     local previous=position+right*r
+     for i=1,24 do
+      local angle=2*math.pi*i/24
+      local nextPoint=position+(right*math.cos(angle)+up*math.sin(angle))*r
+      selectedOutline:AddLine(previous,nextPoint); previous=nextPoint
+     end
+     selectedOutline.Adornee=part
+    end
+   end
    local parentJoint=if joint:IsA('Bone') and joint.Parent and joint.Parent:IsA('Bone') then joint.Parent elseif joint:IsA('Motor6D') then motorByPart[joint.Part0] else nil
    local parentPosition=nil
    if parentJoint then local _,point=anchorAndPosition(parentJoint,rig); parentPosition=point end
@@ -64,6 +98,7 @@ function RigOverlay.new(rig,holder,onSelect)
  function api:destroy()
   if dead then return end; dead=true
   for _,entry in ipairs(entries) do entry.connection:Disconnect(); entry.marker:Destroy(); entry.line:Destroy() end
+  selectedOutline:Destroy()
  end
  return api
 end

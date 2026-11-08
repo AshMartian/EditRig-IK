@@ -18,6 +18,11 @@ for _,x in ipairs(holder:GetChildren()) do
  if x:IsA('WireframeHandleAdornment') and x.Adornee then links+=1 end
 end
 assert(markers==4 and links==2,'each child joint should link to its parent joint')
+local outline=holder:FindFirstChild('EditRigIKSelectedOutline')
+assert(outline and not outline.Adornee,'selection outline starts hidden')
+overlay:update(first); assert(outline.Adornee==a,'selected joint receives an outline')
+overlay:update(second); assert(outline.Adornee==b,'outline follows selection to the other joint')
+overlay:update(nil); assert(not outline.Adornee,'outline clears when selection is removed')
 first.Part0=nil; overlay:update()
 local hidden=0; for _,x in ipairs(holder:GetChildren()) do if x:IsA('SphereHandleAdornment') and not x.Adornee then hidden+=1 end end
 assert(hidden==1,'invalid joint marker must be hidden')

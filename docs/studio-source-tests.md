@@ -24,6 +24,8 @@ python3 -m unittest discover -s tests -p 'test_studio_bundle.py'
 
 The fixtures do not validate Play transitions, a real user's handle drag, skinned mesh rendering, or performance. Those require separate Studio checks with representative rigs and a careful cleanup of temporary scene objects.
 
+`tests/studio/InstalledAutoViewport.integration.luau` is a separate installed-plugin smoke test: run it in Studio Edit with the panel open and idle. It temporarily selects a disposable model and joint, checks automatic controls and absence of source writes, then restores the previous selection and draft fields. It does not inject pointer or keyboard input. If interrupted, remove `Workspace.EditRigIKAutoModeFixture` and restore the selection manually.
+
 ## Rojo-built runtime contact fixture
 
 The following builds `runtime.project.json` with the local Rojo executable into a temporary XML package and emits a Studio program that reconstructs its root and child ModuleScripts, requires the root, and exercises surface contact against actual Workspace parts. The sources and hierarchy come from Rojo's package, rather than loose source wrappers.

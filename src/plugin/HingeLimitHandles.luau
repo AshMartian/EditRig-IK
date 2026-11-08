@@ -10,11 +10,23 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
  for _,handle in ipairs({lower,upper}) do
   handle.Archivable=false; handle.Color3=Color3.fromRGB(255,205,60); handle.AlwaysOnTop=true; handle.ZIndex=7; handle.Visible=false; handle.Parent=parent
  end
+ local function makeLabel(bound,side)
+  local gui=Instance.new('BillboardGui'); gui.Name='EditRigIK'..bound..'Label'; gui.Archivable=false
+  gui.Size=UDim2.fromOffset(112,24); gui.SizeOffset=Vector2.new(side*.6,.75); gui.AlwaysOnTop=true; gui.Active=false; gui.Enabled=false
+  local label=Instance.new('TextLabel'); label.Name='Label'; label.Size=UDim2.fromScale(1,1)
+  label.BackgroundColor3=Color3.fromRGB(35,38,45); label.BackgroundTransparency=.15
+  label.TextColor3=Color3.fromRGB(255,231,154); label.Font=Enum.Font.GothamMedium; label.TextSize=14
+  label.TextStrokeTransparency=.7; label.Active=false; label.Parent=gui
+  local corner=Instance.new('UICorner'); corner.CornerRadius=UDim.new(0,5); corner.Parent=label
+  gui.Parent=parent; return gui
+ end
+ local lowerLabel=makeLabel('Lower',-1); local upperLabel=makeLabel('Upper',1)
  local dead=false; local joint=nil; local config=nil; local drag=nil; local selected=nil
  local connections={}
  local api={}
  local function hide()
   lower.Visible=false; lower.Adornee=nil; upper.Visible=false; upper.Adornee=nil
+  lowerLabel.Enabled=false; lowerLabel.Adornee=nil; upperLabel.Enabled=false; upperLabel.Adornee=nil
  end
  local function point(angle)
   local axis=axes[config.axis]; local reference=references[config.axis]; local tangent=axis:Cross(reference)
@@ -42,10 +54,14 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   if not sameFrame(part,frame) then self:cancel() end
   local separation=(point(config.lower)-point(config.upper)).Magnitude
   local upperRadius=if separation<.4 then 1.4 else 1
-  for _,entry in ipairs({{lower,config.lower,1},{upper,config.upper,upperRadius}}) do
+  for _,entry in ipairs({{lower,config.lower,1,lowerLabel,'Lower'},{upper,config.upper,upperRadius,upperLabel,'Upper'}}) do
+   local worldPoint=frame:PointToWorldSpace(point(entry[2])*entry[3])
    entry[1].Adornee=part
-   entry[1].CFrame=part.CFrame:ToObjectSpace(CFrame.new(frame:PointToWorldSpace(point(entry[2])*entry[3])))
+   entry[1].CFrame=part.CFrame:ToObjectSpace(CFrame.new(worldPoint))
    entry[1].Visible=true
+   entry[4].Adornee=part; entry[4].StudsOffsetWorldSpace=worldPoint-part.Position
+   local display=if math.abs(entry[2])<.05 then 0 else entry[2]
+   entry[4].Label.Text=string.format('%s %.1f°',entry[5],display); entry[4].Enabled=true
   end
   return true
  end
@@ -126,7 +142,7 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   if dead then return end
   dead=true; drag=nil
   for _,connection in ipairs(connections) do connection:Disconnect() end
-  lower:Destroy(); upper:Destroy()
+  lower:Destroy(); upper:Destroy(); lowerLabel:Destroy(); upperLabel:Destroy()
  end
  table.insert(connections,lower.MouseButton1Down:Connect(function() api:begin('lower',mouse.UnitRay) end))
  table.insert(connections,upper.MouseButton1Down:Connect(function() api:begin('upper',mouse.UnitRay) end))

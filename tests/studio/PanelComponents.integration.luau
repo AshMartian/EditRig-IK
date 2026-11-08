@@ -7,9 +7,11 @@ for _, key in ipairs({'lower', 'upper', 'swing'}) do
     fields[key].Text = '0'
 end
 local focusEvents = {}
+local commits = {}
+local focusedJoint = 'joint A'
 local binding = PanelComponents.bindLimitInputs(fields, function(key)
     table.insert(focusEvents, key)
-end)
+end, function(key, joint) table.insert(commits,{key,joint}) end, function() return focusedJoint end)
 assert(binding:select('lower') and binding.active == 'lower', 'handle selection identifies the matching field')
 assert(fields.lower:FindFirstChild('LimitSelection').Enabled and not fields.upper:FindFirstChild('LimitSelection').Enabled, 'only the matching field is highlighted')
 assert(binding:setValue('lower', -45.25) and fields.lower.Text == '-45.25', 'viewport edits update the linked numeric draft')
@@ -22,8 +24,13 @@ assert(not binding:cancel(), 'cancel cannot repeatedly restore an old snapshot')
 binding:begin('upper'); fields.upper.Text = '10'
 binding:finish('upper')
 assert(not binding:cancel() and fields.upper.Text == '10', 'finished edits are not undone by later Escape')
+assert(#commits==0, 'ordinary focus loss does not commit')
+binding:begin('upper'); focusedJoint='joint B'; binding:finish('upper', true)
+assert(#commits==1 and commits[1][1]=='upper' and commits[1][2]=='joint A', 'Enter submits the joint captured when editing began')
+binding:begin('upper'); binding:cancel(); binding:finish('upper', true)
+assert(#commits==1, 'cancelled edits cannot later commit')
 binding:begin('lower'); binding:abandon(); fields.lower.Text = '42'
-assert(not binding:cancel() and fields.lower.Text == '42', 'changing joint discards the previous edit snapshot')
+assert(not binding:cancel() and not binding:finish('lower',true) and #commits==1 and fields.lower.Text == '42', 'changing joint discards the previous edit snapshot and commit')
 binding:select(nil)
 assert(not fields.lower:FindFirstChild('LimitSelection').Enabled and not fields.upper:FindFirstChild('LimitSelection').Enabled, 'selection can be cleared')
 assert(#focusEvents > 0 and focusEvents[1] == 'lower', 'selection notifies the linked viewport')

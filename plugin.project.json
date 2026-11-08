@@ -29,6 +29,9 @@
     "JointAuthoring": {
       "$path": "src/plugin/JointAuthoring.luau"
     },
+    "ViewportInputPolicy": {
+      "$path": "src/plugin/ViewportInputPolicy.luau"
+    },
     "RigOverlay": {
       "$path": "src/plugin/RigOverlay.luau"
     },

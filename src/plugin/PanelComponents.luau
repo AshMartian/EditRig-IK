@@ -49,12 +49,14 @@ end
 -- Bind the existing precision fields to viewport limit handles.  This only
 -- changes the draft text; the editor remains responsible for validation and
 -- the separate, undoable Save action.
-function PanelComponents.bindLimitInputs(fields, onSelected)
+function PanelComponents.bindLimitInputs(fields, onSelected, onCommit, onBegin)
     assert(type(fields) == 'table', 'limit fields are required')
     assert(onSelected == nil or type(onSelected) == 'function', 'selection callback must be a function')
+    assert(onCommit == nil or type(onCommit) == 'function', 'commit callback must be a function')
+    assert(onBegin == nil or type(onBegin) == 'function', 'begin callback must be a function')
     local userInput = game:GetService('UserInputService')
     local strokes, connections = {}, {}
-    local editingKey, editingText = nil, nil
+    local editingKey, editingText, editingContext = nil, nil, nil
     local destroyed = false
     local api = {active = nil}
     for key, box in pairs(fields) do
@@ -73,8 +75,8 @@ function PanelComponents.bindLimitInputs(fields, onSelected)
             box.CursorPosition = #box.Text + 1
             box.SelectionStart = 1
         end))
-        table.insert(connections, box.FocusLost:Connect(function()
-            api:finish(key)
+        table.insert(connections, box.FocusLost:Connect(function(enterPressed)
+            api:finish(key, enterPressed)
         end))
     end
     function api:select(key): boolean
@@ -93,25 +95,28 @@ function PanelComponents.bindLimitInputs(fields, onSelected)
     function api:begin(key): boolean
         if destroyed or not fields[key] then return false end
         editingKey, editingText = key, fields[key].Text
+        editingContext = if onBegin then onBegin(key) else nil
         self:select(key)
         return true
     end
-    function api:finish(key): boolean
+    function api:finish(key, enterPressed): boolean
         if destroyed or editingKey ~= key then return false end
-        editingKey, editingText = nil, nil
+        local context=editingContext
+        editingKey, editingText, editingContext = nil, nil, nil
+        if enterPressed and onCommit then onCommit(key,context) end
         return true
     end
     function api:cancel(): boolean
         if destroyed or not editingKey then return false end
         local key, original = editingKey, editingText
-        editingKey, editingText = nil, nil
+        editingKey, editingText, editingContext = nil, nil, nil
         fields[key].Text = original
         return true
     end
     -- Call before replacing fields for a different joint; Escape must never
     -- restore text that was captured from the previous joint.
     function api:abandon()
-        editingKey, editingText = nil, nil
+        editingKey, editingText, editingContext = nil, nil, nil
     end
     table.insert(connections, userInput.InputBegan:Connect(function(input)
         if input.KeyCode == Enum.KeyCode.Escape and editingKey and userInput:GetFocusedTextBox() == fields[editingKey] then
@@ -125,7 +130,7 @@ function PanelComponents.bindLimitInputs(fields, onSelected)
         destroyed = true
         for _, connection in ipairs(connections) do connection:Disconnect() end
         for _, stroke in pairs(strokes) do stroke:Destroy() end
-        editingKey, editingText = nil, nil
+        editingKey, editingText, editingContext = nil, nil, nil
     end
     return api
 end

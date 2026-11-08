@@ -12,7 +12,7 @@ expected = {
     'plugin.project.json': ('Script', 'EditRigIK', {'Config', 'ChainBuilder', 'ChainDiscovery', 'ChainInference', 'IKConstraintBuilder', 'DefinitionBuilder', 'GeneratedController', 'RigInspector', 'AxisGizmo', 'RigOverlay', 'OverlaySelection', 'SavedLimitOverlay', 'LimitGeometry', 'LimitDraft', 'PreviewSession', 'PreviewGuard', 'WorldGhostSession', 'ViewportTargetHandle', 'PanelComponents', 'SurfaceContact', 'SurfaceProbe', 'SurfaceContactGizmo', 'SurfaceFrame', 'SurfaceOrientation', 'PosePreviewQueue', 'PreviewSolver', 'PreviewLimits', 'PreviewChainAdapter', 'PreviewChainDefinition', 'RuntimeInstaller', 'RuntimeBundle', 'InputProfileBuilder', 'GaitExampleInstaller', 'DinoGaitExample', 'JointBatch'}),
     'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'BallDrive', 'InputBindings', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'TargetStepper', 'Ownership', 'Limits', 'Solver', 'SurfaceContact', 'SurfaceProbe', 'SurfaceFrame', 'SurfaceOrientation'}),
 }
-expected['plugin.project.json'][2].update({'HingeDragMath', 'HingeLimitHandles', 'JointAuthoring'})
+expected['plugin.project.json'][2].update({'HingeDragMath', 'HingeLimitHandles', 'JointAuthoring', 'ViewportInputPolicy'})
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:
     roots = {}
     for project, (cls, name, children) in expected.items():
