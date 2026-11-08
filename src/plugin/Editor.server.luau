@@ -22,6 +22,7 @@ local RuntimeInstaller = require(script.RuntimeInstaller)
 local InputProfileBuilder = require(script.InputProfileBuilder)
 local GaitExampleInstaller = require(script.GaitExampleInstaller)
 local JointBatch = require(script.JointBatch)
+local JointAuthoring = require(script.JointAuthoring)
 local PanelComponents = require(script.PanelComponents)
 local HingeLimitHandles = require(script.HingeLimitHandles)
 local HingeDragMath = require(script.HingeDragMath)
@@ -165,7 +166,16 @@ plugin.Unloading:Connect(function() overlayUpdate:Disconnect(); hideRigOverlay()
 local limitStateLabel=label('Limit settings: select one joint.',60)
 limitStateLabel.TextColor3=Color3.fromRGB(255,204,111)
 local fields: {[string]: TextBox} = {}
+local apply = Instance.new('TextButton')
+apply.Name='SaveJointLimits'
+apply.Size = UDim2.new(1, 0, 0, 32)
+apply.BackgroundColor3 = Color3.fromRGB(61, 109, 172)
+apply.TextColor3 = Color3.new(1,1,1)
+apply.Text = 'Save joint limits'
+apply.Font = Enum.Font.SourceSansBold
+apply.TextSize = 16
 for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'reverseHoldKey','Reverse hold KeyCode (optional)'}, {'holdValue','Hold value'}, {'impulseKey','Impulse KeyCode (optional)'}, {'impulseValue','Impulse value (rad/s)'}}) do
+    if entry[1]=='control' then label('Control and input settings use the saved joint type.',32) end
     local row = Instance.new('Frame')
     row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundTransparency = 1
@@ -192,20 +202,17 @@ for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','
     box.TextSize = 16
     box.Parent = row
     fields[entry[1]] = box
+    if entry[1]=='weight' then order(apply); apply.Parent=root end
 end
 label('Hinge hold: -1 to 1. Ball hold: radians on the selected axis. Impulse: rad/s.',40)
-local apply = Instance.new('TextButton')
-apply.Size = UDim2.new(1, 0, 0, 32)
-apply.BackgroundColor3 = Color3.fromRGB(61, 109, 172)
-apply.TextColor3 = Color3.new(1,1,1)
-apply.Text = 'Save limit metadata'
-apply.Font = Enum.Font.SourceSansBold
-apply.TextSize = 16
-order(apply)
-apply.Parent = root
+local saveControls=Instance.new('TextButton')
+saveControls.Name='SaveJointControls'
+saveControls.Size=UDim2.new(1,0,0,32); saveControls.BackgroundColor3=Color3.fromRGB(61,109,172)
+saveControls.TextColor3=Color3.new(1,1,1); saveControls.Text='Save control and input settings'
+saveControls.Font=Enum.Font.SourceSansBold; saveControls.TextSize=16; order(saveControls); saveControls.Parent=root
 local applyBatch=Instance.new('TextButton')
 applyBatch.Size=UDim2.new(1,0,0,32); applyBatch.BackgroundColor3=Color3.fromRGB(61,109,172)
-applyBatch.TextColor3=Color3.new(1,1,1); applyBatch.Text='Apply displayed settings to selected joints'
+applyBatch.TextColor3=Color3.new(1,1,1); applyBatch.Text='Apply limits and controls to selected joints'
 applyBatch.Font=Enum.Font.SourceSansBold; applyBatch.TextSize=15; order(applyBatch); applyBatch.Parent=root
 local hingeNotice=label('Built-in IK: creates an enabled physical constraint from saved Motor6D hinge or ball settings.',40)
 hingeNotice.TextColor3=Color3.fromRGB(255,204,111)
@@ -334,7 +341,7 @@ local function showAxes()
     local updated,visible=pcall(function() return axisGizmo:update(current) end)
     if not updated or not visible then hideAxes(); status.Text='Cannot display this joint frame.'; return end
     axisButton.Text='Hide joint axes and limits'
-    status.Text='X red, Y green, Z blue; yellow shows hinge range or ball swing. Ball twist is numeric only.'
+    status.Text='X red, Y green, Z blue; yellow shows hinge range or ball swing, orange shows ball twist.'
 end
 axisButton.MouseButton1Click:Connect(function()
     if axisGizmo then stopHingeEdit(nil); overlayPolicy:hideAxes(); hideAxes(); status.Text='Joint guide hidden until selection changes or the panel reopens.'; return end
@@ -363,7 +370,7 @@ hingeButton.Activated:Connect(function()
                 local row=fields[bound].Parent
                 page.CanvasPosition=Vector2.new(0,math.max(0,page.CanvasPosition.Y+row.AbsolutePosition.Y-page.AbsolutePosition.Y-45))
             end
-            status.Text='Drag the '..bound..' handle; changes are unsaved until you save limit metadata.'
+            status.Text='Drag the '..bound..' handle; changes are unsaved until you choose Save joint limits.'
         end)
     end)
     if not created then folder:Destroy(); status.Text='Cannot create hinge handles: '..tostring(handles); return end
@@ -489,32 +496,32 @@ end)
 apply.MouseButton1Click:Connect(function()
     local item = current
     if not item or not item.Parent then status.Text = 'Select a valid joint first.'; return end
-    local weight=tonumber(fields.weight.Text)
-    if not weight then status.Text='Enter a joint influence.'; return end
-    local ok, result = pcall(Config.validate, {kind=fields.kind.Text, axis=string.upper(fields.axis.Text), lower=tonumber(fields.lower.Text), upper=tonumber(fields.upper.Text), swing=tonumber(fields.swing.Text), weight=weight})
-    if not ok then status.Text = 'Invalid settings: ' .. tostring(result); return end
-    local frequency=tonumber(fields.frequency.Text)
-    if not frequency then status.Text='Enter a damping frequency.'; return end
-    local driveOk,drive=pcall(Config.validateDrive,{control=fields.control.Text,impulse=fields.impulse.Text,frequency=frequency},item.Name)
-    if not driveOk then status.Text='Invalid control settings: '..tostring(drive); return end
-    local holdValue,impulseValue=tonumber(fields.holdValue.Text),tonumber(fields.impulseValue.Text)
-    if holdValue==nil or impulseValue==nil then status.Text='Enter numeric hold and impulse values.'; return end
-    local keysOk,holdKey,reverseHoldKey,impulseKey=pcall(function()
-        InputProfileBuilder.validateAmount(result.kind,'Hold',holdValue)
-        InputProfileBuilder.validateAmount(result.kind,'Impulse',impulseValue)
-        local forward,reverse=InputProfileBuilder.validateHoldKeys(fields.holdKey.Text,fields.reverseHoldKey.Text)
-        return forward,reverse,InputProfileBuilder.validateKey(fields.impulseKey.Text)
+    local ok, prepared=pcall(JointAuthoring.prepareLimits,item,limitInput(),Config)
+    if not ok then status.Text='Invalid joint limits: '..tostring(prepared); return end
+    local saved,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before EditRig IK joint limits')
+        JointAuthoring.applyLimits(prepared)
+        ChangeHistoryService:SetWaypoint('Save EditRig IK joint limits')
     end)
-    if not keysOk then status.Text='Invalid input settings: '..tostring(holdKey); return end
-    ChangeHistoryService:SetWaypoint('Before EditRig IK limit metadata')
-    for key, name in pairs(attrs) do item:SetAttribute(name, result[key]) end
-    for key, name in pairs(driveAttrs) do item:SetAttribute(name, drive[key]) end
-    item:SetAttribute(inputAttrs.holdKey,holdKey); item:SetAttribute(inputAttrs.reverseHoldKey,reverseHoldKey); item:SetAttribute(inputAttrs.impulseKey,impulseKey)
-    item:SetAttribute(inputAttrs.holdValue,holdValue); item:SetAttribute(inputAttrs.impulseValue,impulseValue)
-    item:SetAttribute('EditRigIK_SchemaVersion', 1)
-    ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
+    if not saved then status.Text='Joint limits not saved: '..tostring(err); return end
     rememberLimitFields(); limitDraftStarted=false; limitDiscardNotice=false; updateLimitState()
-    status.Text = 'Saved to ' .. item.Name .. '. Refresh actor and chain snapshots to use the changes.'
+    status.Text = 'Saved joint limits to ' .. item.Name .. '. Control settings were not changed; review them if the joint type changed. Refresh actor and chain snapshots to use the changes.'
+end)
+saveControls.MouseButton1Click:Connect(function()
+    local item=current
+    if not item or not item.Parent then status.Text='Select a valid joint first.'; return end
+    local settings={control=fields.control.Text,impulse=fields.impulse.Text,frequency=tonumber(fields.frequency.Text),
+        holdKey=fields.holdKey.Text,reverseHoldKey=fields.reverseHoldKey.Text,holdValue=tonumber(fields.holdValue.Text),
+        impulseKey=fields.impulseKey.Text,impulseValue=tonumber(fields.impulseValue.Text)}
+    local ok,prepared=pcall(JointAuthoring.prepareDrive,item,settings,Config,InputProfileBuilder)
+    if not ok then status.Text='Invalid control or input settings: '..tostring(prepared); return end
+    local saved,err=pcall(function()
+        ChangeHistoryService:SetWaypoint('Before EditRig IK controls and inputs')
+        JointAuthoring.applyDrive(prepared)
+        ChangeHistoryService:SetWaypoint('Save EditRig IK controls and inputs')
+    end)
+    if not saved then status.Text='Control settings not saved: '..tostring(err); return end
+    status.Text='Saved control and input settings to '..item.Name..'. Joint limits were not changed. Refresh the actor to use the changes.'
 end)
 local function batchValues()
     local weight=tonumber(fields.weight.Text)

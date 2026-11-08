@@ -41,18 +41,21 @@ function AxisGizmo.new(parent,geometry,limitOnly)
  local limit=Instance.new('WireframeHandleAdornment')
  limit.Name='EditRigIKLimit'; limit.Color3=Color3.fromRGB(255,210,60)
  limit.Thickness=2; limit.AlwaysOnTop=true; limit.ZIndex=1; limit.Parent=parent
- local segments=nil
+ local twist=Instance.new('WireframeHandleAdornment')
+ twist.Name='EditRigIKTwist'; twist.Color3=Color3.fromRGB(255,135,55)
+ twist.Thickness=3; twist.AlwaysOnTop=true; twist.ZIndex=2; twist.Parent=parent
+ local segments,twistSegments=nil,nil
  local dead=false
  local api={}
  function api:clear()
-  if not dead then for _,line in ipairs(lines) do line.adornment.Adornee=nil end; limit.Adornee=nil end
+  if not dead then for _,line in ipairs(lines) do line.adornment.Adornee=nil end; limit.Adornee=nil; twist.Adornee=nil end
  end
  function api:setLimits(config)
   assert(not dead,'axis gizmo is destroyed')
-  local ok,result=pcall(geometry.build,config)
-  limit:Clear(); limit.Adornee=nil; segments=nil
+  local ok,result,twistResult=pcall(geometry.build,config)
+  limit:Clear(); limit.Adornee=nil; twist:Clear(); twist.Adornee=nil; segments=nil; twistSegments=nil
   if not ok then return false end
-  segments=result
+  segments=result; twistSegments=twistResult
   return true
  end
  function api:update(joint)
@@ -69,13 +72,18 @@ function AxisGizmo.new(parent,geometry,limitOnly)
    for _,segment in ipairs(AxisGizmo.toWorldSegments(frame,segments)) do limit:AddLine(segment[1],segment[2]) end
    limit.Adornee=part
   end
+  if twistSegments and #twistSegments>0 then
+   twist:Clear(); twist.Adornee=nil
+   for _,segment in ipairs(AxisGizmo.toWorldSegments(frame,twistSegments)) do twist:AddLine(segment[1],segment[2]) end
+   twist.Adornee=part
+  end
   return true
  end
  function api:destroy()
   if dead then return end
   dead=true
   for _,line in ipairs(lines) do line.adornment:Destroy() end
-  limit:Destroy()
+  limit:Destroy(); twist:Destroy()
  end
  return api
 end

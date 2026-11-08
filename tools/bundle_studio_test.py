@@ -13,6 +13,8 @@ MODULES = {
     'ChainAdapter': 'src/runtime/ChainAdapter.luau',
     'ChainDefinition': 'src/runtime/ChainDefinition.luau',
     'PanelComponents': 'src/plugin/PanelComponents.luau',
+    'JointAuthoring': 'src/plugin/JointAuthoring.luau',
+    'InputProfileBuilder': 'src/plugin/InputProfileBuilder.luau',
     'SurfaceContact': 'src/runtime/SurfaceContact.luau',
     'SurfaceFrame': 'src/runtime/SurfaceFrame.luau',
     'SurfaceOrientation': 'src/runtime/SurfaceOrientation.luau',
@@ -28,6 +30,7 @@ MODULES = {
     'SavedLimitOverlay': 'src/plugin/SavedLimitOverlay.luau',
 }
 FIXTURES = {
+    'JointAuthoring': (('Config', 'InputProfileBuilder', 'JointAuthoring'), 'tests/studio/JointAuthoring.integration.luau'),
     'AxisGizmo': (('Config', 'AxisGizmo', 'LimitGeometryFactory'), 'tests/studio/AxisGizmo.spec.luau'),
     'HingeLimitHandles': (('Config', 'AxisGizmo', 'HingeDragMath', 'HingeLimitHandles'), 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': (('Config', 'ChainBuilder', 'ChainDefinition'), 'tests/studio/ConfiguredOrientation.integration.luau'),

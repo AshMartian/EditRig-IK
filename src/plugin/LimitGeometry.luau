@@ -9,7 +9,7 @@ function LimitGeometry.new(Config)
   local refs={X=Vector3.yAxis,Y=Vector3.zAxis,Z=Vector3.xAxis}
   local axis,reference=axes[config.axis],refs[config.axis]
   local tangent=axis:Cross(reference)
-  local segments={}
+  local segments,twistSegments={},{}
   if config.kind=='Hinge' then
    local lower,upper=math.rad(config.lower),math.rad(config.upper)
    local function point(angle) return reference*math.cos(angle)+tangent*math.sin(angle) end
@@ -31,8 +31,24 @@ function LimitGeometry.new(Config)
     table.insert(segments,{previous,nextPoint}); previous=nextPoint
    end
    for i=0,3 do table.insert(segments,{Vector3.zero,point(math.pi*i/2)}) end
+   -- A separate ring encodes signed twist about the rest axis.  The
+   -- perpendicular reference and positive direction match Limits.ball's
+   -- right-handed twist convention; the offset separates it from the cone.
+   local center=axis*1.3
+   local function twistPoint(angle)
+    return center+(reference*math.cos(angle)+tangent*math.sin(angle))*.6
+   end
+   local lower,upper=math.rad(config.lower),math.rad(config.upper)
+   local start=twistPoint(lower)
+   local last=start
+   for i=1,48 do
+    local nextPoint=twistPoint(lower+(upper-lower)*i/48)
+    table.insert(twistSegments,{last,nextPoint}); last=nextPoint
+   end
+   table.insert(twistSegments,{center,start}); table.insert(twistSegments,{center,last})
+   table.insert(twistSegments,{center,twistPoint(0)})
   end
-  return segments
+  return segments,twistSegments
  end
  return api
 end

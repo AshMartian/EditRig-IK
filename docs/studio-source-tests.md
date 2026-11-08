@@ -8,7 +8,7 @@ From the project root, generate one fixture without network access:
 python3 tools/bundle_studio_test.py ViewportTargetHandle > /tmp/editrig-studio-fixture.luau
 ```
 
-The accepted names are `PanelComponents`, `ViewportTargetHandle`, `WorldGhostSession`, `ChainDiscovery`, `AxisGizmo`, `HingeLimitHandles`, `SavedLimitOverlay`, `SurfaceProbe`, `SurfaceContactGizmo`, `ConfiguredOrientation`, `OrientationChain`, and `SurfaceOrientation`. The program fails for unknown names; it writes the generated Luau to standard output and does not alter the place. Generate a fresh bundle after source changes. Paste or submit the **entire** generated Luau to the Studio Edit command interface and inspect Output. A passing fixture prints `Studio source fixture <name> passed:` followed by the fixture result; an assertion or other error is a failure. The generated code refuses to run outside Edit mode.
+The accepted names are `PanelComponents`, `JointAuthoring`, `ViewportTargetHandle`, `WorldGhostSession`, `ChainDiscovery`, `AxisGizmo`, `HingeLimitHandles`, `SavedLimitOverlay`, `SurfaceProbe`, `SurfaceContactGizmo`, `ConfiguredOrientation`, `OrientationChain`, and `SurfaceOrientation`. The program fails for unknown names; it writes the generated Luau to standard output and does not alter the place. Generate a fresh bundle after source changes. Paste or submit the **entire** generated Luau to the Studio Edit command interface and inspect Output. A passing fixture prints `Studio source fixture <name> passed:` followed by the fixture result; an assertion or other error is a failure. The generated code refuses to run outside Edit mode.
 
 Check the bundler itself locally with:
 
@@ -18,7 +18,7 @@ python3 -m unittest discover -s tests -p 'test_studio_bundle.py'
 
 `SurfaceProbe` tests Workspace raycast filtering with the source and ghost excluded, slope/contact calculation, and invalid-input handling. `SurfaceContactGizmo` checks guide positioning, visibility, and disposal on detached instances; it does not establish that the guides render correctly in the viewport.
 
-`AxisGizmo` checks joint rest-frame calculations for Motor6D and Bone rigs. `HingeLimitHandles` exercises draft edits and handle placement with programmatically supplied rays; it does not establish that a person can select or drag a handle in the installed plugin.
+`AxisGizmo` checks joint rest-frame calculations for Motor6D and Bone rigs and signed ball twist-arc geometry. `HingeLimitHandles` exercises draft edits and handle placement with programmatically supplied rays; it does not establish that a person can select or drag a handle in the installed plugin. `JointAuthoring` verifies limit and control metadata can be validated and saved independently on detached Motor6D and Bone instances.
 
 `ConfiguredOrientation` checks that saved chains pass attachment orientation and requested pose options through. `OrientationChain` checks Motor6D and Bone endpoint orientations, including speed-capped diagnostics. `SurfaceOrientation` checks the surface-frame adapter, configured sole axes, strength, degeneracy, and input validation. These use disposable instances and do not verify an installed runtime, animated mesh, contact motion, or real-time performance.
 

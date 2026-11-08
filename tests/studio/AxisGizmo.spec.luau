@@ -27,8 +27,26 @@ assert(x.Thickness>=3,'axis lines must be visible enough for editing')
 assert(gizmo:setLimits({kind='Hinge',axis='Z',lower=-30,upper=60,swing=45}))
 assert(gizmo:update(motor))
 local limit=holder:FindFirstChild('EditRigIKLimit'); assert(limit and limit.Adornee==part)
+local twist=holder:FindFirstChild('EditRigIKTwist'); assert(twist and twist.Adornee==nil,'hinges must not display a ball twist guide')
+local ball={kind='Ball',axis='Z',lower=-30,upper=60,swing=45}
+local cone,arc=LimitGeometry.new(Config).build(ball)
+assert(#cone==52 and #arc>=50,'ball guide must show distinct swing and twist ranges')
+local center=Vector3.zAxis*1.3
+local function expected(angle) return center+(Vector3.xAxis*math.cos(math.rad(angle))+Vector3.yAxis*math.sin(math.rad(angle)))*.6 end
+assert((arc[1][1]-expected(-30)).Magnitude<1e-5,'twist starts at the signed lower bound')
+assert((arc[48][2]-expected(60)).Magnitude<1e-5,'twist ends at the signed upper bound')
+for _,axes in ipairs({{Vector3.xAxis,Vector3.yAxis,'X'}, {Vector3.yAxis,Vector3.zAxis,'Y'}, {Vector3.zAxis,Vector3.xAxis,'Z'}}) do
+ local axis,reference,name=axes[1],axes[2],axes[3]
+ local _,testArc=LimitGeometry.new(Config).build({kind='Ball',axis=name,lower=-45,upper=35,swing=25})
+ local expectedLower=axis*1.3+CFrame.fromAxisAngle(axis,math.rad(-45)):VectorToWorldSpace(reference)*.6
+ local expectedUpper=axis*1.3+CFrame.fromAxisAngle(axis,math.rad(35)):VectorToWorldSpace(reference)*.6
+ assert((testArc[1][1]-expectedLower).Magnitude<1e-5 and (testArc[48][2]-expectedUpper).Magnitude<1e-5,'signed twist follows the right-handed solver axis for '..name)
+end
+local worldArc=AxisGizmo.toWorldSegments(motorRest,arc)
+assert((worldArc[1][1]-motorRest:PointToWorldSpace(expected(-30))).Magnitude<1e-5,'twist guide follows rotated joint rest frames')
+assert(gizmo:setLimits(ball) and gizmo:update(motor) and twist.Adornee==part,'ball twist guide must render separately')
 assert(not gizmo:setLimits({kind='Hinge',axis='Z',lower=90,upper=-90,swing=45}))
-assert(limit.Adornee==nil,'invalid unsaved settings must hide the limit marker')
+assert(limit.Adornee==nil and twist.Adornee==nil,'invalid unsaved settings must hide both limit markers')
 assert(gizmo:update(bone))
 assert(x.Adornee==part,'Bone axes use the bone ancestor part')
 motor.Part0=nil

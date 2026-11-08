@@ -26,6 +26,9 @@
     "HingeLimitHandles": {
       "$path": "src/plugin/HingeLimitHandles.luau"
     },
+    "JointAuthoring": {
+      "$path": "src/plugin/JointAuthoring.luau"
+    },
     "RigOverlay": {
       "$path": "src/plugin/RigOverlay.luau"
     },

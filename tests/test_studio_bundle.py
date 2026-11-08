@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / 'tools' / 'bundle_studio_test.py'
 FIXTURES = {
+    'JointAuthoring': ('src/shared/Config.luau', 'src/plugin/InputProfileBuilder.luau', 'src/plugin/JointAuthoring.luau', 'tests/studio/JointAuthoring.integration.luau'),
     'AxisGizmo': ('src/shared/Config.luau', 'src/plugin/AxisGizmo.luau', 'src/plugin/LimitGeometry.luau', 'tests/studio/AxisGizmo.spec.luau'),
     'HingeLimitHandles': ('src/shared/Config.luau', 'src/plugin/AxisGizmo.luau', 'src/plugin/HingeDragMath.luau', 'src/plugin/HingeLimitHandles.luau', 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': ('src/shared/Config.luau', 'src/plugin/ChainBuilder.luau', 'src/runtime/ChainDefinition.luau', 'tests/studio/ConfiguredOrientation.integration.luau'),
