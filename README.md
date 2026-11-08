@@ -1,43 +1,59 @@
 # EditRig IK
 
-A companion Studio plugin and procedural animation framework in early prototype development. The installed RigEdit plugin is not modified. The project source is this directory; the target experimental model is `Workspace.Dino Auto` in Prehistoric Rumble.
+A Roblox Studio plugin and experimental Luau runtime for exploring joint limits and procedural inverse kinematics on `Motor6D` and skinned `Bone` rigs.
 
-## Current prototype
+> **Early prototype:** Back up your place before experimenting. Features and data formats may change. The plugin and its runtime are separate from the similarly named RigEdit plugin.
 
-The intended framework will guide actor/avatar setup, compose reusable procedural behaviors, and expose a script-facing actor controller; see [design](docs/design.md). The current direct-control actor workflow is an early subset of that framework.
+## What it does
 
-The docked editor accepts one selected `Motor6D` or `Bone` and saves validated hinge or ball-limit metadata as attributes, with undo waypoints. **The editor can create a direct-control actor definition and an idle controller from saved hinge or ball settings, including named controls and impulses. The same limits can be captured in an idle IK chain definition.** The experimental runtime exposes a CCD solver with optional endpoint-orientation targets, quaternion limits, a behavior coordinator, and Motor6D/Bone adapters. The editor can resolve a selected root-to-end path. Pole preference, constrained orientation solving and clone pose preview are experimental; full interactive limit visualization and procedural behavior authoring are not implemented yet. See [runtime API and conventions](docs/runtime.md), [design and investigation](docs/design.md), and [debugging and log locations](docs/debugging.md).
+- Inspect a model's joints and display a selectable rig overlay in the viewport.
+- Author hinge and ball limits, visualize joint axes, and edit hinge limits with 3D handles and numeric fields.
+- Explore inferred or manually selected IK chains and preview a constrained pose on a disposable ghost rig.
+- Create experimental actor and chain definitions and use the included Luau runtime for procedural control.
+- Experiment with surface-contact diagnostics and ghost orientation previews.
 
-Dino Auto has a separate, removable [body-relative target rotation experiment](examples/DinoAutoBodyRelativeTargets.server.luau) in the open Studio place. Its existing script and shared `ProceduralModule` remain unchanged. It makes the existing Transform IK targets follow the body's rotation while retaining their positions; this rotates planted feet too and is not a complete turning gait. See [the Play investigation](docs/debugging.md#dino-auto-turn-investigation).
+Features have varying levels of verification. Automatic body alignment, full procedural behavior authoring, and independent directional swing limits are not yet complete. Authored metadata does not automatically limit Roblox `IKControl` instances. See [runtime conventions](docs/runtime.md) and [design and limitations](docs/design.md).
 
-## Build and validation
+## Install a local build
 
-Requires Luau CLI 0.746 and Rojo 7.7.1. Set `LUAU_BIN`, `LUAU_COMPILE_BIN` and `ROJO_BIN` to their executables, then run:
+1. Obtain `EditRigIK.rbxm` from a trusted build, or [build it from source](#build-from-source). GitHub Actions build artifacts are temporary development builds, not official releases.
+2. In Studio, open **Plugins** and use the **Plugins Folder** control to open your local plugins directory. Copy `EditRigIK.rbxm` into that folder. Restart Studio or reload local plugins if necessary.
+3. Open a place, choose **Plugins → Joint Limits**, and select a model containing `Motor6D`s or `Bone`s. Joint markers should appear when the panel is open. Choose a marker to inspect its limits.
+4. Save limit edits explicitly with **Save joint limits**. Use the simulation controls to experiment on a ghost; inspect your rig and test changes before using them in an experience.
+
+On Windows the usual folder is `%LOCALAPPDATA%\Roblox\Plugins`; on macOS it is `~/Documents/Roblox/Plugins`. For Wine-based installations, use the Plugins Folder control to find the active prefix. Roblox documents [local plugin development](https://create.roblox.com/docs/studio/plugins) and [the Plugins Folder control](https://create.roblox.com/docs/reference/engine/classes/PluginMouse). No Creator Store publication is needed.
+
+To remove the plugin, close Studio and remove its `.rbxm` from the Plugins folder. Previously saved joint attributes and runtime objects in your places are separate from the plugin file.
+
+## Build from source
+
+Requirements: Python 3, [Luau 0.746](https://github.com/luau-lang/luau/releases/tag/0.746), and [Rojo 7.7.1](https://github.com/rojo-rbx/rojo/releases/tag/v7.7.1). Install executables suitable for your platform. Set `LUAU_BIN`, `LUAU_COMPILE_BIN`, and `ROJO_BIN` if they are not on your `PATH`:
 
 ```sh
+git clone https://github.com/AshMartian/EditRig-IK.git
+cd EditRig-IK
+export LUAU_BIN=/path/to/luau
+export LUAU_COMPILE_BIN=/path/to/luau-compile
+export ROJO_BIN=/path/to/rojo
 python3 tools/build.py
 ```
 
-The build runs portable Luau tests, compiles the sources, builds staged plugin and runtime packages, verifies their binary headers, and replaces `build/current` only after all checks pass. `build/current/manifest.json` records source fingerprint, tool settings, checks and artifact hashes; it is generated and ignored. Output is experimental. The observed Studio Plugins entry is a symlink to the built plugin. The actual panel, joint selection, Rig/Chain navigation and model-inspection button have been checked. Temporary Motor6D and Bone fixtures also verified saving settings, single-hinge creation and refresh, Bone actor creation, and ChangeHistoryService Undo; form values were set through the Studio bridge. A temporary two-motor fixture additionally checked chain capture, batch settings and the rendered clone preview; most other controls still need interaction tests. Isolated Studio tests evaluated the solver and drove unparented Motor6D and Bone transforms; source-level authoring and IK-chain tests also passed on unparented fixtures; a synthetic Play-server rig followed a Motor6D transform with an idle Animator, and an active Animator track triggered the actor's conflict cleanup. A temporary 15-Bone skinned mesh visibly bent in the installed clone preview and in a client-local Play test; a server-side chain test also converged. Animator coexistence and multiplayer remain unverified; the packaged runtime was loaded and exercised on detached fixtures. Selected Studio interface captures are retained under `evidence/studio/` to document the visual checks. Existing game assets and release packages are not stored here.
+On Windows, use your shell's environment-variable syntax and paths to the `.exe` files. If all three commands are on `PATH`, the exports can be omitted. Successful builds produce:
 
-The build compiles but does not execute Studio-only integration tests. Use the [Studio source fixture instructions](docs/studio-source-tests.md) to run selected fixtures in Edit mode; installed-plugin, pointer, and rendered behavior require separate Studio checks.
+- `build/current/EditRigIK.rbxm` — Studio plugin.
+- `build/current/EditRigIKRuntime.rbxm` — experimental runtime package; see [runtime documentation](docs/runtime.md) before using it.
+- `build/current/manifest.json` — source fingerprint, checks and artifact hashes.
 
-The default authoring values are placeholders, not anatomically correct dinosaur limits. Axis and rest-frame conventions need Studio verification on actual Motor6D and Bone rigs before use.
+The build runs portable tests, compiles Luau sources and Studio fixtures, validates both package headers, and replaces the previous successful output only after validation. GitHub Actions runs the same build on pushes and pull requests using pinned, checksum-verified tools, then uploads temporary artifacts.
 
-The limit form identifies unconfigured joints, saved settings, unsaved edits, invalid input, and invalid or unsupported saved metadata. The yellow guide uses the displayed draft; invalid limit values hide it. Switching joints reports when the previous joint's limit edits were not saved. This status covers limit fields and joint influence, not every actor or input field.
+## Testing in Studio
 
-The Joints page shows a selectable ordered chain when the active joint has a unique path and endpoint; the corresponding viewport joints are emphasized. Branching, invalid links, cycles and missing or multiple endpoints are reported rather than guessed. Use the capture buttons to specify a root, end and endpoint, or **Infer chain from selected joint** to capture a suggestion without saving a chain or limits. Explicit choices are tracked per captured rig and take precedence; clear them with **Clear captured chain choices**. An inferred root may include more of the rig than intended, so review the suggestion. This is an initial chain view, not a complete rig hierarchy editor.
+The command-line build **does not execute Studio integration tests** or prove viewport rendering, pointer interaction, Play behavior, or compatibility with your rig. Follow the [Studio fixture guide](docs/studio-source-tests.md), and use [debugging and log locations](docs/debugging.md) for installed-plugin checks. Validate on copies of representative Motor6D and Bone rigs, including Play mode when using runtime behavior.
 
-The editor groups controls under Rig, Joints, Alignment and Simulate. Select a saved chain and use **Start viewport simulation** for an experimental translucent clone in the main viewport. A numeric world-space offset moves the target and solves the clone; **Rotate target** switches to local-axis rotation rings for a requested endpoint orientation, and **Move target** returns to world-axis translation. The preview reports position and orientation error separately. Physical dragging of these handles still needs verification in the installed plugin. Reset and End restore or remove the temporary preview. Alignment → Feet offers an unsaved scene-contact check and an optional constrained ghost orientation preview with explicit sole axes. The surface preview assumes support and is limited to 16 joints; body alignment, saved alignment settings and automatic support detection are not implemented. See [viewport simulation](docs/runtime.md#viewport-simulation-prototype) and [surface-contact diagnostics](docs/runtime.md#surface-contact-diagnostics).
+## Contributing
 
-The prototype includes **Show selected joint axes and limits** for a selected Motor6D or Bone. It draws X in red, Y in green and Z in blue at the joint's rest frame, a yellow hinge arc or ball swing-cone boundary, and a separate orange ball twist arc using the values currently in the editor. The arcs use a perpendicular reference direction and the solver's signed local-axis convention. Invalid values hide the guides. These are temporary and should be removed when hidden, the panel closes or the plugin unloads. A Studio fixture checked translated and rotated geometry, and the installed plugin's axes and hinge arc were observed on a Dino Auto Motor6D. Bone rendering and ball-guide rendering still need a live viewport check; ball handles are not implemented.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, test expectations, and how to report problems. The [runtime guide](docs/runtime.md) describes data conventions and APIs.
 
-The X/Y/Z presets select the joint-local hinge axis; its limit plane is perpendicular to that axis. The lower and upper handles use the selected axis color, and the range rotation buttons shift both draft bounds together in 5° steps. Crossing ±180° promotes a hinge to a circular interval; the editor shows its allowed sweep and can save it for custom IK chains and clone previews. Circular limits are not supported by direct actors, built-in IK constraints or batch editing. Draft changes are not written to the joint until saved. Actual pointer and keyboard behavior in the installed plugin still needs verification. Arbitrary plane tilt and independent directional swing limits are not yet exposed; [the design](docs/design.md#planned-limit-frame-editing) records the required runtime work.
+## License
 
-**Save joint limits** validates and saves only limits and joint influence. Enter in a numeric limit field uses the same save action; Escape cancels that field's current edit. **Save control and input settings** separately saves named controls, impulses and key bindings against the saved joint type; review those settings after changing that type. The bulk action applies both groups. The user reported that a real hinge-handle drag changed an angle; further pointer, keyboard and Bone-rig validation is needed.
-
-With the panel open, selecting a Workspace model containing Motor6Ds or Bones automatically shows cyan joint markers and connecting lines in the main viewport. Valid saved limits are also shown, up to 24 at once. Click a marker to select its joint and show axes and hinge-limit endpoints; unconfigured example values are clearly labeled and remain unsaved. The plugin takes exclusive viewport mouse control while its overlay is active to keep Studio tools from moving the rig underneath it; the user confirmed that dragging a marker left the actor in place. Another Studio plugin can take control, and **Resume 3D joint editing** reactivates it. The Rig page reports how many saved limits are shown and offers **Hide 3D joints**; a manual hide lasts until the selection changes or the panel reopens. The overlays are temporary and do not pose the source model. They are removed when the panel closes, Play starts or the plugin unloads. Joint markers are limited to 300; hide and reopen them after changing the rig hierarchy. Hide RigEdit's own overlay if the displays overlap. Camera navigation and other tool handoff still need interactive confirmation.
-
-Select a Model and use **Inspect selected model** to list its joint types, Animators, AnimationConstraints and IKControls before configuring it. The inventory also counts hinge and ball constraints, reports whether each IKControl has a pole at inspection time, and counts joints with valid, missing or invalid IK metadata and disabled or incomplete motors; it shows the first eight joint issues. Saved EditRig IK metadata does not itself limit Roblox IKControls; constraint counts do not establish that their attachments, limits or placement are correct. The inventory is read-only and cannot establish exclusive ownership: scripts and controllers outside the selected model may also affect the rig. The prototype does not drive AnimationConstraints.
-
-The editor offers **Install runtime in ReplicatedStorage** for generated controllers. It refuses to overwrite an existing runtime and does not start animation. The button still needs an interactive Studio check; the cloned runtime was loaded and exercised in a detached Studio fixture.
+[MIT](LICENSE). Roblox and RigEdit are separate projects and are not included under this license.
