@@ -14,6 +14,10 @@ A Roblox Studio plugin and experimental Luau runtime for exploring joint limits 
 
 Features have varying levels of verification. Automatic body alignment, full procedural behavior authoring, and independent directional swing limits are not yet complete. Authored metadata does not automatically limit Roblox `IKControl` instances. See [runtime conventions](docs/runtime.md) and [design and limitations](docs/design.md).
 
+## Tutorials and screenshots
+
+Start with the [illustrated tutorials](docs/tutorials/README.md) for installation, joint limits, and chain previews. They include real earlier Studio captures; the interface has changed since those images were taken.
+
 ## Install a local build
 
 1. Download `EditRigIK.rbxm` from [GitHub Releases](https://github.com/AshMartian/EditRig-IK/releases), or [build it from source](#build-from-source). Prereleases are experimental; temporary Actions artifacts are development builds.
