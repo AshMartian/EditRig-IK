@@ -10,10 +10,10 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Install pinned build tools
         shell: bash
         run: |
@@ -33,7 +33,7 @@ jobs:
           ROJO_BIN: ${{ runner.temp }}/editrig-tools/rojo/rojo
         run: python3 tools/build.py
       - name: Upload tested build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: EditRigIK-build
           path: build/current/
