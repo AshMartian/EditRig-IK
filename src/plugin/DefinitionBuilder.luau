@@ -1,5 +1,7 @@
 --!strict
--- Build an unparented direct-control actor definition from authored joint metadata.
+-- Editor.server.luau uses this builder to copy saved joint attributes into an
+-- actor definition. It creates and refreshes Roblox objects but does not start
+-- the actor; Runtime.createActor reads the saved definition later.
 local DefinitionBuilder={}
 function DefinitionBuilder.new(Config)
  local api={}

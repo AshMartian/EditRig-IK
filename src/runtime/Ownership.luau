@@ -1,5 +1,7 @@
 --!strict
--- Per-runtime claims; not a lock against Animator, scripts, or other runtimes.
+-- Runtime.luau keeps one registry to prevent its own adapters from claiming
+-- the same joints twice. Claims are released by the owning adapter; this is not
+-- a lock against Animator, unrelated scripts, or another runtime instance.
 local Ownership={}
 function Ownership.new()
  local claims=setmetatable({}, {__mode='k'})

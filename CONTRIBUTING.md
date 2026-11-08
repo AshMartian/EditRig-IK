@@ -16,3 +16,14 @@ Include the plugin version or commit, Studio version, rig type (`Motor6D` or `Bo
 ## Scope and safety
 
 Do not include proprietary place files, credentials, or third-party assets without permission. Preserve original rigs while testing previews, and distinguish automated test results from observations in Studio.
+
+## Publishing a release
+
+After reviewing the change and validating in Studio, tag the exact commit to
+release with a version such as `v0.1.0-alpha.1` and push that tag. The tag's
+workflow runs the normal build first; only a successful build can publish the
+`.rbxm` packages, manifest, and `SHA256SUMS.txt` on GitHub Releases. Tags with a
+hyphen create prereleases. The workflow creates a draft before uploading, then
+publishes it; if a run fails after creating the draft, inspect and remove or
+finish that draft before retrying. Automated validation does not replace Studio
+tests. GitHub Actions artifacts from regular runs expire after 14 days.

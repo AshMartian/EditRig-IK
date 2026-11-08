@@ -1,5 +1,7 @@
 --!strict
--- Owns a disposable world-space clone. The caller owns the parent and target UI.
+-- The editor creates this session for the viewport simulation. The session owns
+-- the disposable clone and solver state; the editor owns the parent and target
+-- controls and calls destroy when the preview ends or the plugin unloads.
 local WorldGhostSession={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
 local function finiteFrame(frame)

@@ -1,7 +1,9 @@
 --!strict
--- Experimental CCD position and optional endpoint-orientation solver. Vectors are {x,y,z}, quaternions are
--- {x,y,z,w}. Each offset is in the joint's rotated local frame; `rest` is
--- relative to the parent's rotated frame. Rotations are relative to rest.
+-- Numerical CCD solver used by the runtime and clone previews. It works on
+-- plain tables and returns rotations and diagnostics; it does not move Roblox
+-- instances. Vectors are {x,y,z} and quaternions are {x,y,z,w}.
+-- Each offset is in the joint's rotated local frame; rest is relative to the
+-- parent's rotated frame. Rotations are relative to rest.
 local Solver = {}
 local EPS = 1e-10
 local function add(a,b) return {a[1]+b[1],a[2]+b[2],a[3]+b[3]} end
@@ -29,6 +31,8 @@ local function finiteVector(v)
  for i=1,3 do if type(v[i])~='number' or v[i]~=v[i] or math.abs(v[i])==math.huge then return false end end
  return true
 end
+-- Find the shortest rotation between directions. Opposite directions need
+-- a stable perpendicular axis because their cross product is nearly zero.
 local function between(a,b)
  local na,nb=length(a),length(b)
  if na<EPS or nb<EPS then return nil end
@@ -53,6 +57,7 @@ local function hingeDelta(axis, a, b)
  local half=angle/2; local sn=math.sin(half)
  return {axis[1]*sn,axis[2]*sn,axis[3]*sn,math.cos(half)}
 end
+-- Walk from root to tip to recover joint positions and bases for a CCD pass.
 local function forward(root,joints,rotations)
  local positions,bases={},{}
  local pos={root[1],root[2],root[3]}; local orientation={0,0,0,1}
@@ -68,6 +73,8 @@ end
 function Solver.new(limits,circularHingeV1)
  assert(type(limits)=='table' and type(limits.hinge)=='function' and type(limits.ball)=='function','limit functions required')
  local api={}
+ -- Keep each proposed local rotation inside its authored joint limits and
+ -- record which joints were changed for the caller's diagnostics.
  local function constrain(rotation,limit,index,limited)
   if not limit then return rotation end
   local result

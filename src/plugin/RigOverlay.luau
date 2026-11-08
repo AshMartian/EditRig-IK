@@ -1,5 +1,7 @@
 --!strict
--- Temporary Studio adornments; never insert visualization objects into the rig.
+-- Editor.server.luau owns this overlay while the panel is open. It renders
+-- temporary joint markers and lines outside the rig and reports marker clicks;
+-- the editor calls destroy when the overlay is hidden or no longer valid.
 local RigOverlay={}
 local function finite(value)
  return type(value)=='number' and value==value and math.abs(value)<math.huge

@@ -1,5 +1,7 @@
 --!strict
--- A disposable clone is rendered inside a plugin-owned ViewportFrame.
+-- The editor creates this disposable clone inside a ViewportFrame for a chain
+-- preview. Solves affect the clone, not the source rig; the editor closes the
+-- session when the preview or plugin panel closes.
 local PreviewSession={}
 local function unique(parent,name)
  local found=nil

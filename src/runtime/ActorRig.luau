@@ -1,5 +1,7 @@
 --!strict
--- Experimental explicit-owner actor built from saved ObjectValue bindings.
+-- Runtime.createActor reads a saved actor definition and builds joint drives.
+-- The caller must claim exclusive ownership and stop the actor after use; this
+-- module cannot prevent unrelated scripts or Roblox animation from writing.
 local ActorRig={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
 function ActorRig.new(folder,components,options)

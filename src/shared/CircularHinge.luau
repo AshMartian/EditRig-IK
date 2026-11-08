@@ -1,8 +1,9 @@
 --!strict
--- Experimental, opt-in circular hinge math used by schema-3 configured chains.
--- Editor authoring, ghost preview, and built-in constraints do not yet use it.
--- Angles are radians. An interval is {start, width} traversed positively;
--- width 0 is locked and width 2*pi is unrestricted. Quaternion order is xyzw.
+-- Circular hinge math used by supported configured chains and ghost previews.
+-- The editor can author these intervals, but direct actors and built-in Roblox
+-- IK constraints do not support them. Angles are radians; an interval is
+-- {start, width} traversed positively. Width 0 locks, 2*pi is unrestricted.
+-- Quaternions are {x,y,z,w}; this module does not modify Roblox instances.
 local CircularHinge={}
 local v1={}
 local turn=2*math.pi

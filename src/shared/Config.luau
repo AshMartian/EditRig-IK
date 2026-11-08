@@ -1,4 +1,7 @@
 --!strict
+-- Shared validation rules for saved joint settings and authoring drafts.
+-- Plugin builders and runtime consumers use the checked values; this module
+-- validates data and does not modify Roblox instances.
 local Config = {}
 local function finite(value: any): boolean
     return type(value) == 'number' and value == value and math.abs(value) < math.huge

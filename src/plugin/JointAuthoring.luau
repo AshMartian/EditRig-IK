@@ -1,5 +1,7 @@
 --!strict
--- Prepare each independent metadata edit before touching the selected joint.
+-- The editor calls this module to validate draft settings before saving joint
+-- attributes. Limits and control settings are prepared separately so an invalid
+-- edit cannot partly write one group of attributes.
 local JointAuthoring = {}
 local limitNames = {kind='EditRigIK_Kind',axis='EditRigIK_Axis',lower='EditRigIK_LowerDegrees',upper='EditRigIK_UpperDegrees',swing='EditRigIK_SwingDegrees',weight='EditRigIK_Weight'}
 local circularNames = {start='EditRigIK_CircularStartDegrees',width='EditRigIK_CircularWidthDegrees'}

@@ -1,5 +1,8 @@
 --!strict
--- Editable per-actor entry point. No updates start automatically.
+-- This template is copied into an actor model by Editor.server.luau.
+-- It needs that model's EditRigIKActor definition and EditRigIKRuntime in
+-- ReplicatedStorage. Require it, call run() to start updates, and stop() to
+-- disconnect and release the actor. It does not start automatically.
 local Controller={}
 local actor=nil
 local connection=nil

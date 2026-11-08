@@ -1,5 +1,7 @@
 --!strict
--- Explicit, ordered, homogeneous IK chain; no automatic discovery.
+-- Runtime.createIKChain adapts an ordered set of Motor6Ds or Bones to the
+-- shared numerical solver. It does not discover chains or schedule updates;
+-- the caller must manage ownership and dispose of the adapter.
 local ChainAdapter={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
 local function validVector(v)

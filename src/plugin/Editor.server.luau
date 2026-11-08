@@ -1,5 +1,8 @@
 --!strict
--- Authoring prototype: stores metadata and definitions without starting IK.
+-- Studio entry point: creates the panel and connects selection, buttons, and previews.
+-- Limit edits stay in a draft until saved; this script owns the viewport helpers
+-- and closes them when the widget closes, Play begins, or the plugin unloads.
+-- See docs/code-tour.md for the other files involved in each operation.
 local Selection = game:GetService('Selection')
 local ChangeHistoryService = game:GetService('ChangeHistoryService')
 local RunService = game:GetService('RunService')
@@ -116,6 +119,8 @@ overlayButton.Size=UDim2.new(1,0,0,32); overlayButton.BackgroundColor3=Color3.fr
 overlayButton.TextColor3=Color3.new(1,1,1); overlayButton.Text='Show selected model joints in 3D'; overlayButton.Font=Enum.Font.SourceSansBold; overlayButton.TextSize=16
 order(overlayButton); overlayButton.Parent=root
 local overlayStatus=label('Select a Workspace rig to show its joints. Click a marker to select that joint.',40)
+-- Rig overlay lifetime: the editor creates and disposes the guides, while
+-- OverlaySelection decides whether the current selection should show them.
 local rigOverlay,overlayFolder,overlayModel,savedLimitOverlay,savedLimitFolder=nil,nil,nil,nil,nil
 local savedLimitStatus=''
 local function hideRigOverlay()
@@ -652,6 +657,7 @@ syncViewportOwnership=function(model,joint)
     end
     if joint and axisGizmo then startHingeEdit() else stopHingeEdit(nil) end
 end
+-- Reconcile Studio selection, the active panel, and exclusive viewport input.
 syncVisualSelection=function()
     local items=Selection:Get(); local item=if #items==1 then items[1] else nil
     local joint=if item and (item:IsA('Motor6D') or item:IsA('Bone')) and item:IsDescendantOf(workspace) then item else nil
@@ -769,6 +775,7 @@ applyBatch.MouseButton1Click:Connect(function()
     status.Text='Saved '..#entries..' joints. Refresh actor and chain snapshots to use the changes.'
 end)
 
+-- Actor commands copy saved settings into a recipe; they do not start motion.
 createActor.MouseButton1Click:Connect(function()
     local selection=Selection:Get()
     local model=if #selection==1 then selection[1] else nil
@@ -941,6 +948,7 @@ local capturedControl: Instance?=nil
 local capturedChain: any=nil
 local captureModel: Instance?=nil
 local rootSource, endSource, endpointSource=nil,nil,nil
+-- Chain capture collects explicit choices before creating a saved definition.
 local function clearChainCapture()
     firstJoint=nil; lastJoint=nil; endpoint=nil; pole=nil
     capturedControl=nil; capturedChain=nil; captureModel=nil
@@ -1171,6 +1179,7 @@ previewFrame.Ambient=Color3.fromRGB(160,160,160); previewFrame.LightColor=Color3
 previewFrame.Visible=false
 local preview: any=nil
 local previewGuard: any=nil
+-- The panel preview owns a disposable clone and never poses the source rig.
 local function closePreview()
     if previewGuard then previewGuard:destroy(); previewGuard=nil end
     if preview then preview:destroy(); preview=nil end
@@ -1237,6 +1246,7 @@ local poseQueue,ghostDesiredOrientation,ghostJointCount,previewFallback=nil,nil,
 local ghostTargetPosition,ghostCurrentOrientation,orientationSource,ghostModeButton=nil,nil,nil,nil
 local ghostMode='move'
 local pendingTarget=nil
+-- The world ghost has a separate lifetime and must release viewport resources.
 local function closeGhost()
     pendingTarget=nil
     if poseQueue then poseQueue:cancel(); poseQueue=nil end

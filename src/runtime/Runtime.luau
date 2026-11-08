@@ -1,5 +1,7 @@
 --!strict
--- Experimental, engine-independent core. See docs/runtime.md for conventions.
+-- Public runtime entry point for game scripts and GeneratedController.luau.
+-- It assembles the solver, adapters and behaviors; creating a runtime module
+-- does not start animation. See docs/runtime.md for ownership and API rules.
 local Solver = require(script.Solver)
 local Limits = require(script.Limits)
 local CircularHinge = require(script.CircularHinge)

@@ -1,5 +1,7 @@
 --!strict
--- Resolve one unambiguous directed path and snapshot authored joint metadata.
+-- The editor calls this builder to find a directed path and save its joint
+-- settings into an IK chain definition. Ambiguous or invalid paths are rejected;
+-- creating the definition does not start an IK solver.
 local ChainBuilder={}
 function ChainBuilder.new(Config, testHook)
  assert(testHook==nil or type(testHook)=='function','invalid refresh test hook')

@@ -1,5 +1,7 @@
 --!strict
--- Temporary hinge limit handles; all edits are draft callbacks, never rig writes.
+-- The editor creates these temporary handles for a selected hinge. Dragging a
+-- handle reports draft angles to the editor; it does not save joint attributes.
+-- The caller owns the handle lifetime and removes it when selection changes.
 local HingeLimitHandles={}
 local axes={X=Vector3.xAxis,Y=Vector3.yAxis,Z=Vector3.zAxis}
 local references={X=Vector3.yAxis,Y=Vector3.zAxis,Z=Vector3.xAxis}

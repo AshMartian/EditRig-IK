@@ -1,6 +1,7 @@
 --!strict
--- Explicitly owned Motor6D/Bone transforms. Caller schedules updates and resolves
--- Animator/IKControl ownership; this module does not disable other writers.
+-- Runtime creates this adapter to read and write Motor6D or Bone transforms.
+-- Its caller schedules updates and releases ownership; ownership coordinates
+-- this runtime only and does not disable Animator, IKControl, or other scripts.
 local JointAdapter = {}
 local function finite(n)
  return type(n)=='number' and n==n and math.abs(n)<math.huge

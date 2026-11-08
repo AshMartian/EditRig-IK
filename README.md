@@ -16,7 +16,7 @@ Features have varying levels of verification. Automatic body alignment, full pro
 
 ## Install a local build
 
-1. Obtain `EditRigIK.rbxm` from a trusted build, or [build it from source](#build-from-source). GitHub Actions build artifacts are temporary development builds, not official releases.
+1. Download `EditRigIK.rbxm` from [GitHub Releases](https://github.com/AshMartian/EditRig-IK/releases), or [build it from source](#build-from-source). Prereleases are experimental; temporary Actions artifacts are development builds.
 2. In Studio, open **Plugins** and use the **Plugins Folder** control to open your local plugins directory. Copy `EditRigIK.rbxm` into that folder. Restart Studio or reload local plugins if necessary.
 3. Open a place, choose **Plugins → Joint Limits**, and select a model containing `Motor6D`s or `Bone`s. Joint markers should appear when the panel is open. Choose a marker to inspect its limits.
 4. Save limit edits explicitly with **Save joint limits**. Use the simulation controls to experiment on a ghost; inspect your rig and test changes before using them in an experience.
@@ -52,7 +52,7 @@ The command-line build **does not execute Studio integration tests** or prove vi
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, test expectations, and how to report problems. The [runtime guide](docs/runtime.md) describes data conventions and APIs.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, test expectations, and how to report problems. The [code tour](docs/code-tour.md) maps the editor, runtime, and important handoffs; the [runtime guide](docs/runtime.md) describes data conventions and APIs.
 
 ## License
 
