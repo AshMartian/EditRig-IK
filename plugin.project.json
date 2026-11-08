@@ -23,6 +23,12 @@
     "RigOverlay": {
       "$path": "src/plugin/RigOverlay.luau"
     },
+    "OverlaySelection": {
+      "$path": "src/plugin/OverlaySelection.luau"
+    },
+    "SavedLimitOverlay": {
+      "$path": "src/plugin/SavedLimitOverlay.luau"
+    },
     "LimitGeometry": {
       "$path": "src/plugin/LimitGeometry.luau"
     },
@@ -34,6 +40,15 @@
     },
     "PreviewGuard": {
       "$path": "src/plugin/PreviewGuard.luau"
+    },
+    "WorldGhostSession": {
+      "$path": "src/plugin/WorldGhostSession.luau"
+    },
+    "ViewportTargetHandle": {
+      "$path": "src/plugin/ViewportTargetHandle.luau"
+    },
+    "PanelComponents": {
+      "$path": "src/plugin/PanelComponents.luau"
     },
     "PreviewSolver": {
       "$path": "src/shared/Solver.luau"

@@ -2,6 +2,10 @@
 -- Discover references only; does not modify the controller or its rig.
 local ChainDiscovery={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
+function ChainDiscovery.formatOffset(offset)
+ assert(typeof(offset)=='Vector3' and finite(offset.X) and finite(offset.Y) and finite(offset.Z),'offset must be a finite Vector3')
+ return string.format('%.9g, %.9g, %.9g',offset.X,offset.Y,offset.Z)
+end
 function ChainDiscovery.parseOffset(text)
  assert(type(text)=='string','enter three numeric offsets separated by commas')
  local sx,sy,sz=string.match(text,'^%s*([^,]+),%s*([^,]+),%s*([^,]+)%s*$')

@@ -1,3 +1,4 @@
 build/
 .tools/
 *.rbxl.lock
+__pycache__/

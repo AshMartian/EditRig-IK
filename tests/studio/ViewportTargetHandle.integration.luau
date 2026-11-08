@@ -1,0 +1,38 @@
+assert(ViewportTargetHandle,'viewport target handle required')
+local world=Instance.new('Folder'); local gui=Instance.new('Folder'); local requests={}
+local handle=ViewportTargetHandle.new(world,gui,Vector3.new(1,2,3),function(point) table.insert(requests,point) end)
+assert(handle:isValid(),'new handle must be valid')
+local anchor=world:FindFirstChild('EditRigIKPreviewTarget')
+local gizmo=gui:FindFirstChild('EditRigIKTargetHandles')
+local endpoint=world:FindFirstChild('EditRigIKPreviewEndpoint')
+local gap=gui:FindFirstChild('EditRigIKPreviewGap')
+assert(anchor and gizmo and gizmo.Adornee==anchor,'target and draggable handles are created')
+assert(endpoint and gap,'the solved endpoint and target gap must be visible')
+assert(anchor.Shape~=endpoint.Shape,'target and endpoint must have distinct shapes without relying on color')
+assert(gap:IsA('LineHandleAdornment'),'gap geometry must expose its start, direction and length')
+assert(not gap.Visible,'gap is hidden when the target and endpoint coincide')
+assert(anchor.Anchored and not anchor.CanCollide and not anchor.CanTouch and not anchor.CanQuery,'target must not interact with physics or selection')
+handle:begin(Enum.NormalId.Right); handle:move(Enum.NormalId.Right,2)
+assert(#requests==1 and (requests[1]-Vector3.new(3,2,3)).Magnitude<1e-6,'drag is measured from the starting position')
+handle:setPosition(requests[1]); handle:move(Enum.NormalId.Right,3)
+handle:setEndpoint(Vector3.new(2,2,3)); assert((endpoint.Position-Vector3.new(2,2,3)).Magnitude<1e-6,'endpoint marks the actual solution')
+local lineFrame=gap.Adornee.CFrame*gap.CFrame
+assert(gap.Visible and (lineFrame.Position-anchor.Position).Magnitude<1e-6 and (lineFrame.Position+lineFrame.LookVector*gap.Length-endpoint.Position).Magnitude<1e-6,'gap must connect target and solved endpoint away from the origin')
+assert((requests[2]-Vector3.new(4,2,3)).Magnitude<1e-6,'distance must not accumulate as the handle moves')
+handle:finish(); handle:move(Enum.NormalId.Right,4); assert(#requests==2,'drag ends on release')
+handle:begin(Enum.NormalId.Front); handle:move(Enum.NormalId.Front,2)
+assert((requests[3]-Vector3.new(3,2,1)).Magnitude<1e-6,'front face uses negative world Z')
+assert(not pcall(function() handle:move(Enum.NormalId.Front,0/0) end),'nonfinite distances are rejected')
+handle:destroy(); handle:destroy(); assert(#world:GetChildren()==0 and #gui:GetChildren()==0,'destroy removes target and handles')
+for _,name in ipairs({'EditRigIKPreviewTarget','EditRigIKPreviewEndpoint','EditRigIKTargetHandles','EditRigIKPreviewGap'}) do
+ local probe=ViewportTargetHandle.new(world,gui,Vector3.zero,function() end)
+ local object=world:FindFirstChild(name) or gui:FindFirstChild(name)
+ assert(object,name..' fixture missing')
+ object.Parent=nil
+ assert(not probe:isValid(),name..' removal invalidates the handle')
+ assert(not pcall(function() probe:setPosition(Vector3.xAxis) end),'invalid handle must not accept updates')
+ probe:destroy()
+ assert(#world:GetChildren()==0 and #gui:GetChildren()==0,'invalid handle cleanup must remove remaining temporary objects')
+end
+world:Destroy(); gui:Destroy()
+return 'Viewport target drag math and cleanup passed'

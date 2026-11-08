@@ -8,9 +8,9 @@ function AxisGizmo.toWorldSegments(frame,segments)
  end
  return result
 end
-function AxisGizmo.new(parent,geometry)
+function AxisGizmo.new(parent,geometry,limitOnly)
  local lines={}
- for _,spec in ipairs({
+ for _,spec in ipairs(if limitOnly then {} else {
   {name='X',axis=Vector3.xAxis,color=Color3.fromRGB(255,75,75)},
   {name='Y',axis=Vector3.yAxis,color=Color3.fromRGB(75,255,100)},
   {name='Z',axis=Vector3.zAxis,color=Color3.fromRGB(80,145,255)},

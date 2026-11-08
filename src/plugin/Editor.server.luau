@@ -12,6 +12,10 @@ local IKConstraintBuilder = require(script.IKConstraintBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
 local RigOverlay = require(script.RigOverlay)
+local SavedLimitOverlay = require(script.SavedLimitOverlay)
+local OverlaySelection = require(script.OverlaySelection)
+local overlayPolicy = OverlaySelection.new()
+local syncVisualSelection = function() end
 local LimitGeometry = require(script.LimitGeometry).new(Config)
 local LimitDraft = require(script.LimitDraft).new(Config)
 local RuntimeInstaller = require(script.RuntimeInstaller)
@@ -99,17 +103,17 @@ local overlayButton=Instance.new('TextButton')
 overlayButton.Size=UDim2.new(1,0,0,32); overlayButton.BackgroundColor3=Color3.fromRGB(61,109,172)
 overlayButton.TextColor3=Color3.new(1,1,1); overlayButton.Text='Show selected model joints in 3D'; overlayButton.Font=Enum.Font.SourceSansBold; overlayButton.TextSize=16
 order(overlayButton); overlayButton.Parent=root
-local overlayStatus=label('Select a model, then show its joints. Click a marker to select that joint.',40)
-local rigOverlay,overlayFolder,overlayModel=nil,nil,nil
+local overlayStatus=label('Select a Workspace rig to show its joints. Click a marker to select that joint.',40)
+local rigOverlay,overlayFolder,overlayModel,savedLimitOverlay,savedLimitFolder=nil,nil,nil,nil,nil
+local savedLimitStatus=''
 local function hideRigOverlay()
+    if savedLimitOverlay then savedLimitOverlay:destroy(); savedLimitOverlay=nil end
+    if savedLimitFolder then savedLimitFolder:Destroy(); savedLimitFolder=nil end
     if rigOverlay then rigOverlay:destroy(); rigOverlay=nil end
     if overlayFolder then overlayFolder:Destroy(); overlayFolder=nil end
     overlayModel=nil; overlayButton.Text='Show selected model joints in 3D'
 end
-overlayButton.MouseButton1Click:Connect(function()
-    if rigOverlay then hideRigOverlay(); overlayStatus.Text='3D joints hidden.'; return end
-    if RunService:IsRunning() then overlayStatus.Text='Stop Play before opening the 3D joint overlay.'; return end
-    local items=Selection:Get(); local model=if #items==1 then items[1] else nil
+local function showRigOverlay(model)
     local folder=Instance.new('Folder'); folder.Name='EditRigIKRigOverlay'
     local ok,result=pcall(function()
         folder.Parent=game:GetService('CoreGui')
@@ -119,15 +123,36 @@ overlayButton.MouseButton1Click:Connect(function()
     overlayFolder=folder; rigOverlay=result; overlayModel=model
     local updated,err=pcall(function() rigOverlay:update() end)
     if not updated then hideRigOverlay(); overlayStatus.Text='Cannot update joints: '..tostring(err); return end
+    local limitFolder=Instance.new('Folder'); limitFolder.Name='SavedLimitGuides'; limitFolder.Parent=folder
+    local limitsOk,limits=pcall(SavedLimitOverlay.new,model,limitFolder,Config,AxisGizmo,LimitGeometry,24)
+    if limitsOk then savedLimitOverlay=limits; savedLimitFolder=limitFolder; savedLimitStatus=''
+    else limitFolder:Destroy(); savedLimitStatus='Saved guides unavailable.' end
     overlayButton.Text='Hide 3D joints'
-    overlayStatus.Text=tostring(rigOverlay:count())..' joints. Cyan markers select joints; yellow marks the selection. Hide RigEdit joints to avoid overlap.'
+    overlayStatus.Text=tostring(rigOverlay:count())..' joints. Cyan markers select joints; yellow marks the selection. '..savedLimitStatus
+end
+overlayButton.MouseButton1Click:Connect(function()
+    if rigOverlay then overlayPolicy:hideOverlay(); hideRigOverlay(); overlayStatus.Text='3D joints hidden until selection changes or the panel reopens.'; return end
+    overlayPolicy:showOverlay(); syncVisualSelection()
 end)
+local lastOverlayEdit=RunService:IsEdit()
 local overlayUpdate=RunService.Heartbeat:Connect(function()
+    local edit=RunService:IsEdit()
+    if edit~=lastOverlayEdit then lastOverlayEdit=edit; syncVisualSelection() end
     if rigOverlay then
-        if RunService:IsRunning() or not overlayModel:IsDescendantOf(workspace) then hideRigOverlay(); overlayStatus.Text='3D joints hidden.'; return end
+        if not edit or not overlayModel:IsDescendantOf(workspace) then hideRigOverlay(); overlayStatus.Text='3D joints hidden.'; return end
         local items=Selection:Get(); local selected=if #items==1 then items[1] else nil
         local ok=pcall(function() rigOverlay:update(selected) end)
         if not ok then hideRigOverlay(); overlayStatus.Text='3D joints hidden after an update error.' end
+        if savedLimitOverlay then
+            local good,shown,total=pcall(function() return savedLimitOverlay:update(selected) end)
+            if not good then
+                savedLimitOverlay:destroy(); savedLimitOverlay=nil; savedLimitStatus='Saved guides unavailable.'
+                if savedLimitFolder then savedLimitFolder:Destroy(); savedLimitFolder=nil end
+            else
+                savedLimitStatus=tostring(shown)..' saved limits shown of '..tostring(total)..' valid (maximum 24).'
+            end
+            overlayStatus.Text=tostring(rigOverlay:count())..' joints. '..savedLimitStatus
+        end
     end
 end)
 widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then hideRigOverlay() end end)
@@ -258,14 +283,16 @@ local function hideAxes()
 end
 local function updateLimitPreview()
     if not axisGizmo then return end
-    axisGizmo:setLimits(limitInput())
+    local classification=LimitDraft.classify(current,limitInput())
+    -- Blank/invalid metadata never renders the numeric form's fallback values
+    -- as if they were an authored limit.
+    axisGizmo:setLimits(if OverlaySelection.showLimit(classification) then limitInput() else nil)
 end
 for _,key in ipairs(limitKeys) do
     fields[key]:GetPropertyChangedSignal('Text'):Connect(updateLimitPreview)
 end
-axisButton.MouseButton1Click:Connect(function()
-    if axisGizmo then hideAxes(); return end
-    if not current then status.Text='Select a Motor6D or Bone first.'; return end
+local function showAxes()
+    if not current then return end
     local folder=Instance.new('Folder'); folder.Name='EditRigIKAxisPreview'
     local ok,result=pcall(function()
         folder.Parent=game:GetService('CoreGui')
@@ -278,11 +305,15 @@ axisButton.MouseButton1Click:Connect(function()
     if not updated or not visible then hideAxes(); status.Text='Cannot display this joint frame.'; return end
     axisButton.Text='Hide joint axes and limits'
     status.Text='X red, Y green, Z blue; yellow shows hinge range or ball swing. Ball twist is numeric only.'
+end
+axisButton.MouseButton1Click:Connect(function()
+    if axisGizmo then overlayPolicy:hideAxes(); hideAxes(); status.Text='Joint guide hidden until selection changes or the panel reopens.'; return end
+    overlayPolicy:showAxes(); syncVisualSelection()
 end)
 local axisUpdate=RunService.Heartbeat:Connect(function()
     if axisGizmo then
-        local ok=pcall(function() axisGizmo:update(current) end)
-        if not ok then hideAxes() end
+        local ok,visible=pcall(function() return axisGizmo:update(current) end)
+        if not ok or not visible or not RunService:IsEdit() then hideAxes() end
     end
 end)
 plugin.Unloading:Connect(function() axisUpdate:Disconnect(); hideAxes() end)
@@ -311,12 +342,34 @@ local function refresh()
         status.Text = ''
     end
     rememberLimitFields(); updatingFields=false; limitDiscardNotice=discarded
-    if current then attributeConnection=current.AttributeChanged:Connect(function() updateLimitState() end) end
+    if current then attributeConnection=current.AttributeChanged:Connect(function() updateLimitState(); updateLimitPreview() end) end
     updateLimitState()
+    updateLimitPreview()
 end
-button.Click:Connect(function() widget.Enabled = not widget.Enabled; button:SetActive(widget.Enabled); if widget.Enabled then refresh() end end)
-widget:GetPropertyChangedSignal('Enabled'):Connect(function() button:SetActive(widget.Enabled); if not widget.Enabled then hideAxes() end end)
-Selection.SelectionChanged:Connect(refresh)
+syncVisualSelection=function()
+    local items=Selection:Get(); local item=if #items==1 then items[1] else nil
+    local joint=if item and (item:IsA('Motor6D') or item:IsA('Bone')) and item:IsDescendantOf(workspace) then item else nil
+    local model=nil
+    if item and item:IsA('Model') and item:IsDescendantOf(workspace) then
+        for _,descendant in ipairs(item:GetDescendants()) do
+            if descendant:IsA('Motor6D') or descendant:IsA('Bone') then model=item; break end
+        end
+    elseif joint then
+        model=if overlayModel and joint:IsDescendantOf(overlayModel) then overlayModel else joint:FindFirstAncestorOfClass('Model')
+        if model and not model:IsDescendantOf(workspace) then model=nil end
+    end
+    local desiredModel,desiredJoint=overlayPolicy:update(widget.Enabled,RunService:IsEdit(),item,model,joint)
+    if rigOverlay and desiredModel~=overlayModel then hideRigOverlay() end
+    if desiredModel and not rigOverlay then showRigOverlay(desiredModel) end
+    if not desiredJoint then hideAxes() elseif not axisGizmo then showAxes() end
+end
+button.Click:Connect(function() widget.Enabled = not widget.Enabled end)
+widget:GetPropertyChangedSignal('Enabled'):Connect(function()
+    button:SetActive(widget.Enabled)
+    if widget.Enabled then refresh() end
+    syncVisualSelection()
+end)
+Selection.SelectionChanged:Connect(function() refresh(); syncVisualSelection() end)
 createIKHinge.MouseButton1Click:Connect(function()
     local items=Selection:Get(); local joint=if #items==1 then items[1] else nil
     local ok,prepared=pcall(IKConstraintBuilder.prepare,joint)
@@ -821,17 +874,164 @@ chainButton('Close clone preview').MouseButton1Click:Connect(function() closePre
 widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then closePreview() end end)
 plugin.Unloading:Connect(closePreview)
 
-local navigation=Instance.new('Frame')
-navigation.Name='SectionNavigation'; navigation.Size=UDim2.new(1,0,0,32)
-navigation.BackgroundColor3=Color3.fromRGB(30,32,38); navigation.Parent=widget
-for index,entry in ipairs({{'Rig',selectedLabel},{'Actor',createActor},{'Chain',chainTitle},{'Preview',previewTitle}}) do
-    local item=Instance.new('TextButton')
-    item.Name=entry[1]..'Section'; item.Position=UDim2.new((index-1)/4,0,0,0); item.Size=UDim2.new(.25,-1,1,0)
-    item.BackgroundColor3=Color3.fromRGB(53,57,68); item.TextColor3=Color3.fromRGB(245,245,245)
-    item.Font=Enum.Font.SourceSansBold; item.TextSize=15; item.Text=entry[1]; item.Parent=navigation
-    local destination=entry[2]
-    item.MouseButton1Click:Connect(function()
-        local offset=destination.AbsolutePosition.Y-root.AbsolutePosition.Y+root.CanvasPosition.Y
-        root.CanvasPosition=Vector2.new(0,math.max(0,offset-10))
-    end)
+local ghostTitle=label('Viewport simulation: select a saved chain. Uses the chain’s saved limits; refresh them from joints after editing. The translucent rig is a temporary preview.',80)
+local ghostStatus=label('Simulation is closed. Surface alignment is not available yet.',55)
+ghostStatus.AutomaticSize=Enum.AutomaticSize.Y; ghostStatus.TextYAlignment=Enum.TextYAlignment.Top
+local ghostOffsetLabel=label('Target offset X, Y, Z (world studs)',25)
+local ghostOffset=Instance.new('TextBox'); ghostOffset.Size=UDim2.new(1,0,0,30); ghostOffset.BackgroundColor3=Color3.fromRGB(60,63,72)
+ghostOffset.TextColor3=Color3.new(1,1,1); ghostOffset.Font=Enum.Font.SourceSans; ghostOffset.TextSize=16
+ghostOffset.Text='0, 0, 0'; ghostOffset.ClearTextOnFocus=false; order(ghostOffset); ghostOffset.Parent=root
+local ghost,ghostGuard,ghostTarget,ghostWorld,ghostGui,ghostAncestry=nil,nil,nil,nil,nil,nil
+local pendingTarget=nil
+local function closeGhost()
+    pendingTarget=nil
+    if ghostAncestry then ghostAncestry:Disconnect(); ghostAncestry=nil end
+    if ghostGuard then ghostGuard:destroy(); ghostGuard=nil end
+    if ghostTarget then ghostTarget:destroy(); ghostTarget=nil end
+    if ghost then ghost:destroy(); ghost=nil end
+    if ghostGui then ghostGui:Destroy(); ghostGui=nil end
+    if ghostWorld then ghostWorld:Destroy(); ghostWorld=nil end
 end
+local function checkGhostResources()
+    if not ghost then return false end
+    if not ghostWorld or ghostWorld.Parent~=workspace or not ghostGui or ghostGui.Parent~=game:GetService('CoreGui') or not ghostTarget or not ghost:isValid() or not ghostTarget:isValid() then
+        closeGhost(); ghostStatus.Text='Simulation closed: a temporary preview object was removed or moved. Start it again.'
+        return false
+    end
+    return true
+end
+local ghostStartButton=chainButton('Start viewport simulation')
+ghostStartButton.MouseButton1Click:Connect(function()
+    closeGhost(); closePreview()
+    if not RunService:IsEdit() then ghostStatus.Text='Stop Play before starting simulation.'; return end
+    local definition=selectedOne()
+    if not definition or not definition:IsA('Folder') or definition:GetAttribute('SchemaVersion')~=1 or not definition.Parent or definition.Parent.Name~='EditRigIKChains' or not definition.Parent.Parent or not definition.Parent.Parent:IsA('Model') then
+        ghostStatus.Text='Select a saved chain definition first.'; return
+    end
+    local ok,result=pcall(function()
+        assert(not workspace:FindFirstChild('EditRigIKGhostSession'),'another temporary ghost session already exists')
+        ghostWorld=Instance.new('Folder'); ghostWorld.Name='EditRigIKGhostSession'; ghostWorld.Archivable=false
+        ghostGui=Instance.new('Folder'); ghostGui.Name='EditRigIKGhostGui'; ghostGui.Archivable=false
+        local solver=require(script.PreviewSolver).new(require(script.PreviewLimits))
+        local adapter=require(script.PreviewChainAdapter)
+        local chainDefinition=require(script.PreviewChainDefinition)
+        ghost=require(script.WorldGhostSession).new(definition,ghostWorld,{createChain=function(copy)
+            return chainDefinition.new(copy,{exclusive=true},function(joints,point,options)
+                return adapter.new(joints,point,options,solver)
+            end)
+        end})
+        ghostTarget=require(script.ViewportTargetHandle).new(ghostWorld,ghostGui,ghost:startTarget(),function(target)
+            if checkGhostResources() then
+                local moved,err=pcall(function() ghostTarget:setPosition(target); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget()); pendingTarget=target end)
+                if not moved then closeGhost(); ghostStatus.Text='Simulation closed after target error: '..tostring(err) end
+            end
+        end)
+        ghostGuard=require(script.PreviewGuard).new(definition.Parent.Parent,definition,Selection,RunService,function(reason)
+            closeGhost(); ghostStatus.Text='Simulation closed: '..reason..'. Reopen the chain to try again.'
+        end)
+        ghostWorld.Parent=workspace; ghostGui.Parent=game:GetService('CoreGui')
+        ghostAncestry=ghostWorld.AncestryChanged:Connect(function()
+            if ghostWorld and not ghostWorld:IsDescendantOf(workspace) then closeGhost(); ghostStatus.Text='Simulation closed: temporary preview was removed.' end
+        end)
+        return true
+    end)
+    if not ok then closeGhost(); ghostStatus.Text='Cannot start simulation: '..tostring(result); return end
+    ghostOffset.Text=ChainDiscovery.formatOffset(Vector3.zero)
+    ghostStatus.Text='Preview uses saved chain limits. Refresh limits from joints after editing. Red: target; green: endpoint.'
+end)
+local ghostSetTargetButton=chainButton('Set viewport target offset')
+ghostSetTargetButton.MouseButton1Click:Connect(function()
+    if not ghost then ghostStatus.Text='Start viewport simulation first.'; return end
+    if not checkGhostResources() then return end
+    if not ghostGuard or not ghostGuard:check() then return end
+    local ok,offset=pcall(ChainDiscovery.parseOffset,ghostOffset.Text)
+    if not ok then ghostStatus.Text='Invalid target offset: '..tostring(offset); return end
+    local setOk,err=pcall(function()
+        local target=ghost:startTarget()+offset
+        ghostTarget:setPosition(target); pendingTarget=target
+    end)
+    if not setOk then closeGhost(); ghostStatus.Text='Simulation closed after target error: '..tostring(err) end
+end)
+local ghostResetButton=chainButton('Reset viewport simulation')
+ghostResetButton.MouseButton1Click:Connect(function()
+    if not ghost then ghostStatus.Text='Start viewport simulation first.'; return end
+    if not checkGhostResources() then return end
+    if not ghostGuard or not ghostGuard:check() then return end
+    pendingTarget=nil
+    local ok,err=pcall(function() ghost:reset(); local start=ghost:startTarget(); ghostTarget:setPosition(start); ghostTarget:setEndpoint(start) end)
+    if not ok then closeGhost(); ghostStatus.Text='Simulation closed after reset error: '..tostring(err); return end
+    ghostOffset.Text=ChainDiscovery.formatOffset(Vector3.zero)
+    ghostStatus.Text='Preview reset to its starting pose.'
+end)
+local ghostEndButton=chainButton('End viewport simulation')
+ghostEndButton.MouseButton1Click:Connect(function() closeGhost(); ghostStatus.Text='Simulation closed.' end)
+local ghostUpdate=RunService.Heartbeat:Connect(function()
+    if not ghost or not checkGhostResources() or not pendingTarget then return end
+    if not ghostGuard or not ghostGuard:check() then return end
+    local target=pendingTarget; pendingTarget=nil
+    local ok,result=pcall(function() local solved=ghost:solveTarget(target); ghostTarget:setEndpoint(solved.endpointWorld); return solved end)
+    if not ok then closeGhost(); ghostStatus.Text='Simulation closed after solve error: '..tostring(result); return end
+    ghostStatus.Text=string.format('%s | gap %.3f studs | %d iterations | clamped during solve: %d',if result.converged then 'Reached' else 'Not reached',result.error,result.iterations,#result.limitedJoints)
+end)
+widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then closeGhost() end end)
+plugin.Unloading:Connect(function() ghostUpdate:Disconnect(); closeGhost() end)
+
+-- The editor's existing controls are grouped into real pages; their callbacks
+-- retain the same instances and authorization/undo behavior.
+local panel=require(script.PanelComponents).new(widget)
+panel.root.Visible=false
+for _,item in ipairs(root:GetChildren()) do
+    if item:IsA('GuiObject') then
+        local page
+        if item==axisButton then page=panel.pages.Joints
+        elseif item.LayoutOrder<limitStateLabel.LayoutOrder then page=panel.pages.Rig
+        elseif item.LayoutOrder<createActor.LayoutOrder then page=panel.pages.Joints
+        elseif item.LayoutOrder<chainTitle.LayoutOrder then page=panel.pages.Rig
+        elseif item.LayoutOrder<previewTitle.LayoutOrder then page=panel.pages.Joints
+        else page=panel.pages.Simulate end
+        if item:IsA('TextButton') then
+            item.BackgroundColor3=Color3.fromRGB(49,55,66); item.TextWrapped=true
+            if item==apply then item.BackgroundColor3=Color3.fromRGB(42,115,151) end
+        end
+        item.Parent=page
+    end
+end
+ghostTitle.LayoutOrder=1; ghostStatus.LayoutOrder=2; ghostOffsetLabel.LayoutOrder=3; ghostOffset.LayoutOrder=4
+ghostStartButton.LayoutOrder=5; ghostSetTargetButton.LayoutOrder=6; ghostResetButton.LayoutOrder=7; ghostEndButton.LayoutOrder=8
+local selectedJointLabel=selectedLabel:Clone()
+selectedJointLabel.Name='SelectedJointContext'; selectedJointLabel.LayoutOrder=0; selectedJointLabel.Parent=panel.pages.Joints
+selectedLabel:GetPropertyChangedSignal('Text'):Connect(function() selectedJointLabel.Text=selectedLabel.Text end)
+status.Visible=false
+status:GetPropertyChangedSignal('Text'):Connect(function() panel:setStatus(if status.Text=='' then 'Ready.' else status.Text) end)
+ghostStatus:GetPropertyChangedSignal('Text'):Connect(function() panel:setStatus(ghostStatus.Text) end)
+panel:setStatus('Select a rig or joint to begin.')
+local alignTabs=Instance.new('Frame'); alignTabs.Name='AlignmentTabs'; alignTabs.Size=UDim2.new(1,0,0,38)
+alignTabs.BackgroundTransparency=1; alignTabs.LayoutOrder=1; alignTabs.Parent=panel.pages.Alignment
+local feetCard=panel:section('Alignment','Feet','Surface contact and foot orientation are not available yet. Select a foot chain when this workflow is implemented.')
+feetCard.LayoutOrder=2
+local bodyCard=panel:section('Alignment','Body','Body support, tilt and height alignment are not available yet. These settings will require an actor and valid support contacts.')
+bodyCard.LayoutOrder=2; bodyCard.Visible=false
+local feetTab=Instance.new('TextButton'); feetTab.Name='FeetTab'; feetTab.Text='Feet'; feetTab.Size=UDim2.new(.5,-2,1,0); feetTab.Parent=alignTabs
+local bodyTab=Instance.new('TextButton'); bodyTab.Name='BodyTab'; bodyTab.Text='Body'; bodyTab.Position=UDim2.new(.5,2,0,0); bodyTab.Size=UDim2.new(.5,-2,1,0); bodyTab.Parent=alignTabs
+local function selectAlignment(feet)
+    feetCard.Visible=feet; bodyCard.Visible=not feet
+    for _,tab in ipairs({feetTab,bodyTab}) do
+        local active=(tab==feetTab)==feet
+        tab.BackgroundColor3=if active then Color3.fromRGB(43,102,110) else Color3.fromRGB(49,55,66)
+        tab.TextColor3=Color3.fromRGB(240,242,247); tab.Font=Enum.Font.SourceSansBold; tab.TextSize=16
+    end
+end
+feetTab.Activated:Connect(function() selectAlignment(true) end)
+bodyTab.Activated:Connect(function() selectAlignment(false) end)
+selectAlignment(true)
+local contact=Instance.new('TextLabel'); contact.Name='ContactStatus'; contact.LayoutOrder=3
+contact.Size=UDim2.new(1,0,0,40); contact.BackgroundTransparency=1; contact.Text='Contact: not evaluated'
+contact.TextColor3=Color3.fromRGB(192,201,215); contact.Font=Enum.Font.SourceSans; contact.TextSize=16
+contact.TextXAlignment=Enum.TextXAlignment.Left; contact.Parent=panel.pages.Alignment
+local simulateLink=Instance.new('TextButton'); simulateLink.Name='OpenSimulate'; simulateLink.Text='Open simulation'
+simulateLink.Size=UDim2.fromScale(1,1); simulateLink.BackgroundColor3=Color3.fromRGB(42,115,151)
+simulateLink.TextColor3=Color3.new(1,1,1); simulateLink.Font=Enum.Font.SourceSansBold; simulateLink.TextSize=16
+simulateLink.Parent=panel.actions; simulateLink.Activated:Connect(function() panel:select('Simulate') end)
+root:Destroy(); panel.root.Visible=true
+-- Studio may restore an already-open dock widget across a plugin reload.
+refresh(); syncVisualSelection(); button:SetActive(widget.Enabled)

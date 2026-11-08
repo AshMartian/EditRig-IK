@@ -12,6 +12,8 @@ local humanoid=Instance.new('Humanoid'); humanoid.Parent=model
 local ik=Instance.new('IKControl'); ik.ChainRoot=upper; ik.EndEffector=endpoint; ik.Pole=pole; ik.Parent=humanoid
 local result=ChainDiscovery.inspect(ik)
 assert(ChainDiscovery.parseOffset(' 1, -2.5, 3 ') == Vector3.new(1,-2.5,3))
+local moved=Vector3.new(1.2345678, -0.00000012, 12345.678)
+assert(ChainDiscovery.parseOffset(ChainDiscovery.formatOffset(moved)) == moved, 'dragged offsets must round-trip without a target jump')
 assert(not pcall(function() ChainDiscovery.parseOffset('0,0') end),'incomplete offset must fail clearly')
 assert(#result.joints==3 and result.joints[1]==hip and result.joints[2]==knee and result.joints[3]==ankle,'include incoming root motor')
 assert(result.endpoint==endpoint and result.pole==pole)
