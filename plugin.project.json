@@ -8,6 +8,9 @@
     "ChainDiscovery": {
       "$path": "src/plugin/ChainDiscovery.luau"
     },
+    "ChainInference": {
+      "$path": "src/plugin/ChainInference.luau"
+    },
     "IKConstraintBuilder": {
       "$path": "src/plugin/IKConstraintBuilder.luau"
     },
@@ -22,6 +25,9 @@
     },
     "LimitGeometry": {
       "$path": "src/plugin/LimitGeometry.luau"
+    },
+    "LimitDraft": {
+      "$path": "src/plugin/LimitDraft.luau"
     },
     "PreviewSession": {
       "$path": "src/plugin/PreviewSession.luau"

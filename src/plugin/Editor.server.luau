@@ -7,11 +7,13 @@ local Config = require(script.Config)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local ChainDiscovery = require(script.ChainDiscovery)
+local ChainInference = require(script.ChainInference)
 local IKConstraintBuilder = require(script.IKConstraintBuilder).new(Config)
 local RigInspector = require(script.RigInspector)
 local AxisGizmo = require(script.AxisGizmo)
 local RigOverlay = require(script.RigOverlay)
 local LimitGeometry = require(script.LimitGeometry).new(Config)
+local LimitDraft = require(script.LimitDraft).new(Config)
 local RuntimeInstaller = require(script.RuntimeInstaller)
 local InputProfileBuilder = require(script.InputProfileBuilder)
 local GaitExampleInstaller = require(script.GaitExampleInstaller)
@@ -130,6 +132,8 @@ local overlayUpdate=RunService.Heartbeat:Connect(function()
 end)
 widget:GetPropertyChangedSignal('Enabled'):Connect(function() if not widget.Enabled then hideRigOverlay() end end)
 plugin.Unloading:Connect(function() overlayUpdate:Disconnect(); hideRigOverlay() end)
+local limitStateLabel=label('Limit settings: select one joint.',60)
+limitStateLabel.TextColor3=Color3.fromRGB(255,204,111)
 local fields: {[string]: TextBox} = {}
 for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','Lower angle (degrees)'}, {'upper','Upper angle (degrees)'}, {'swing','Ball swing (degrees)'}, {'weight','IK joint influence (0–1)'}, {'control','Control name'}, {'impulse','Impulse name'}, {'frequency','Impulse damping (1/s)'}, {'holdKey','Hold KeyCode (optional)'}, {'reverseHoldKey','Reverse hold KeyCode (optional)'}, {'holdValue','Hold value'}, {'impulseKey','Impulse KeyCode (optional)'}, {'impulseValue','Impulse value (rad/s)'}}) do
     local row = Instance.new('Frame')
@@ -210,6 +214,37 @@ statusPadding.PaddingLeft = UDim.new(0, 10)
 statusPadding.PaddingRight = UDim.new(0, 10)
 statusPadding.Parent = status
 local current: Instance? = nil
+local limitKeys={'kind','axis','lower','upper','swing','weight'}
+local baseline: {[string]: string}={}
+local updatingFields=false
+local limitDiscardNotice=false
+local attributeConnection: RBXScriptConnection?=nil
+local function limitInput()
+    return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=tonumber(fields.weight.Text)}
+end
+local function rememberLimitFields()
+    for _,key in ipairs(limitKeys) do baseline[key]=fields[key].Text end
+end
+local function limitFieldsChanged(): boolean
+    for _,key in ipairs(limitKeys) do if baseline[key]~=fields[key].Text then return true end end
+    return false
+end
+local function updateLimitState()
+    if updatingFields then return end
+    local state=LimitDraft.classify(current,limitInput())
+    local messages={
+        none='Limit settings: select one joint.',
+        unconfigured='Unconfigured: example limits are not saved. Yellow guide is a draft.',
+        saved='Saved limit settings. Yellow guide shows the saved values.',
+        draft='Unsaved limit changes. Yellow guide shows the draft.',
+        invalid='Invalid limit input. Yellow guide is hidden; nothing was saved.',
+        invalidSaved='Saved limit metadata is incomplete, invalid or unsupported. Review and save.',
+    }
+    limitStateLabel.Text=messages[state] or 'Limit state unavailable.'
+    if limitDiscardNotice then limitStateLabel.Text..=' Previous joint edits were not saved.' end
+    limitStateLabel.TextColor3=if state=='saved' then Color3.fromRGB(160,225,185) else Color3.fromRGB(255,204,111)
+end
+for _,key in ipairs(limitKeys) do fields[key]:GetPropertyChangedSignal('Text'):Connect(function() updateLimitState() end) end
 local axisButton=Instance.new('TextButton')
 axisButton.Size=UDim2.new(1,0,0,32); axisButton.BackgroundColor3=Color3.fromRGB(61,109,172)
 axisButton.TextColor3=Color3.new(1,1,1); axisButton.Text='Show selected joint axes and limits'
@@ -223,9 +258,9 @@ local function hideAxes()
 end
 local function updateLimitPreview()
     if not axisGizmo then return end
-    axisGizmo:setLimits({kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text)})
+    axisGizmo:setLimits(limitInput())
 end
-for _,key in ipairs({'kind','axis','lower','upper','swing'}) do
+for _,key in ipairs(limitKeys) do
     fields[key]:GetPropertyChangedSignal('Text'):Connect(updateLimitPreview)
 end
 axisButton.MouseButton1Click:Connect(function()
@@ -258,6 +293,9 @@ local inputAttrs = {holdKey='EditRigIK_HoldKey',reverseHoldKey='EditRigIK_Revers
 local function refresh()
     local items = Selection:Get()
     local item = if #items == 1 then items[1] else nil
+    local discarded=current~=nil and current~=item and (limitFieldsChanged() or LimitDraft.classify(current,limitInput())=='draft')
+    if attributeConnection then attributeConnection:Disconnect(); attributeConnection=nil end
+    updatingFields=true
     if item and (item:IsA('Motor6D') or item:IsA('Bone')) then
         current = item
         selectedLabel.Text = item.ClassName .. ': ' .. item:GetFullName()
@@ -272,6 +310,9 @@ local function refresh()
         selectedLabel.Text = if #items>1 then tostring(#items)..' selected. Form retains prior values; bulk applies displayed settings.' else 'Select one Motor6D or Bone in Explorer.'
         status.Text = ''
     end
+    rememberLimitFields(); updatingFields=false; limitDiscardNotice=discarded
+    if current then attributeConnection=current.AttributeChanged:Connect(function() updateLimitState() end) end
+    updateLimitState()
 end
 button.Click:Connect(function() widget.Enabled = not widget.Enabled; button:SetActive(widget.Enabled); if widget.Enabled then refresh() end end)
 widget:GetPropertyChangedSignal('Enabled'):Connect(function() button:SetActive(widget.Enabled); if not widget.Enabled then hideAxes() end end)
@@ -341,6 +382,7 @@ apply.MouseButton1Click:Connect(function()
     item:SetAttribute(inputAttrs.holdValue,holdValue); item:SetAttribute(inputAttrs.impulseValue,impulseValue)
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
+    rememberLimitFields(); limitDiscardNotice=false; updateLimitState()
     status.Text = 'Saved to ' .. item.Name .. '. Refresh actor and chain snapshots to use the changes.'
 end)
 local function batchValues()
@@ -545,6 +587,22 @@ local function selectedOne(): Instance?
     local items=Selection:Get()
     return if #items==1 then items[1] else nil
 end
+local inferenceStatus=label('Inferred paths are suggestions. Review the root, end and endpoint before creating a chain.',55)
+inferenceStatus.AutomaticSize=Enum.AutomaticSize.Y
+inferenceStatus.TextYAlignment=Enum.TextYAlignment.Top
+chainButton('Infer chain from selected joint').MouseButton1Click:Connect(function()
+    local joint=selectedOne()
+    if not joint or not (joint:IsA('Motor6D') or joint:IsA('Bone')) then inferenceStatus.Text='Select one Motor6D or Bone. Previous capture is unchanged.'; return end
+    local model=joint:FindFirstAncestorWhichIsA('Model')
+    local ok,result=pcall(ChainInference.infer,model,joint)
+    if not ok then inferenceStatus.Text='Cannot infer chain: '..tostring(result)..'. Previous capture is unchanged.'; return end
+    if not result.ok then inferenceStatus.Text='Cannot infer chain: '..result.message..' Use the capture buttons below to choose a root, end and endpoint. Previous capture is unchanged.'; return end
+    capturedControl=nil; capturedChain=nil; firstJoint=result.root; lastJoint=result.endJoint; endpoint=result.endpoint; pole=nil
+    refreshChainStatus()
+    local names={}
+    for _,j in ipairs(result.joints) do table.insert(names,j.Name) end
+    inferenceStatus.Text='Inferred suggestion: '..table.concat(names,' → ')..'  |  Endpoint: '..result.endpoint.Name..'. Review and correct with the capture buttons below; no limits or chain were saved.'
+end)
 local loadedChain: Instance?=nil
 chainButton('Load selected chain settings').MouseButton1Click:Connect(function()
     local definition=selectedOne()
