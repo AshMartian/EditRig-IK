@@ -1,5 +1,5 @@
 --!strict
--- Experimental CCD position solver. Vectors are {x,y,z}, quaternions are
+-- Experimental CCD position and optional endpoint-orientation solver. Vectors are {x,y,z}, quaternions are
 -- {x,y,z,w}. Each offset is in the joint's rotated local frame; `rest` is
 -- relative to the parent's rotated frame. Rotations are relative to rest.
 local Solver = {}
@@ -63,7 +63,7 @@ local function forward(root,joints,rotations)
   orientation=normalize(quat(base,rotations[i]))
   pos=add(pos,rotate(orientation,j.offset))
  end
- return positions,bases,pos
+ return positions,bases,pos,orientation
 end
 function Solver.new(limits)
  assert(type(limits)=='table' and type(limits.hinge)=='function' and type(limits.ball)=='function','limit functions required')
@@ -88,6 +88,10 @@ function Solver.new(limits)
   local gain=if options.gain==nil then 1 else options.gain
   assert(type(gain)=='number' and gain==gain and gain>0 and gain<=1,'invalid correction gain')
   assert(options.pole==nil or finiteVector(options.pole),'invalid pole')
+  local targetOrientation=if options.targetOrientation~=nil then normalize(options.targetOrientation) else nil
+  local endpointOrientation=if options.endpointOrientation~=nil then normalize(options.endpointOrientation) else {0,0,0,1}
+  local orientationTolerance=if options.orientationTolerance==nil then 0.01 else options.orientationTolerance
+  assert(type(orientationTolerance)=='number' and orientationTolerance==orientationTolerance and orientationTolerance>=0 and orientationTolerance<=math.pi,'invalid orientation tolerance')
   local rotations,weights,limited={},{},{}
   local hasReach=false
   local maxReach=0
@@ -105,7 +109,41 @@ function Solver.new(limits)
   end
   assert(hasReach,'chain has no nonzero links')
   local count=0
-  local _,_,endpoint=forward(chain.root,chain.joints,rotations)
+  local function pose()
+   local _,_,point,rotation=forward(chain.root,chain.joints,rotations)
+   local orientation=normalize(quat(rotation,endpointOrientation))
+   local angle=0
+   if targetOrientation then
+    local difference=normalize(quat(targetOrientation,inverse(orientation)))
+    angle=2*math.atan2(math.sqrt(difference[1]^2+difference[2]^2+difference[3]^2),math.abs(difference[4]))
+   end
+   return point,orientation,angle
+  end
+  local function objective(point,angle)
+   return (length(sub(target,point))/maxReach)^2+angle^2
+  end
+  local function applyCorrection(i,delta)
+   local original=rotations[i]
+   if not targetOrientation then
+    rotations[i]=constrain(normalize(quat(delta,original)),chain.joints[i].limit,i,limited)
+    return
+   end
+   local beforePoint,_,beforeAngle=pose()
+   local before=objective(beforePoint,beforeAngle)
+   local magnitude=math.sqrt(delta[1]^2+delta[2]^2+delta[3]^2)
+   if magnitude<EPS then return end
+   local fullAngle=2*math.atan2(magnitude,delta[4])
+   for attempt=0,12 do
+    local half=fullAngle/(2*2^attempt)
+    local factor=math.sin(half)/magnitude
+    local step={delta[1]*factor,delta[2]*factor,delta[3]*factor,math.cos(half)}
+    rotations[i]=constrain(normalize(quat(step,original)),chain.joints[i].limit,i,limited)
+    local point,_,angle=pose()
+    if objective(point,angle)<before-1e-15 then return end
+   end
+   rotations[i]=original
+  end
+  local endpoint,_,orientationError=pose()
   -- A collinear shortened target gives CCD no bend direction. Seed a small
   -- root rotation toward the pole, subject to the same root limit and budget.
   if options.pole and #chain.joints>1 and length(sub(target,endpoint))>options.tolerance then
@@ -124,11 +162,11 @@ function Solver.new(limits)
      local worldDelta={turn[1]*s,turn[2]*s,turn[3]*s,math.cos(half)}
      local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
      rotations[1]=constrain(normalize(quat(localDelta,rotations[1])),chain.joints[1].limit,1,limited)
-     _,_,endpoint=forward(chain.root,chain.joints,rotations)
+     endpoint,_,orientationError=pose()
     end
    end
   end
-  while count<options.iterations and length(sub(target,endpoint))>options.tolerance do
+  while count<options.iterations and (length(sub(target,endpoint))>options.tolerance or (targetOrientation and orientationError>orientationTolerance)) do
    count+=1
    for i=#chain.joints,1,-1 do
     local positions,bases,endPos=forward(chain.root,chain.joints,rotations)
@@ -150,11 +188,28 @@ function Solver.new(limits)
       local s=math.sin(corrected/2)/magnitude
       localDelta={localDelta[1]*s,localDelta[2]*s,localDelta[3]*s,math.cos(corrected/2)}
      end
-     local rotation=normalize(quat(localDelta,rotations[i]))
-     rotations[i]=constrain(rotation,limit,i,limited)
+     applyCorrection(i,localDelta)
     end
    end
-   _,_,endpoint=forward(chain.root,chain.joints,rotations)
+   if targetOrientation then
+    for i=#chain.joints,1,-1 do
+     local _,bases=forward(chain.root,chain.joints,rotations)
+     local beforePoint,currentOrientation,beforeAngle=pose()
+     if beforeAngle>EPS then
+      local delta=normalize(quat(targetOrientation,inverse(currentOrientation)))
+      if delta[4]<0 then delta={-delta[1],-delta[2],-delta[3],-delta[4]} end
+      local magnitude=math.sqrt(delta[1]^2+delta[2]^2+delta[3]^2)
+      if magnitude>EPS then
+       local correction=math.min(beforeAngle*gain*weights[i],maxStep)
+       local factor=math.sin(correction/2)/magnitude
+       delta={delta[1]*factor,delta[2]*factor,delta[3]*factor,math.cos(correction/2)}
+       local localDelta=quat(quat(inverse(bases[i]),delta),bases[i])
+       applyCorrection(i,localDelta)
+      end
+     end
+    end
+   end
+   endpoint,_,orientationError=pose()
   end
   local poleStatus=if options.pole then 'degenerate' else 'none'
   if options.pole and #chain.joints>1 then
@@ -175,18 +230,21 @@ function Solver.new(limits)
       rotations[1]=constrain(normalize(quat(localDelta,original)),chain.joints[1].limit,1,limited)
       local _,_,candidate=forward(chain.root,chain.joints,rotations)
       local similarity=math.abs(original[1]*rotations[1][1]+original[2]*rotations[1][2]+original[3]*rotations[1][3]+original[4]*rotations[1][4])
-      if similarity<1-1e-10 and length(sub(target,candidate))<=length(sub(target,endpoint))+1e-8 then
+      local _,_,candidateAngle=pose()
+      if similarity<1-1e-10 and length(sub(target,candidate))<=length(sub(target,endpoint))+1e-8 and (not targetOrientation or candidateAngle<=orientationError+1e-8) then
        endpoint=candidate; poleStatus='applied'
       else rotations[1]=original; poleStatus='blocked' end
      end
     end
    end
   end
+  local endpointPose; endpoint,endpointPose,orientationError=pose()
   local err=length(sub(target,endpoint))
-  local converged=err<=options.tolerance
+  local orientationConverged=if targetOrientation then orientationError<=orientationTolerance else nil
+  local converged=err<=options.tolerance and (not targetOrientation or orientationConverged)
   local status=if converged then 'converged' elseif length(sub(target,chain.root))>maxReach+options.tolerance then 'outsideReach' else 'notConverged'
   local limitedJoints={}; for i=1,#chain.joints do if limited[i] then table.insert(limitedJoints,i) end end
-  return {rotations=rotations,endpoint=endpoint,error=err,iterations=count,converged=converged,poleStatus=poleStatus,status=status,maxReach=maxReach,limitedJoints=limitedJoints}
+  return {rotations=rotations,endpoint=endpoint,endpointOrientation=endpointPose,orientationError=if targetOrientation then orientationError else nil,orientationConverged=orientationConverged,error=err,iterations=count,converged=converged,poleStatus=poleStatus,status=status,maxReach=maxReach,limitedJoints=limitedJoints}
  end
  return api
 end

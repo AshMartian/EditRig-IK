@@ -59,6 +59,26 @@ task.wait()
 assert(probe.result.Text:find('not evaluated', 1, true), 'editing probe inputs clears a stale scene result')
 probe:setContext('Select a saved chain.', false)
 assert(probe.result.Text:find('not evaluated', 1, true), 'changing selection clears stale contact results')
+local alignments = {}
+local visual = diagnosticPanel:contactProbe(function() end, function(settings) table.insert(alignments, settings) end)
+assert(visual.soleUp and visual.soleForward and visual.strength and visual.previewButton, 'alignment preview exposes explicit local frame and strength fields')
+assert(not visual:preview() and #alignments == 0, 'preview requires an active simulation')
+visual:setContext('Foot', true)
+assert(visual:preview() and #alignments == 1, 'configured preview sends a request')
+assert(alignments[1].soleUp[2] == 1 and alignments[1].soleForward[3] == -1 and alignments[1].strength == 1, 'defaults use explicit local axes and full strength')
+visual.soleUp.Text = '1, 0, 0'; visual.soleForward.Text = '0, 1, 0'; visual.strength.Text = '0.5'
+assert(visual:preview() and #alignments == 2, 'configured axes and strength are accepted')
+assert(alignments[2].soleUp[1] == 1 and alignments[2].soleForward[2] == 1 and alignments[2].strength == .5, 'preview preserves configured values')
+for _,change in ipairs({
+ function() visual.soleUp.Text = '0,0,0' end,
+ function() visual.soleUp.Text = 'inf,0,0' end,
+ function() visual.soleUp.Text = '1,2,3,4' end,
+ function() visual.soleUp.Text = '0,1,0'; visual.soleForward.Text = '0,-2,0' end,
+ function() visual.soleForward.Text = '0,0,-1'; visual.strength.Text = '-.1' end,
+ function() visual.strength.Text = '1.1' end,
+}) do change(); assert(not visual:preview() and #alignments == 2, 'invalid preview options must not be sent') end
+visual:setResult('Previously evaluated'); visual.soleForward.Text = '1,0,0'; task.wait()
+assert(visual.result.Text:find('not evaluated', 1, true), 'editing alignment axes invalidates stale result')
 diagnosticPanel:destroy(); probeHost:Destroy()
 
 return 'Panel page navigation, contact diagnostic, status, sections, and cleanup passed'

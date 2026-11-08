@@ -1,11 +1,16 @@
 --!strict
--- Explicit, ordered, homogeneous position-only IK chain; no automatic discovery.
+-- Explicit, ordered, homogeneous IK chain; no automatic discovery.
 local ChainAdapter={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
 local function validVector(v)
  return typeof(v)=='Vector3' and finite(v.X) and finite(v.Y) and finite(v.Z)
 end
 local function vector(v) return {v.X,v.Y,v.Z} end
+local function validFrame(cf)
+ if typeof(cf)~='CFrame' then return false end
+ for _,v in ipairs({cf:GetComponents()}) do if not finite(v) then return false end end
+ return true
+end
 local function quaternion(cf)
  local _,_,_,m00,m01,m02,m10,m11,m12,m20,m21,m22=cf:GetComponents()
  local x,y,z,w
@@ -51,6 +56,9 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   end
   entries[i]=e
  end
+ local endpointOrientation=if options.endpointOrientation==nil then CFrame.identity else options.endpointOrientation
+ assert(validFrame(endpointOrientation),'endpointOrientation must be a finite CFrame')
+ endpointOrientation=endpointOrientation.Rotation
  local limits=options.limits or {}
  assert(type(limits)=='table','limits must be a table')
  local suppliedWeights=options.weights or {}
@@ -90,6 +98,11 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
   local relative=root:PointToObjectSpace(target)
   assert(type(solveOptions)=='table','solver options required')
   local solverOptions=table.clone(solveOptions)
+  local requestedOrientation=solverOptions.targetOrientation
+  if requestedOrientation~=nil then
+   assert(validFrame(requestedOrientation),'targetOrientation must be a finite world-space CFrame')
+   solverOptions.targetOrientation=quaternion(root.Rotation:Inverse()*requestedOrientation.Rotation)
+  end
   local speed,dt=solverOptions.maxAngularSpeed,solverOptions.dt
   if speed~=nil then
    assert(finite(speed) and speed>0 and finite(dt) and dt>=0 and finite(speed*dt),'speed cap requires positive finite maxAngularSpeed and nonnegative finite dt')
@@ -109,6 +122,7 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
    table.insert(data.joints,{rest=quaternion(prevRest),rotation=quaternion(rotations[i]),offset=vector(rel.Position),limit=limits[i],weight=weights[i]})
    prevRest=rel.Rotation
   end
+  solverOptions.endpointOrientation=quaternion(prevRest*endpointOrientation)
   local result=solver.solve(data,vector(relative),solverOptions)
   local output={}
   local motionLimited=false
@@ -134,11 +148,20 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
     result.rotations[i]=quaternion(output[i])
    end
    result.endpoint=vector(position); result.error=(relative-position).Magnitude
-   result.converged=result.error<=solverOptions.tolerance
+   local endpointFrame=orientation*prevRest*endpointOrientation
+   result.endpointOrientation=quaternion(endpointFrame)
+   if requestedOrientation then
+    local delta=(root.Rotation*endpointFrame):Inverse()*requestedOrientation.Rotation
+    local _,angle=delta:ToAxisAngle()
+    result.orientationError=math.abs(angle)
+    result.orientationConverged=result.orientationError<=(solverOptions.orientationTolerance or 0.01)
+   end
+   result.converged=result.error<=solverOptions.tolerance and (not requestedOrientation or result.orientationConverged)
    if result.status~='outsideReach' then result.status=if result.converged then 'converged' else 'notConverged' end
   end
   result.motionLimited=motionLimited
   result.endpointWorld=root:PointToWorldSpace(Vector3.new(result.endpoint[1],result.endpoint[2],result.endpoint[3]))
+  result.endpointOrientationWorld=(root.Rotation*frame(result.endpointOrientation)).Rotation
   return result
  end
  function api:destroy()

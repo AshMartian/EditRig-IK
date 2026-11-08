@@ -19,4 +19,14 @@ probe:setExtraExclusions({})
 contact=Runtime.SurfaceContact.probe(options,cast)
 assert(contact.instance==ghostPlate, 'packaged probe must update exclusion filters')
 probe:destroy()
-return 'Packaged runtime contact raycast passed'
+local base=Instance.new('Part'); base.Anchored=true; base.Parent=source
+local tip=Instance.new('Part'); tip.Anchored=true; tip.Parent=source
+local joint=Instance.new('Motor6D'); joint.Part0=base; joint.Part1=tip; joint.Parent=base
+local chain=Runtime.createIKChain({joint},Vector3.xAxis,{exclusive=true})
+local desired=CFrame.Angles(0,0,math.rad(30))
+local solved=chain:solve(desired:PointToWorldSpace(Vector3.xAxis),{iterations=80,tolerance=.002,targetOrientation=desired,orientationTolerance=.002})
+assert(solved.converged and solved.orientationConverged,'packaged runtime must solve endpoint orientation')
+local frame=Runtime.SurfaceOrientation.align(CFrame.identity,Vector3.yAxis,-Vector3.zAxis,Vector3.yAxis,1)
+assert(frame and frame.rotation:FuzzyEq(CFrame.identity,1e-5),'packaged runtime must expose the surface orientation adapter')
+chain:destroy()
+return 'Packaged runtime contact and orientation passed'

@@ -2,6 +2,11 @@
 -- Owns a disposable world-space clone. The caller owns the parent and target UI.
 local WorldGhostSession={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
+local function finiteFrame(frame)
+ if typeof(frame)~='CFrame' then return false end
+ for _,component in ipairs({frame:GetComponents()}) do if not finite(component) then return false end end
+ return true
+end
 local function unique(parent,name)
  local found=nil
  for _,child in ipairs(parent:GetChildren()) do
@@ -94,8 +99,8 @@ function WorldGhostSession.new(definition,parent,components)
     end
    end
   end
-  local function endPosition()
-   return if last:IsA('Bone') then last.TransformedWorldCFrame:PointToWorldSpace(endpoint.Position) else endpoint.WorldPosition
+  local function endFrame()
+   return if last:IsA('Bone') then last.TransformedWorldCFrame*endpoint.CFrame else endpoint.WorldCFrame
   end
   chain=components.createChain(copy)
   assert(chain and type(chain.solve)=='function' and type(chain.destroy)=='function','invalid ghost chain')
@@ -105,7 +110,9 @@ function WorldGhostSession.new(definition,parent,components)
    if item:IsA('BasePart') then partFrames[item]=item.CFrame
    elseif item:IsA('Motor6D') or item:IsA('Bone') then transforms[item]=item.Transform end
   end
-  local start=endPosition()
+  local capturedFrame=endFrame()
+  local start=capturedFrame.Position
+  local orientation=capturedFrame.Rotation
   clone.Parent=parent -- parent only after removing supported active content
   local dead=false
   local api={}
@@ -113,20 +120,31 @@ function WorldGhostSession.new(definition,parent,components)
    return not dead and clone.Parent==parent and endpoint:IsDescendantOf(clone)
   end
   function api:startTarget() assert(self:isValid(),'ghost is closed or missing'); return start end
+  function api:startOrientation() assert(self:isValid(),'ghost is closed or missing'); return orientation end
   function api:solveTarget(target,overrides)
    assert(self:isValid(),'ghost is closed or missing')
    assert(typeof(target)=='Vector3' and finite(target.X) and finite(target.Y) and finite(target.Z),'target must be finite')
    assert(overrides==nil or type(overrides)=='table','solver overrides must be a table')
    local count=iterationCap
+   local targetOrientation,orientationTolerance=nil,nil
    if overrides then
     for key,value in pairs(overrides) do
-     assert(key=='iterations','unsupported ghost solver option: '..tostring(key))
-     assert(finite(value) and value%1==0 and value>=1 and value<=iterationCap,'invalid ghost iteration count')
-     count=value
+     if key=='iterations' then
+      assert(finite(value) and value%1==0 and value>=1 and value<=iterationCap,'invalid ghost iteration count')
+      count=value
+     elseif key=='targetOrientation' then
+      assert(finiteFrame(value),'target orientation must be a finite CFrame')
+      targetOrientation=value.Rotation
+     elseif key=='orientationTolerance' then
+      assert(finite(value) and value>=0 and value<=math.pi,'orientation tolerance must be between 0 and pi radians')
+      orientationTolerance=value
+     else
+      error('unsupported ghost solver option: '..tostring(key))
+     end
     end
    end
    local solveOk,solved=pcall(function()
-    local value=chain:solve(target,{iterations=count,maxAngularSpeed=0})
+    local value=chain:solve(target,{iterations=count,maxAngularSpeed=0,targetOrientation=targetOrientation,orientationTolerance=orientationTolerance})
     updateParts()
     return value
    end)

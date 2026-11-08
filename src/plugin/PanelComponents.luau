@@ -204,8 +204,9 @@ function PanelComponents.new(parent: Instance)
     end
     -- A one-shot scene query, not an authored foot-alignment setting. The
     -- caller supplies the selected chain and performs the actual raycast.
-    function api:contactProbe(onRequest)
+    function api:contactProbe(onRequest, onPreview)
         assert(type(onRequest) == 'function', 'contact diagnostic requires a request callback')
+        assert(onPreview == nil or type(onPreview) == 'function', 'alignment preview callback must be a function')
         local card = self:section('Alignment', 'Scene contact check',
             'Unsaved snapshot; check again after the scene changes. Requires a running viewport simulation. Probes straight down in world space from the ghost chain’s starting endpoint, not the draggable target. A hit does not establish foot support or move the ghost.')
         local context = textLabel('ChainContext', 'Start a viewport simulation for a saved chain.', 20)
@@ -257,6 +258,74 @@ function PanelComponents.new(parent: Instance)
 
         local ready = false
         local probe = {root = card, context = context, distance = distance, slope = slope, soleOffset = soleOffset, result = result, button = button}
+        if onPreview then
+            local explanation = textLabel('AlignmentPreviewDescription',
+                'Ghost alignment preview assumes this foot is supporting. Configure the sole axes in the endpoint’s local frame. Settings are not saved and do not drive the original rig.', 38)
+            explanation.LayoutOrder = 12
+            explanation.TextColor3 = colors.muted
+            explanation.Parent = card
+            local soleUp = numericField('SoleUp', 'Sole up, endpoint-local X, Y, Z', '0, 1, 0', 13)
+            local soleForward = numericField('SoleForward', 'Sole forward, endpoint-local X, Y, Z', '0, 0, -1', 15)
+            local strength = numericField('AlignmentStrength', 'Alignment strength (0–1)', '1', 17)
+            local preview = Instance.new('TextButton')
+            preview.Name = 'PreviewSurfaceAlignment'
+            preview.Text = 'Preview surface alignment on ghost'
+            preview.Size = UDim2.new(1, 0, 0, 36)
+            preview.LayoutOrder = 19
+            preview.BackgroundColor3 = Color3.fromRGB(42, 115, 151)
+            preview.BorderSizePixel = 0
+            preview.TextColor3 = colors.text
+            preview.Font = Enum.Font.SourceSansBold
+            preview.TextSize = 16
+            preview.TextWrapped = true
+            preview.Parent = card
+            probe.soleUp, probe.soleForward, probe.strength, probe.previewButton = soleUp, soleForward, strength, preview
+            for _,field in ipairs({soleUp, soleForward, strength}) do
+                field:GetPropertyChangedSignal('Text'):Connect(function()
+                    result.Text = 'Settings changed. Contact not evaluated.'
+                end)
+            end
+            local function parseAxis(text)
+                local x,y,z = text:match('^%s*([^,]+),([^,]+),([^,]+)%s*$')
+                x,y,z = tonumber(x),tonumber(y),tonumber(z)
+                if not x or not y or not z or x~=x or y~=y or z~=z or math.abs(x)==math.huge or math.abs(y)==math.huge or math.abs(z)==math.huge then return nil end
+                local scale = math.max(math.abs(x), math.abs(y), math.abs(z))
+                if scale < 1e-10 then return nil end
+                return {x,y,z}, {x/scale,y/scale,z/scale}
+            end
+            function probe:preview(): boolean
+                if not ready then
+                    result.Text = 'Start a viewport simulation for a saved chain before previewing alignment.'
+                    return false
+                end
+                local up,u = parseAxis(soleUp.Text)
+                local forward,f = parseAxis(soleForward.Text)
+                if not up or not forward then
+                    result.Text = 'Sole up and forward must each contain three finite, nonzero numbers.'
+                    return false
+                end
+                local cross = {u[2]*f[3]-u[3]*f[2],u[3]*f[1]-u[1]*f[3],u[1]*f[2]-u[2]*f[1]}
+                local crossSquared = cross[1]^2 + cross[2]^2 + cross[3]^2
+                local normProduct = (u[1]^2+u[2]^2+u[3]^2)*(f[1]^2+f[2]^2+f[3]^2)
+                if crossSquared < 1e-12 * normProduct then
+                    result.Text = 'Sole up and forward must not be parallel.'
+                    return false
+                end
+                local amount = tonumber(strength.Text)
+                if not amount or amount ~= amount or amount < 0 or amount > 1 then
+                    result.Text = 'Alignment strength must be a number from 0 to 1.'
+                    return false
+                end
+                result.Text = 'Previewing surface alignment…'
+                local ok, err = pcall(onPreview, {soleUp=up, soleForward=forward, strength=amount})
+                if not ok then
+                    result.Text = 'Alignment preview failed: ' .. tostring(err)
+                    return false
+                end
+                return true
+            end
+            preview.Activated:Connect(function() probe:preview() end)
+        end
         function probe:setContext(description: string, available: boolean)
             context.Text = description
             ready = available

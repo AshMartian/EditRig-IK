@@ -882,10 +882,13 @@ local ghostOffset=Instance.new('TextBox'); ghostOffset.Size=UDim2.new(1,0,0,30);
 ghostOffset.TextColor3=Color3.new(1,1,1); ghostOffset.Font=Enum.Font.SourceSans; ghostOffset.TextSize=16
 ghostOffset.Text='0, 0, 0'; ghostOffset.ClearTextOnFocus=false; order(ghostOffset); ghostOffset.Parent=root
 local ghost,ghostGuard,ghostTarget,ghostWorld,ghostGui,ghostAncestry=nil,nil,nil,nil,nil,nil
-local surfacePanel,surfaceGuide,surfaceSource=nil,nil,nil
+local surfacePanel,surfaceGuide,surfaceSource,surfaceSnapshot=nil,nil,nil,nil
+local poseQueue,ghostDesiredOrientation,ghostJointCount,previewFallback=nil,nil,0,false
 local pendingTarget=nil
 local function closeGhost()
     pendingTarget=nil
+    if poseQueue then poseQueue:cancel(); poseQueue=nil end
+    ghostDesiredOrientation=nil; ghostJointCount=0; surfaceSnapshot=nil; previewFallback=false
     if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
     surfaceSource=nil
     if surfacePanel then surfacePanel:setContext('Start a viewport simulation for a saved chain.',false) end
@@ -924,9 +927,14 @@ ghostStartButton.MouseButton1Click:Connect(function()
                 return adapter.new(joints,point,options,solver)
             end)
         end})
+        ghostJointCount=#definition.Joints:GetChildren()
+        poseQueue=require(script.PosePreviewQueue).new(math.min(40,definition:GetAttribute('Iterations')))
         ghostTarget=require(script.ViewportTargetHandle).new(ghostWorld,ghostGui,ghost:startTarget(),function(target)
             if checkGhostResources() then
-                local moved,err=pcall(function() ghostTarget:setPosition(target); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget()); pendingTarget=target end)
+                local moved,err=pcall(function()
+                    ghostTarget:setPosition(target); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget())
+                    if ghostDesiredOrientation then poseQueue:request(target,ghostDesiredOrientation) else pendingTarget=target end
+                end)
                 if not moved then closeGhost(); ghostStatus.Text='Simulation closed after target error: '..tostring(err) end
             end
         end)
@@ -956,7 +964,8 @@ ghostSetTargetButton.MouseButton1Click:Connect(function()
     if not ok then ghostStatus.Text='Invalid target offset: '..tostring(offset); return end
     local setOk,err=pcall(function()
         local target=ghost:startTarget()+offset
-        ghostTarget:setPosition(target); pendingTarget=target
+        ghostTarget:setPosition(target)
+        if ghostDesiredOrientation then poseQueue:request(target,ghostDesiredOrientation) else pendingTarget=target end
     end)
     if not setOk then closeGhost(); ghostStatus.Text='Simulation closed after target error: '..tostring(err) end
 end)
@@ -966,6 +975,11 @@ ghostResetButton.MouseButton1Click:Connect(function()
     if not checkGhostResources() then return end
     if not ghostGuard or not ghostGuard:check() then return end
     pendingTarget=nil
+    if poseQueue then poseQueue:cancel() end
+    ghostDesiredOrientation=nil
+    surfaceSnapshot=nil
+    if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+    if surfacePanel then surfacePanel:setResult('Preview reset. Check the scene surface again before aligning.') end
     local ok,err=pcall(function() ghost:reset(); local start=ghost:startTarget(); ghostTarget:setPosition(start); ghostTarget:setEndpoint(start) end)
     if not ok then closeGhost(); ghostStatus.Text='Simulation closed after reset error: '..tostring(err); return end
     ghostOffset.Text=ChainDiscovery.formatOffset(Vector3.zero)
@@ -976,10 +990,30 @@ ghostEndButton.MouseButton1Click:Connect(function() closeGhost(); ghostStatus.Te
 local ghostUpdate=RunService.Heartbeat:Connect(function()
     if surfaceGuide and not surfaceGuide:isValid() then
         surfaceGuide:destroy(); surfaceGuide=nil
+        surfaceSnapshot=nil; ghostDesiredOrientation=nil
+        if poseQueue then poseQueue:cancel() end
         if surfacePanel then surfacePanel:setResult('Contact guide was removed. Check the scene surface again.') end
     end
-    if not ghost or not checkGhostResources() or not pendingTarget then return end
+    if not ghost or not checkGhostResources() then return end
     if not ghostGuard or not ghostGuard:check() then return end
+    local job=poseQueue and poseQueue:next()
+    if job then
+        local ok,result=pcall(function()
+            local solved=ghost:solveTarget(job.target,{iterations=1,targetOrientation=job.orientation,orientationTolerance=math.rad(1)})
+            ghostTarget:setEndpoint(solved.endpointWorld); return solved
+        end)
+        if not ok then poseQueue:complete(job,nil); closeGhost(); ghostStatus.Text='Simulation closed after solve error: '..tostring(result); return end
+        local accepted,state=poseQueue:complete(job,result)
+        if accepted then
+            local label=if state=='pending' then 'Solving' elseif state=='converged' then 'Reached' else 'Not reached'
+            local message=string.format('%s · gap %.3f studs · orientation error %.1f° · step %d',label,result.error,math.deg(result.orientationError),job.iteration)
+            if previewFallback then message..=' · heading fallback' end
+            ghostStatus.Text=message
+            if surfacePanel then surfacePanel:setResult(message..'\nPreview assumes support; original rig is unchanged.') end
+        end
+        return
+    end
+    if not pendingTarget then return end
     local target=pendingTarget; pendingTarget=nil
     local ok,result=pcall(function() local solved=ghost:solveTarget(target); ghostTarget:setEndpoint(solved.endpointWorld); return solved end)
     if not ok then closeGhost(); ghostStatus.Text='Simulation closed after solve error: '..tostring(result); return end
@@ -1019,7 +1053,7 @@ ghostStatus:GetPropertyChangedSignal('Text'):Connect(function() panel:setStatus(
 panel:setStatus('Select a rig or joint to begin.')
 local alignTabs=Instance.new('Frame'); alignTabs.Name='AlignmentTabs'; alignTabs.Size=UDim2.new(1,0,0,38)
 alignTabs.BackgroundTransparency=1; alignTabs.LayoutOrder=1; alignTabs.Parent=panel.pages.Alignment
-local feetCard=panel:section('Alignment','Feet','Foot orientation is not available yet. The scene contact check below is a diagnostic only.')
+local feetCard=panel:section('Alignment','Feet','Inspect scene contact and try an experimental, unsaved alignment on the ghost.')
 feetCard.LayoutOrder=2
 local bodyCard=panel:section('Alignment','Body','Body support, tilt and height alignment are not available yet. These settings will require an actor and valid support contacts.')
 bodyCard.LayoutOrder=2; bodyCard.Visible=false
@@ -1029,6 +1063,9 @@ surfacePanel=panel:contactProbe(function(options)
         return
     end
     if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+    if poseQueue then poseQueue:cancel() end
+    ghostDesiredOrientation=nil; pendingTarget=nil
+    surfaceSnapshot=nil
     local origin=ghost:startTarget()
     local ray=require(script.SurfaceProbe).new(workspace,surfaceSource,{ghostWorld})
     local ok,result=pcall(function()
@@ -1048,15 +1085,34 @@ surfacePanel=panel:contactProbe(function(options)
             if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
             surfacePanel:setResult('Contact was detected, but its guide could not be shown: '..tostring(showError)); return
         end
+        surfaceSnapshot=result
         surfacePanel:setResult(string.format('Surface detected · slope %.1f°\nCandidate: %.2f, %.2f, %.2f studs\nContact does not establish support.',result.slopeDegrees,t[1],t[2],t[3]))
     elseif result.status=='excluded slope' then
         surfacePanel:setResult(string.format('Surface excluded: %.1f° exceeds the maximum slope.',result.slopeDegrees))
     elseif result.status=='no contact' then surfacePanel:setResult('No surface found within the probe distance.')
     else surfacePanel:setResult('Contact result was invalid.') end
+end,function(options)
+    if not ghost or not surfaceSnapshot or not checkGhostResources() or not ghostGuard or not ghostGuard:check() then
+        if surfacePanel then surfacePanel:setResult('Check the scene surface before previewing alignment.') end; return
+    end
+    if ghostJointCount>16 then surfacePanel:setResult('Alignment preview supports up to 16 joints to keep Studio responsive.'); return end
+    local u,f,n=options.soleUp,options.soleForward,surfaceSnapshot.normal
+    local aligned,reason=require(script.SurfaceOrientation).align(ghost:startOrientation(),Vector3.new(u[1],u[2],u[3]),Vector3.new(f[1],f[2],f[3]),Vector3.new(n[1],n[2],n[3]),options.strength,require(script.SurfaceFrame))
+    if not aligned then surfacePanel:setResult('Cannot determine the surface frame: '..tostring(reason)); return end
+    local t=surfaceSnapshot.target; local target=Vector3.new(t[1],t[2],t[3])
+    ghostDesiredOrientation=aligned.rotation; previewFallback=aligned.usedFallback
+    pendingTarget=nil; ghostTarget:setPosition(target); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget())
+    poseQueue:request(target,ghostDesiredOrientation)
+    surfacePanel:setResult('Solving ghost alignment; preview assumes support.')
 end)
 surfacePanel.root.LayoutOrder=3; surfacePanel.root.Parent=feetCard
-for _,field in ipairs({surfacePanel.distance,surfacePanel.slope,surfacePanel.soleOffset}) do
-    field:GetPropertyChangedSignal('Text'):Connect(function() if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end end)
+for _,field in ipairs({surfacePanel.distance,surfacePanel.slope,surfacePanel.soleOffset,surfacePanel.soleUp,surfacePanel.soleForward,surfacePanel.strength}) do
+    field:GetPropertyChangedSignal('Text'):Connect(function()
+        if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+        if ghostDesiredOrientation then ghostStatus.Text='Alignment preview stopped because settings changed.' end
+        surfaceSnapshot=nil; ghostDesiredOrientation=nil
+        if poseQueue then poseQueue:cancel() end
+    end)
 end
 local feetTab=Instance.new('TextButton'); feetTab.Name='FeetTab'; feetTab.Text='Feet'; feetTab.Size=UDim2.new(.5,-2,1,0); feetTab.Parent=alignTabs
 local bodyTab=Instance.new('TextButton'); bodyTab.Name='BodyTab'; bodyTab.Text='Body'; bodyTab.Position=UDim2.new(.5,2,0,0); bodyTab.Size=UDim2.new(.5,-2,1,0); bodyTab.Parent=alignTabs

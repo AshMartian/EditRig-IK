@@ -14,6 +14,8 @@ MODULES = {
     'ChainDefinition': 'src/runtime/ChainDefinition.luau',
     'PanelComponents': 'src/plugin/PanelComponents.luau',
     'SurfaceContact': 'src/runtime/SurfaceContact.luau',
+    'SurfaceFrame': 'src/runtime/SurfaceFrame.luau',
+    'SurfaceOrientation': 'src/runtime/SurfaceOrientation.luau',
     'SurfaceProbe': 'src/runtime/SurfaceProbe.luau',
     'SurfaceContactGizmo': 'src/plugin/SurfaceContactGizmo.luau',
     'ViewportTargetHandle': 'src/plugin/ViewportTargetHandle.luau',
@@ -24,6 +26,9 @@ MODULES = {
     'SavedLimitOverlay': 'src/plugin/SavedLimitOverlay.luau',
 }
 FIXTURES = {
+    'ConfiguredOrientation': (('Config', 'ChainBuilder', 'ChainDefinition'), 'tests/studio/ConfiguredOrientation.integration.luau'),
+    'OrientationChain': (('Limits', 'Solver', 'ChainAdapter'), 'tests/studio/OrientationChain.integration.luau'),
+    'SurfaceOrientation': (('SurfaceFrame', 'SurfaceOrientation'), 'tests/studio/SurfaceOrientation.integration.luau'),
     'PanelComponents': (('PanelComponents',), 'tests/studio/PanelComponents.integration.luau'),
     'SurfaceProbe': (('SurfaceContact', 'SurfaceProbe'), 'tests/studio/SurfaceProbe.integration.luau'),
     'SurfaceContactGizmo': (('SurfaceContactGizmo',), 'tests/studio/SurfaceContactGizmo.integration.luau'),

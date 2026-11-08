@@ -49,11 +49,11 @@ function ChainDefinition.new(definition,options,createChain)
  assert(finite(gain) and gain>0 and gain<=1,'invalid correction gain')
  assert(finite(maxSpeedDegrees) and maxSpeedDegrees>=0 and maxSpeedDegrees<=3600,'invalid maximum angular speed')
  assert(baseMode=='fixed' or baseMode=='animated','invalid chain base mode')
- local endpointParent,endpointPosition=endpoint.Parent,endpoint.Position
- local chain=createChain(joints,endpointPosition,{exclusive=true,limits=limits,weights=weights,baseMode=baseMode})
+ local endpointParent,endpointFrame=endpoint.Parent,endpoint.CFrame
+ local chain=createChain(joints,endpointFrame.Position,{exclusive=true,limits=limits,weights=weights,baseMode=baseMode,endpointOrientation=endpointFrame.Rotation})
  local api={}
  function api:solve(target,overrides)
-  assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and (endpoint.Position-endpointPosition).Magnitude<1e-6,'endpoint changed; recreate the chain')
+  assert(endpointRef.Value==endpoint and endpoint.Parent==endpointParent and endpoint.CFrame:FuzzyEq(endpointFrame,1e-6),'endpoint changed; recreate the chain')
   assert(overrides==nil or type(overrides)=='table','solver overrides must be a table')
   local settings={iterations=iterations,tolerance=tolerance,maxStep=math.rad(maxStepDegrees),gain=gain}
   local speed=math.rad(maxSpeedDegrees)
@@ -64,7 +64,7 @@ function ChainDefinition.new(definition,options,createChain)
   end
   if overrides then
    for key,value in pairs(overrides) do
-    assert(key=='iterations' or key=='tolerance' or key=='maxStep' or key=='gain' or key=='pole' or key=='maxAngularSpeed' or key=='dt','unknown solver option: '..tostring(key))
+    assert(key=='iterations' or key=='tolerance' or key=='maxStep' or key=='gain' or key=='pole' or key=='maxAngularSpeed' or key=='dt' or key=='targetOrientation' or key=='orientationTolerance','unknown solver option: '..tostring(key))
     if key=='maxAngularSpeed' then speed=value elseif key=='dt' then dt=value else settings[key]=value end
    end
   end

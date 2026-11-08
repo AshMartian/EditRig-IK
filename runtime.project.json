@@ -37,6 +37,8 @@
     },
     "SurfaceContact": {"$path": "src/runtime/SurfaceContact.luau"},
     "SurfaceProbe": {"$path": "src/runtime/SurfaceProbe.luau"},
+    "SurfaceFrame": {"$path": "src/runtime/SurfaceFrame.luau"},
+    "SurfaceOrientation": {"$path": "src/runtime/SurfaceOrientation.luau"},
     "Ownership": {
       "$path": "src/runtime/Ownership.luau"
     },

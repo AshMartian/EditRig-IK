@@ -6,6 +6,11 @@ local engine = Solver.new(Limits)
 local Runtime = {}
 Runtime.SurfaceContact = require(script.SurfaceContact)
 Runtime.SurfaceProbe = require(script.SurfaceProbe)
+Runtime.SurfaceFrame = require(script.SurfaceFrame)
+local SurfaceOrientation = require(script.SurfaceOrientation)
+Runtime.SurfaceOrientation = {align=function(current,soleUp,soleForward,normal,strength)
+    return SurfaceOrientation.align(current,soleUp,soleForward,normal,strength,Runtime.SurfaceFrame)
+end}
 Runtime.Actor = require(script.Actor)
 Runtime.JointDrive = require(script.JointDrive)
 local BallDrive = require(script.BallDrive)

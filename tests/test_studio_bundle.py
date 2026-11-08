@@ -8,6 +8,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / 'tools' / 'bundle_studio_test.py'
 FIXTURES = {
+    'ConfiguredOrientation': ('src/shared/Config.luau', 'src/plugin/ChainBuilder.luau', 'src/runtime/ChainDefinition.luau', 'tests/studio/ConfiguredOrientation.integration.luau'),
+    'OrientationChain': ('src/shared/Limits.luau', 'src/shared/Solver.luau', 'src/runtime/ChainAdapter.luau', 'tests/studio/OrientationChain.integration.luau'),
+    'SurfaceOrientation': ('src/runtime/SurfaceFrame.luau', 'src/runtime/SurfaceOrientation.luau', 'tests/studio/SurfaceOrientation.integration.luau'),
     'PanelComponents': ('src/plugin/PanelComponents.luau', 'tests/studio/PanelComponents.integration.luau'),
     'SurfaceProbe': ('src/runtime/SurfaceContact.luau', 'src/runtime/SurfaceProbe.luau', 'tests/studio/SurfaceProbe.integration.luau'),
     'SurfaceContactGizmo': ('src/plugin/SurfaceContactGizmo.luau', 'tests/studio/SurfaceContactGizmo.integration.luau'),
@@ -38,6 +41,20 @@ class BundleStudioTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         for name in ('Config', 'ChainBuilder', 'Limits', 'Solver', 'ChainAdapter', 'ChainDefinition'):
             self.assertIn('local ' + name + ' = (function()', result.stdout)
+
+    def test_orientation_fixture_dependencies_are_bound_before_use(self):
+        fixtures = {
+            'ConfiguredOrientation': ('Config', 'ChainBuilder', 'ChainDefinition'),
+            'OrientationChain': ('Limits', 'Solver', 'ChainAdapter'),
+            'SurfaceOrientation': ('SurfaceFrame', 'SurfaceOrientation'),
+        }
+        for fixture, modules in fixtures.items():
+            with self.subTest(fixture=fixture):
+                result = run(fixture)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                body = result.stdout.index('local result = (function()')
+                for name in modules:
+                    self.assertLess(result.stdout.index('local ' + name + ' = (function()'), body)
 
     def test_saved_guides_bundle_initializes_real_geometry(self):
         result = run('SavedLimitOverlay')

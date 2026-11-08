@@ -53,6 +53,9 @@
     "SurfaceContact": {"$path": "src/runtime/SurfaceContact.luau"},
     "SurfaceProbe": {"$path": "src/runtime/SurfaceProbe.luau"},
     "SurfaceContactGizmo": {"$path": "src/plugin/SurfaceContactGizmo.luau"},
+    "SurfaceFrame": {"$path": "src/runtime/SurfaceFrame.luau"},
+    "SurfaceOrientation": {"$path": "src/runtime/SurfaceOrientation.luau"},
+    "PosePreviewQueue": {"$path": "src/plugin/PosePreviewQueue.luau"},
     "PreviewSolver": {
       "$path": "src/shared/Solver.luau"
     },
@@ -97,6 +100,8 @@
       "TargetStepper": {"$path": "src/runtime/TargetStepper.luau"},
       "SurfaceContact": {"$path": "src/runtime/SurfaceContact.luau"},
       "SurfaceProbe": {"$path": "src/runtime/SurfaceProbe.luau"},
+      "SurfaceFrame": {"$path": "src/runtime/SurfaceFrame.luau"},
+      "SurfaceOrientation": {"$path": "src/runtime/SurfaceOrientation.luau"},
       "Ownership": {"$path": "src/runtime/Ownership.luau"},
       "Actor": {"$path": "src/runtime/Actor.luau"},
       "Limits": {"$path": "src/shared/Limits.luau"},
