@@ -4,6 +4,7 @@ local Selection = game:GetService('Selection')
 local ChangeHistoryService = game:GetService('ChangeHistoryService')
 local RunService = game:GetService('RunService')
 local Config = require(script.Config)
+local LimitFrame = require(script.LimitFrame)
 local Builder = require(script.DefinitionBuilder).new(Config)
 local ChainBuilder = require(script.ChainBuilder).new(Config)
 local ChainDiscovery = require(script.ChainDiscovery)
@@ -17,6 +18,8 @@ local OverlaySelection = require(script.OverlaySelection)
 local overlayPolicy = OverlaySelection.new()
 local syncVisualSelection = function() end
 local syncViewportOwnership = function(_model, _joint) end
+local updateChainPath = function(_chain, _selected) end
+local getChainOptions = function(_model) return nil,nil,nil end
 local viewportPolicy = require(script.ViewportInputPolicy).new()
 local LimitGeometry = require(script.LimitGeometry).new(Config)
 local LimitDraft = require(script.LimitDraft).new(Config)
@@ -115,6 +118,7 @@ local overlayStatus=label('Select a Workspace rig to show its joints. Click a ma
 local rigOverlay,overlayFolder,overlayModel,savedLimitOverlay,savedLimitFolder=nil,nil,nil,nil,nil
 local savedLimitStatus=''
 local function hideRigOverlay()
+    updateChainPath(nil,nil)
     if savedLimitOverlay then savedLimitOverlay:destroy(); savedLimitOverlay=nil end
     if savedLimitFolder then savedLimitFolder:Destroy(); savedLimitFolder=nil end
     if rigOverlay then rigOverlay:destroy(); rigOverlay=nil end
@@ -125,10 +129,14 @@ local function showRigOverlay(model)
     local folder=Instance.new('Folder'); folder.Name='EditRigIKRigOverlay'
     local ok,result=pcall(function()
         folder.Parent=game:GetService('CoreGui')
-        return RigOverlay.new(model,folder,function(joint) Selection:Set({joint}) end)
+        return RigOverlay.new(model,folder,function(joint)
+            Selection:Set({joint})
+            if panel then panel:select('Joints') end
+        end,ChainInference)
     end)
     if not ok then folder:Destroy(); overlayStatus.Text='Cannot show joints: '..tostring(result); return end
     overlayFolder=folder; rigOverlay=result; overlayModel=model
+    rigOverlay:setChainOptions(getChainOptions(model))
     local updated,err=pcall(function() rigOverlay:update() end)
     if not updated then hideRigOverlay(); overlayStatus.Text='Cannot update joints: '..tostring(err); return end
     local limitFolder=Instance.new('Folder'); limitFolder.Name='SavedLimitGuides'; limitFolder.Parent=folder
@@ -152,8 +160,10 @@ local overlayUpdate=RunService.Heartbeat:Connect(function()
             hideRigOverlay(); syncVisualSelection(); overlayStatus.Text='3D joints hidden.'; return
         end
         local items=Selection:Get(); local selected=if #items==1 then items[1] else nil
+        rigOverlay:setChainOptions(getChainOptions(overlayModel))
         local ok=pcall(function() rigOverlay:update(selected) end)
-        if not ok then overlayPolicy:hideOverlay(); hideRigOverlay(); syncVisualSelection(); overlayStatus.Text='3D joints hidden after an update error.' end
+        if not ok then overlayPolicy:hideOverlay(); hideRigOverlay(); syncVisualSelection(); overlayStatus.Text='3D joints hidden after an update error.'
+        elseif rigOverlay then updateChainPath(rigOverlay:chainState(),selected) end
         if savedLimitOverlay then
             local good,shown,total=pcall(function() return savedLimitOverlay:update(selected) end)
             if not good then
@@ -171,6 +181,9 @@ plugin.Unloading:Connect(function() overlayUpdate:Disconnect(); hideRigOverlay()
 local limitStateLabel=label('Limit settings: select one joint.',60)
 limitStateLabel.TextColor3=Color3.fromRGB(255,204,111)
 local fields: {[string]: TextBox} = {}
+local axisPresetButtons={}
+local rangeShiftButtons={}
+local rangeShiftFeedback: TextLabel?=nil
 local apply = Instance.new('TextButton')
 apply.Name='SaveJointLimits'
 apply.Size = UDim2.new(1, 0, 0, 32)
@@ -207,8 +220,56 @@ for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','
     box.TextSize = 16
     box.Parent = row
     fields[entry[1]] = box
+    if entry[1]=='axis' then
+        local note=label('Local hinge axis presets · the rotation plane is perpendicular to the selected axis. Draft only; save to apply.',42)
+        note.TextColor3=Color3.fromRGB(192,201,215)
+        note.AutomaticSize=Enum.AutomaticSize.Y; note.TextYAlignment=Enum.TextYAlignment.Top
+        local choices=Instance.new('Frame')
+        choices.Name='LocalAxisPresets'; choices.Size=UDim2.new(1,0,0,32); choices.BackgroundTransparency=1
+        order(choices); choices.Parent=root
+        for index,axis in ipairs({'X','Y','Z'}) do
+            local preset=Instance.new('TextButton')
+            preset.Name='LocalAxis'..axis
+            preset.Position=UDim2.new((index-1)/3,0,0,0)
+            preset.Size=UDim2.new(1/3,-4,1,0)
+            preset.BorderSizePixel=0; preset.Font=Enum.Font.SourceSansBold; preset.TextSize=16
+            preset.TextColor3=Color3.fromRGB(240,242,247); preset.Parent=choices
+            preset.Activated:Connect(function() fields.axis.Text=axis end)
+            axisPresetButtons[axis]=preset
+        end
+    end
+    if entry[1]=='upper' then
+        local note=label('Rotate hinge range · shifts both bounds by 5° without changing its width. Draft only.',34)
+        note.AutomaticSize=Enum.AutomaticSize.Y; note.TextYAlignment=Enum.TextYAlignment.Top
+        note.TextColor3=Color3.fromRGB(192,201,215)
+        local choices=Instance.new('Frame')
+        choices.Name='HingeRangeRotation'; choices.Size=UDim2.new(1,0,0,32); choices.BackgroundTransparency=1
+        order(choices); choices.Parent=root
+        for index,step in ipairs({-5,5}) do
+            local preset=Instance.new('TextButton')
+            preset.Name=if step<0 then 'RotateRangeNegative' else 'RotateRangePositive'
+            preset.Position=UDim2.new((index-1)/2,0,0,0); preset.Size=UDim2.new(.5,-4,1,0)
+            preset.BorderSizePixel=0; preset.Font=Enum.Font.SourceSansBold; preset.TextSize=16
+            preset.TextColor3=Color3.fromRGB(240,242,247); preset.BackgroundColor3=Color3.fromRGB(49,55,66)
+            preset.Text=if step<0 then 'Rotate −5°' else 'Rotate +5°'; preset.Parent=choices
+            rangeShiftButtons[step]=preset
+        end
+        rangeShiftFeedback=label('',20)
+        rangeShiftFeedback.AutomaticSize=Enum.AutomaticSize.Y; rangeShiftFeedback.TextYAlignment=Enum.TextYAlignment.Top
+        rangeShiftFeedback.TextColor3=Color3.fromRGB(255,204,111)
+    end
     if entry[1]=='weight' then order(apply); apply.Parent=root end
 end
+local function updateAxisPresets()
+    local selected=string.upper(fields.axis.Text)
+    for axis,preset in pairs(axisPresetButtons) do
+        local active=axis==selected
+        preset.Text=(if active then '● ' else '○ ')..axis
+        preset.BackgroundColor3=if active then Color3.fromRGB(43,102,110) else Color3.fromRGB(49,55,66)
+    end
+end
+fields.axis:GetPropertyChangedSignal('Text'):Connect(updateAxisPresets)
+updateAxisPresets()
 label('Hinge hold: -1 to 1. Ball hold: radians on the selected axis. Impulse: rad/s.',40)
 local saveControls=Instance.new('TextButton')
 saveControls.Name='SaveJointControls'
@@ -337,6 +398,7 @@ local function hideAxes()
     axisButton.Text='Show selected joint axes and limits'
 end
 local function updateLimitPreview()
+    if updatingFields then return end
     if not axisGizmo then return end
     local classification=LimitDraft.classify(current,limitInput(),limitExamplePreview or limitFieldsChanged())
     -- Blank/invalid metadata never renders the numeric form's fallback values
@@ -349,6 +411,38 @@ for _,key in ipairs(limitKeys) do
         if updatingFields then return end
         if hingeHandles then hingeHandles:sync(current,limitInput())
         elseif current then task.defer(function() if current then syncVisualSelection() end end) end
+    end)
+end
+for step,button in pairs(rangeShiftButtons) do
+    button.Activated:Connect(function()
+        local selected=Selection:Get()
+        if not current or #selected~=1 or selected[1]~=current then
+            rangeShiftFeedback.Text='Select one joint before rotating its range.'; return
+        end
+        if fields.kind.Text~='Hinge' then
+            rangeShiftFeedback.Text='Range rotation is available for hinge limits.'; return
+        end
+        local lower,upper=tonumber(fields.lower.Text),tonumber(fields.upper.Text)
+        local ok,shifted=pcall(function() return LimitFrame.shiftInterval(math.rad(lower),math.rad(upper),math.rad(step)) end)
+        if not ok then
+            rangeShiftFeedback.Text='Enter a valid lower and upper angle from −180° to 180° first.'; return
+        end
+        if shifted.full then
+            rangeShiftFeedback.Text='A full 360° range is unchanged by rotation.'; return
+        end
+        -- A wrapping interval cannot be represented by the current solver.
+        -- Check the unwrapped values too: a complete turn across the seam
+        -- can yield a non-wrapping normalized interval after crossing 180°.
+        local nextLower,nextUpper=lower+step,upper+step
+        if nextLower < -180 or nextUpper > 180 or (shifted.wraps and nextUpper < 180-1e-9) then
+            rangeShiftFeedback.Text='Cannot rotate across ±180°: wrapping ranges are not supported. Bounds were not changed.'; return
+        end
+        updatingFields=true
+        fields.lower.Text=tostring(nextLower); fields.upper.Text=tostring(nextUpper)
+        updatingFields=false
+        updateLimitState(); updateLimitPreview()
+        if hingeHandles then hingeHandles:sync(current,limitInput()) end
+        rangeShiftFeedback.Text='Range rotated by '..tostring(step)..'°. Unsaved draft; save joint limits to apply.'
     end)
 end
 local function showAxes()
@@ -399,7 +493,7 @@ local function startHingeEdit()
     hingeFolder=folder; hingeHandles=handles; hingeJoint=joint
     if not hingeHandles:set(joint,limitInput()) then hingeHandles:destroy(); hingeHandles=nil; folder:Destroy(); hingeFolder=nil; status.Text='Cannot display this joint frame.'; return end
     hingeActive=true; hingeButton.Text='Pause 3D joint editing'
-    status.Text='Drag a gold endpoint to edit its draft limit. Press Escape to cancel a drag; save to apply.'
+    status.Text='Drag an axis-colored endpoint to edit its draft limit. Press Escape to cancel a drag; save to apply.'
 end
 hingeButton.Activated:Connect(function()
     if viewportOwned then
@@ -444,7 +538,7 @@ local function refresh()
     local items = Selection:Get()
     local item = if #items == 1 then items[1] else nil
     local discarded=current~=nil and current~=item and (limitFieldsChanged() or LimitDraft.classify(current,limitInput())=='draft')
-    if current~=item then stopHingeEdit(nil); limitBinding:abandon(); limitBinding:select(nil); limitExamplePreview=false end
+    if current~=item then stopHingeEdit(nil); limitBinding:abandon(); limitBinding:select(nil); limitExamplePreview=false; rangeShiftFeedback.Text='' end
     if attributeConnection then attributeConnection:Disconnect(); attributeConnection=nil end
     updatingFields=true
     if item and (item:IsA('Motor6D') or item:IsA('Bone')) then
@@ -757,6 +851,8 @@ local chainBaseField=chainNumberField('Chain base mode (fixed / animated)','fixe
 local chainBaseNotice=label('Animated mode accepts external joint writes; coordinate Animator and IKControl ownership.',40)
 chainBaseNotice.TextColor3=Color3.fromRGB(255,204,111)
 local chainStatus=label('No chain selections yet.',55)
+chainStatus.AutomaticSize=Enum.AutomaticSize.Y
+chainStatus.TextYAlignment=Enum.TextYAlignment.Top
 local chainFeedback: TextLabel
 local firstJoint: Instance?=nil
 local lastJoint: Instance?=nil
@@ -764,8 +860,30 @@ local endpoint: Instance?=nil
 local pole: Instance?=nil
 local capturedControl: Instance?=nil
 local capturedChain: any=nil
+local captureModel: Instance?=nil
+local rootSource, endSource, endpointSource=nil,nil,nil
+local function clearChainCapture()
+    firstJoint=nil; lastJoint=nil; endpoint=nil; pole=nil
+    capturedControl=nil; capturedChain=nil; captureModel=nil
+    rootSource=nil; endSource=nil; endpointSource=nil
+end
+local function adoptCapture(item: Instance): boolean
+    if captureModel and item:IsDescendantOf(captureModel) then return true end
+    local model=item:FindFirstAncestorWhichIsA('Model')
+    if not model then return false end
+    clearChainCapture(); captureModel=model
+    return true
+end
+getChainOptions=function(model)
+    if not captureModel or not model or (captureModel~=model and not captureModel:IsDescendantOf(model)) then return nil,nil,nil end
+    return if rootSource=='explicit' then firstJoint else nil,
+        if endpointSource=='explicit' then endpoint else nil,
+        if endSource=='explicit' then lastJoint else nil
+end
 local function refreshChainStatus()
-    chainStatus.Text='Root: '..(if firstJoint then firstJoint.Name else '—')..'  |  End: '..(if lastJoint then lastJoint.Name else '—')..'  |  Endpoint: '..(if endpoint then endpoint.Name else '—')..'  |  Pole: '..(if pole then pole.Name else 'none')
+    local function described(item,source) return if item then item.Name..' ('..(source or 'unknown')..')' else '—' end
+    chainStatus.Text='Captured rig: '..(if captureModel then captureModel:GetFullName() else '—')..'\nRoot: '..described(firstJoint,rootSource)..'  |  End: '..described(lastJoint,endSource)..'  |  Endpoint: '..described(endpoint,endpointSource)..'  |  Pole: '..(if pole then pole.Name else 'none')
+    if rigOverlay then rigOverlay:setChainOptions(getChainOptions(overlayModel)) end
 end
 local function chainButton(text: string): TextButton
     local item=Instance.new('TextButton')
@@ -784,15 +902,20 @@ inferenceStatus.TextYAlignment=Enum.TextYAlignment.Top
 chainButton('Infer chain from selected joint').MouseButton1Click:Connect(function()
     local joint=selectedOne()
     if not joint or not (joint:IsA('Motor6D') or joint:IsA('Bone')) then inferenceStatus.Text='Select one Motor6D or Bone. Previous capture is unchanged.'; return end
-    local model=joint:FindFirstAncestorWhichIsA('Model')
-    local ok,result=pcall(ChainInference.infer,model,joint)
+    local sameRig=captureModel~=nil and joint:IsDescendantOf(captureModel)
+    local model=if sameRig then captureModel else joint:FindFirstAncestorWhichIsA('Model')
+    local options={root=if sameRig and rootSource=='explicit' then firstJoint else nil,endpoint=if sameRig and endpointSource=='explicit' then endpoint else nil}
+    local ok,result=pcall(ChainInference.infer,model,joint,options)
     if not ok then inferenceStatus.Text='Cannot infer chain: '..tostring(result)..'. Previous capture is unchanged.'; return end
     if not result.ok then inferenceStatus.Text='Cannot infer chain: '..result.message..' Use the capture buttons below to choose a root, end and endpoint. Previous capture is unchanged.'; return end
+    if sameRig and endSource=='explicit' and lastJoint~=result.endJoint then inferenceStatus.Text='The inferred endpoint does not match the explicitly selected end joint. Select the matching endpoint; previous capture is unchanged.'; return end
+    if not sameRig then clearChainCapture(); captureModel=model end
     capturedControl=nil; capturedChain=nil; firstJoint=result.root; lastJoint=result.endJoint; endpoint=result.endpoint; pole=nil
+    rootSource=result.rootSource; endSource=if sameRig and endSource=='explicit' then 'explicit' else 'inferred'; endpointSource=result.endpointSource
     refreshChainStatus()
     local names={}
     for _,j in ipairs(result.joints) do table.insert(names,j.Name) end
-    inferenceStatus.Text='Inferred suggestion: '..table.concat(names,' → ')..'  |  Endpoint: '..result.endpoint.Name..'. Review and correct with the capture buttons below; no limits or chain were saved.'
+    inferenceStatus.Text='Suggested chain (explicit choices preserved; remaining choices inferred): '..table.concat(names,' → ')..'  |  Endpoint: '..result.endpoint.Name..'. Review and correct with the capture buttons below; no limits or chain were saved.'
 end)
 local loadedChain: Instance?=nil
 chainButton('Load selected chain settings').MouseButton1Click:Connect(function()
@@ -836,10 +959,12 @@ end)
 chainButton('Capture chain from selected IKControl').MouseButton1Click:Connect(function()
     local item=selectedOne()
     local ok,result=pcall(ChainDiscovery.inspect,item)
-    if not ok then capturedControl=nil; capturedChain=nil; firstJoint=nil; lastJoint=nil; endpoint=nil; pole=nil; refreshChainStatus(); chainFeedback.Text='Cannot discover chain: '..tostring(result); return end
+    if not ok then clearChainCapture(); refreshChainStatus(); chainFeedback.Text='Cannot discover chain: '..tostring(result); return end
+    if not adoptCapture(result.joints[1]) then chainFeedback.Text='Captured joints must belong to a model.'; return end
     capturedControl=item; capturedChain=result
     firstJoint=result.joints[1]; lastJoint=result.joints[#result.joints]
     endpoint=result.endpoint; pole=result.pole
+    rootSource='explicit'; endSource='explicit'; endpointSource=if endpoint then 'explicit' else nil
     chainName.Text=string.sub(item.Name,1,64)
     local missing=0
     for _,joint in ipairs(result.joints) do if joint:GetAttribute('EditRigIK_SchemaVersion')~=1 then missing+=1 end end
@@ -878,17 +1003,20 @@ end)
 chainButton('Set root joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the root.'; return end
-    capturedControl=nil; capturedChain=nil; firstJoint=item; refreshChainStatus()
+    if not adoptCapture(item) then chainFeedback.Text='The root joint must belong to a model.'; return end
+    capturedControl=nil; capturedChain=nil; firstJoint=item; rootSource='explicit'; refreshChainStatus()
 end)
 chainButton('Set end joint from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or not (item:IsA('Motor6D') or item:IsA('Bone')) then chainFeedback.Text='Select one Motor6D or Bone as the end.'; return end
-    capturedControl=nil; capturedChain=nil; lastJoint=item; refreshChainStatus()
+    if not adoptCapture(item) then chainFeedback.Text='The end joint must belong to a model.'; return end
+    capturedControl=nil; capturedChain=nil; lastJoint=item; endSource='explicit'; refreshChainStatus()
 end)
 chainButton('Set endpoint attachment from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the endpoint.'; return end
-    endpoint=item; refreshChainStatus()
+    if not adoptCapture(item) then chainFeedback.Text='The endpoint must belong to a model.'; return end
+    endpoint=item; endpointSource='explicit'; refreshChainStatus()
 end)
 local endpointOffset=chainNumberField('New endpoint local X, Y, Z offset (studs)','0, 0, 0')
 chainButton('Create endpoint at entered local offset').MouseButton1Click:Connect(function()
@@ -903,16 +1031,21 @@ chainButton('Create endpoint at entered local offset').MouseButton1Click:Connect
         ChangeHistoryService:SetWaypoint('Create EditRig IK endpoint')
     end)
     if not inserted then attachment:Destroy(); chainFeedback.Text='Cannot create endpoint: '..tostring(err); return end
-    endpoint=attachment; refreshChainStatus()
+    endpoint=attachment; endpointSource='explicit'; refreshChainStatus()
     chainFeedback.Text='Endpoint created at the entered offset. Verify its position on the rig.'
 end)
 chainButton('Set optional pole attachment from selection').MouseButton1Click:Connect(function()
     local item=selectedOne()
     if not item or item.ClassName~='Attachment' then chainFeedback.Text='Select one regular Attachment as the pole.'; return end
+    if captureModel and not item:IsDescendantOf(captureModel) then chainFeedback.Text='The pole must belong to the captured rig.'; return end
     pole=item; refreshChainStatus()
 end)
 chainButton('Clear captured pole').MouseButton1Click:Connect(function()
     pole=nil; refreshChainStatus(); chainFeedback.Text='Pole cleared for the next chain.'
+end)
+chainButton('Clear captured chain choices').MouseButton1Click:Connect(function()
+    clearChainCapture(); refreshChainStatus(); inferenceStatus.Text='Chain choices cleared; the viewport will infer a path from the selected joint.'
+    chainFeedback.Text='Captured chain choices cleared.'
 end)
 chainButton('Create idle IK chain definition').MouseButton1Click:Connect(function()
     local first,last,tip=firstJoint,lastJoint,endpoint
@@ -1192,6 +1325,12 @@ ghostStartButton.LayoutOrder=5; ghostSetTargetButton.LayoutOrder=6; ghostResetBu
 local selectedJointLabel=selectedLabel:Clone()
 selectedJointLabel.Name='SelectedJointContext'; selectedJointLabel.LayoutOrder=0; selectedJointLabel.Parent=panel.pages.Joints
 selectedLabel:GetPropertyChangedSignal('Text'):Connect(function() selectedJointLabel.Text=selectedLabel.Text end)
+local chainPathView=require(script.ChainPathView).new(panel.pages.Joints,function(joint)
+    if overlayModel and joint:IsDescendantOf(overlayModel) then Selection:Set({joint}) end
+end)
+chainPathView.root.LayoutOrder=1
+updateChainPath=function(chain,selected) chainPathView:set(chain,selected) end
+plugin.Unloading:Connect(function() chainPathView:destroy() end)
 status.Visible=false
 status:GetPropertyChangedSignal('Text'):Connect(function() panel:setStatus(if status.Text=='' then 'Ready.' else status.Text) end)
 ghostStatus:GetPropertyChangedSignal('Text'):Connect(function() panel:setStatus(ghostStatus.Text) end)

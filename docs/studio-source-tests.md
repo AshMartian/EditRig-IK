@@ -8,7 +8,7 @@ From the project root, generate one fixture without network access:
 python3 tools/bundle_studio_test.py ViewportTargetHandle > /tmp/editrig-studio-fixture.luau
 ```
 
-The accepted names are `PanelComponents`, `JointAuthoring`, `ViewportTargetHandle`, `WorldGhostSession`, `ChainDiscovery`, `AxisGizmo`, `HingeLimitHandles`, `SavedLimitOverlay`, `SurfaceProbe`, `SurfaceContactGizmo`, `ConfiguredOrientation`, `OrientationChain`, and `SurfaceOrientation`. The program fails for unknown names; it writes the generated Luau to standard output and does not alter the place. Generate a fresh bundle after source changes. Paste or submit the **entire** generated Luau to the Studio Edit command interface and inspect Output. A passing fixture prints `Studio source fixture <name> passed:` followed by the fixture result; an assertion or other error is a failure. The generated code refuses to run outside Edit mode.
+The accepted names are `PanelComponents`, `JointAuthoring`, `ChainPathView`, `ViewportTargetHandle`, `WorldGhostSession`, `ChainDiscovery`, `AxisGizmo`, `LimitGeometry`, `ConfiguredLimitFrame`, `HingeLimitHandles`, `SavedLimitOverlay`, `SurfaceProbe`, `SurfaceContactGizmo`, `ConfiguredOrientation`, `OrientationChain`, and `SurfaceOrientation`. The program fails for unknown names; it writes the generated Luau to standard output and does not alter the place. Generate a fresh bundle after source changes. Paste or submit the **entire** generated Luau to the Studio Edit command interface and inspect Output. A passing fixture prints `Studio source fixture <name> passed:` followed by the fixture result; an assertion or other error is a failure. The generated code refuses to run outside Edit mode.
 
 Check the bundler itself locally with:
 
@@ -18,11 +18,21 @@ python3 -m unittest discover -s tests -p 'test_studio_bundle.py'
 
 `SurfaceProbe` tests Workspace raycast filtering with the source and ghost excluded, slope/contact calculation, and invalid-input handling. `SurfaceContactGizmo` checks guide positioning, visibility, and disposal on detached instances; it does not establish that the guides render correctly in the viewport.
 
-`AxisGizmo` checks joint rest-frame calculations for Motor6D and Bone rigs and signed ball twist-arc geometry. `HingeLimitHandles` exercises draft edits and handle placement with programmatically supplied rays; it does not establish that a person can select or drag a handle in the installed plugin. `JointAuthoring` verifies limit and control metadata can be validated and saved independently on detached Motor6D and Bone instances.
+`AxisGizmo` checks joint rest-frame calculations for Motor6D and Bone rigs and signed ball twist-arc geometry. `HingeLimitHandles` exercises draft edits and handle placement with programmatically supplied rays; it does not establish that a person can select or drag a handle in the installed plugin. `JointAuthoring` verifies limit and control metadata can be validated and saved independently on detached Motor6D and Bone instances. `ChainPathView` checks the ordered path, selection callback, explicit and inferred labels, ambiguity and cleanup on detached GUI instances.
+
+`LimitGeometry` checks identity and rotated hinge, swing and twist guides against the optional limit frame. `ConfiguredLimitFrame` checks saved frame validation and the configured solver on detached Motor6D and Bone fixtures. Neither fixture verifies viewport appearance or installed-plugin controls.
 
 `ConfiguredOrientation` checks that saved chains pass attachment orientation and requested pose options through. `OrientationChain` checks Motor6D and Bone endpoint orientations, including speed-capped diagnostics. `SurfaceOrientation` checks the surface-frame adapter, configured sole axes, strength, degeneracy, and input validation. These use disposable instances and do not verify an installed runtime, animated mesh, contact motion, or real-time performance.
 
 The fixtures do not validate Play transitions, a real user's handle drag, skinned mesh rendering, or performance. Those require separate Studio checks with representative rigs and a careful cleanup of temporary scene objects.
+
+For a separate check of the runtime embedded in a freshly built plugin, generate:
+
+```sh
+ROJO_BIN=/path/to/rojo python3 tools/bundle_runtime_package_test.py > /tmp/editrig-runtime-package-fixture.luau
+```
+
+Run the entire result in Studio Edit and look for `Built plugin runtime fixture passed`. The generator builds the plugin into a temporary directory and extracts its actual `RuntimeBundle` and `RuntimeInstaller` sources. The fixture creates a detached bundle, clones it with the installer, requires it, and checks a configured tilted hinge; it does not click the installed plugin button or test a live place's existing runtime. Verify its generator locally with `ROJO_BIN=/path/to/rojo python3 -m unittest discover -s tests -p 'test_runtime_package_bundle.py'`.
 
 `tests/studio/InstalledAutoViewport.integration.luau` is a separate installed-plugin smoke test: run it in Studio Edit with the panel open and idle. It temporarily selects a disposable model and joint, checks automatic controls and absence of source writes, then restores the previous selection and draft fields. It does not inject pointer or keyboard input. If interrupted, remove `Workspace.EditRigIKAutoModeFixture` and restore the selection manually.
 

@@ -1,4 +1,5 @@
 -- RuntimeSource and RuntimeComponents are supplied by the source-level test harness.
+assert(type(RuntimeComponents.LimitFrame)=='string' and #RuntimeComponents.LimitFrame>0,'runtime source map must include LimitFrame')
 local storage=Instance.new('Folder')
 local bundle=Instance.new('ModuleScript'); bundle.Name='RuntimeBundle'; bundle.Source=RuntimeSource
 for name,source in pairs(RuntimeComponents) do
@@ -13,6 +14,27 @@ assert(type(runtime.createFootstepChain)=='function' and type(runtime.createActo
 assert(type(runtime.InputBindings.new)=='function','installed runtime must include InputAction bindings')
 assert(type(runtime.createTargetStepper)=='function','installed runtime must include target stepper')
 assert(type(runtime.BallDrive.new)=='function','installed runtime must include ball-joint behavior')
+local model=Instance.new('Model')
+local base=Instance.new('Part'); base.Parent=model
+local tip=Instance.new('Part'); tip.Parent=model
+local joint=Instance.new('Motor6D'); joint.Part0=base; joint.Part1=tip; joint.Parent=base
+local endpoint=Instance.new('Attachment'); endpoint.Position=Vector3.xAxis; endpoint.Parent=tip
+local folder=Instance.new('Folder'); folder.Parent=model
+local definition=Instance.new('Folder'); definition.Parent=folder
+definition:SetAttribute('SchemaVersion',2); definition:SetAttribute('Iterations',40); definition:SetAttribute('Tolerance',.01)
+local endRef=Instance.new('ObjectValue'); endRef.Name='Endpoint'; endRef.Value=endpoint; endRef.Parent=definition
+local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=definition
+local ref=Instance.new('ObjectValue'); ref.Value=joint; ref.Parent=list
+ref:SetAttribute('Order',1); ref:SetAttribute('Kind','Hinge'); ref:SetAttribute('Axis','X')
+ref:SetAttribute('LowerDegrees',-20); ref:SetAttribute('UpperDegrees',30); ref:SetAttribute('SwingDegrees',90)
+ref:SetAttribute('FrameX',0); ref:SetAttribute('FrameY',0); ref:SetAttribute('FrameZ',math.sin(math.pi/8)); ref:SetAttribute('FrameW',math.cos(math.pi/8))
+local chain=runtime.createConfiguredIKChain(definition,{exclusive=true})
+local axis=Vector3.new(math.sqrt(.5),math.sqrt(.5),0)
+local target=CFrame.fromAxisAngle(axis,math.rad(60)):PointToWorldSpace(Vector3.xAxis)
+local result=chain:solve(target)
+local observed,angle=joint.Transform.Rotation:ToAxisAngle()
+assert(result.error>.01 and math.abs(angle-math.rad(30))<1e-3 and (observed-axis).Magnitude<1e-3,'installed runtime must enforce schema 2 tilted hinge limits')
+chain:destroy(); model:Destroy()
 assert(not pcall(function() RuntimeInstaller.prepare(storage,bundle) end),'second installation must not overwrite')
 storage:Destroy(); bundle:Destroy()
 return 'Cloned runtime package loads and solves in Studio'

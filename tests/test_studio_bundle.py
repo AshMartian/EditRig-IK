@@ -8,8 +8,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / 'tools' / 'bundle_studio_test.py'
 FIXTURES = {
+    'ChainPathView': ('src/plugin/ChainPathView.luau', 'tests/studio/ChainPathView.integration.luau'),
     'JointAuthoring': ('src/shared/Config.luau', 'src/plugin/InputProfileBuilder.luau', 'src/plugin/JointAuthoring.luau', 'tests/studio/JointAuthoring.integration.luau'),
     'AxisGizmo': ('src/shared/Config.luau', 'src/plugin/AxisGizmo.luau', 'src/plugin/LimitGeometry.luau', 'tests/studio/AxisGizmo.spec.luau'),
+    'LimitGeometry': ('src/shared/Config.luau', 'src/shared/LimitFrame.luau', 'src/plugin/LimitGeometry.luau', 'tests/studio/LimitGeometry.spec.luau'),
+    'ConfiguredLimitFrame': ('src/runtime/ChainDefinition.luau', 'src/shared/LimitFrame.luau', 'src/shared/Limits.luau', 'src/shared/Solver.luau', 'src/runtime/ChainAdapter.luau', 'tests/studio/ConfiguredLimitFrame.integration.luau'),
     'HingeLimitHandles': ('src/shared/Config.luau', 'src/plugin/AxisGizmo.luau', 'src/plugin/HingeDragMath.luau', 'src/plugin/HingeLimitHandles.luau', 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': ('src/shared/Config.luau', 'src/plugin/ChainBuilder.luau', 'src/runtime/ChainDefinition.luau', 'tests/studio/ConfiguredOrientation.integration.luau'),
     'OrientationChain': ('src/shared/Limits.luau', 'src/shared/Solver.luau', 'src/runtime/ChainAdapter.luau', 'tests/studio/OrientationChain.integration.luau'),
@@ -68,6 +71,21 @@ class BundleStudioTest(unittest.TestCase):
         result = run('AxisGizmo')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('local LimitGeometry = LimitGeometryFactory\n', result.stdout)
+
+    def test_limit_frame_fixtures_bind_dependencies_before_test(self):
+        fixtures = {
+            'LimitGeometry': ('Config', 'LimitFrame', 'LimitGeometryFactory'),
+            'ConfiguredLimitFrame': ('ChainDefinition', 'LimitFrame', 'Limits', 'Solver', 'ChainAdapter'),
+        }
+        for fixture, modules in fixtures.items():
+            with self.subTest(fixture=fixture):
+                result = run(fixture)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                body = result.stdout.index('local result = (function()')
+                for name in modules:
+                    self.assertLess(result.stdout.index('local ' + name + ' = (function()'), body)
+                if fixture == 'LimitGeometry':
+                    self.assertLess(result.stdout.index('local LimitGeometry = LimitGeometryFactory\n'), body)
 
     def test_unknown_and_missing_fixture_fail_without_luau_output(self):
         for args in ((), ('unknown',), ('../PanelComponents',)):

@@ -68,6 +68,79 @@ local endpointClone=parent.GhostFixture.EditRigIKChains.Arm.Endpoint.Value
 endpointClone.Parent=nil
 assert(not missingEndpoint:isValid(),'removing the ghost endpoint invalidates the session')
 missingEndpoint:destroy(); endpointClone:Destroy()
+local movedEndpoint=WorldGhostSession.new(definition,parent,components)
+local movedGhost=parent.GhostFixture
+movedGhost.EditRigIKChains.Arm.Endpoint.Value.Parent=movedGhost.Base
+assert(not movedEndpoint:isValid(),'reparenting the endpoint within the clone must invalidate the session immediately')
+movedEndpoint:destroy()
+local removedJoint=WorldGhostSession.new(definition,parent,components)
+local removedJointClone=parent.GhostFixture.EditRigIKChains.Arm.Joints.Joint001.Value
+removedJointClone.Parent=parent
+assert(not removedJoint:isValid(),'removing a chain joint must invalidate the session immediately')
+removedJoint:destroy()
+assert(#parent:GetChildren()==0 and removedJointClone.Parent==nil,'cleanup must remove owned joints reparented outside the ghost')
+local changedRef=WorldGhostSession.new(definition,parent,components)
+parent.GhostFixture.EditRigIKChains.Arm.Joints.Joint001.Value=nil
+assert(not changedRef:isValid(),'changing a saved chain reference must invalidate the session immediately')
+changedRef:destroy()
+local changedMotor=WorldGhostSession.new(definition,parent,components)
+parent.GhostFixture.EditRigIKChains.Arm.Joints.Joint001.Value.Part0=parent.GhostFixture.Branch
+assert(not changedMotor:isValid(),'changing a ghost motor connection must invalidate the session immediately')
+changedMotor:destroy()
+local changedOrder=WorldGhostSession.new(definition,parent,components)
+parent.GhostFixture.EditRigIKChains.Arm.Joints.Joint001:SetAttribute('Order',2)
+assert(not changedOrder:isValid(),'changing ghost joint order must invalidate the session immediately')
+changedOrder:destroy()
+local extraRef=WorldGhostSession.new(definition,parent,components)
+local unexpected=Instance.new('ObjectValue'); unexpected.Parent=parent.GhostFixture.EditRigIKChains.Arm.Joints
+assert(not extraRef:isValid(),'adding a joint reference must invalidate the session immediately')
+extraRef:destroy()
+local safeRoot=Instance.new('Folder'); model.Parent=safeRoot
+local protectedParent=Instance.new('Folder'); protectedParent.Parent=safeRoot
+local protected=WorldGhostSession.new(definition,protectedParent,components)
+local unrelated=Instance.new('Part'); unrelated.Name='Unrelated'
+branch.Parent=protectedParent.GhostFixture.Tip
+unrelated.Parent=protectedParent.GhostFixture.Tip
+protected:destroy()
+protectedParent:Destroy()
+assert(branch.Parent==model, 'cleanup must restore a source object moved inside the ghost to its pre-preview parent')
+assert(unrelated.Parent==safeRoot, 'cleanup must move unrelated objects outside the temporary preview container')
+unrelated:Destroy(); model.Parent=nil; safeRoot:Destroy()
+local nested=Instance.new('Folder'); nested.Name='NestedSource'; nested.Parent=branch
+local ancestry=WorldGhostSession.new(definition,parent,components)
+branch.Parent=parent.GhostFixture.Tip
+nested.Parent=parent.GhostFixture.Base
+ancestry:destroy()
+assert(branch.Parent==model and nested.Parent==branch,'separately moved source ancestors must be restored before their children')
+nested:Destroy()
+for _,operation in ipairs({'destroy','solve','reset'}) do
+ local rejectMoves=true
+ local transient=WorldGhostSession.new(definition,parent,{
+  moveForeign=function(child,destination)
+   if rejectMoves then error('transient move failure') end
+   child.Parent=destination
+  end,
+  createChain=function(def)
+   if operation=='destroy' then
+    return components.createChain(def)
+   end
+   return {solve=function() error('solve failed') end,destroy=function() if operation=='reset' then error('reset failed') end end}
+  end,
+ })
+ local temporary=parent.GhostFixture
+ branch.Parent=temporary.Tip
+ local succeeded,message=pcall(function()
+  if operation=='destroy' then transient:destroy()
+  elseif operation=='solve' then transient:solveTarget(Vector3.zero)
+  else transient:reset() end
+ end)
+ assert(not succeeded and branch:IsDescendantOf(temporary) and temporary.Parent==parent,operation..' failure must preserve the foreign source object and the preview')
+ if operation~='destroy' then assert(tostring(message):find('preview cleanup failed',1,true),'solve/reset failure must report failed preservation') end
+ assert(not transient:isValid(),'a failed teardown must not allow further solves')
+ rejectMoves=false
+ transient:destroy()
+ assert(branch.Parent==model and #parent:GetChildren()==0,operation..' cleanup must be retryable without deleting the source object')
+end
 assert(not pcall(function() WorldGhostSession.new(definition,parent,{createChain=function() error('construction failed') end}) end))
 assert(#parent:GetChildren()==0,'failed construction must clean up')
 local failingReset=WorldGhostSession.new(definition,parent,{createChain=function()

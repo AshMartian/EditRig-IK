@@ -14,8 +14,17 @@ local lower=gui:FindFirstChild('EditRigIKLowerHandle'); local upper=gui:FindFirs
 assert(lower and upper and lower.ClassName~=upper.ClassName,'distinct endpoint handle shapes')
 local lowerGui=gui:FindFirstChild('EditRigIKLowerLabel'); local upperGui=gui:FindFirstChild('EditRigIKUpperLabel')
 assert(lowerGui and upperGui and lowerGui:IsA('BillboardGui') and upperGui:IsA('BillboardGui'),'screen-facing bound labels exist')
-assert(lowerGui.Label.Text=='Lower -45.0°' and upperGui.Label.Text=='Upper 45.0°','labels show names and draft degrees')
-assert(lowerGui.Adornee==parent and (lowerGui.StudsOffsetWorldSpace+parent.Position-(parent.CFrame*lower.CFrame).Position).Magnitude<1e-5,'label follows endpoint in world space')
+assert(lowerGui.Label.Text=='Lower Z -45.0°' and upperGui.Label.Text=='Upper Z 45.0°','labels identify the local axis and bounds')
+assert(lower.Color3==Color3.fromRGB(80,145,255) and upper.Color3==lower.Color3,'Z handles match the blue local Z axis')
+for _,pair in ipairs({{'X',Color3.fromRGB(255,75,75)},{'Y',Color3.fromRGB(75,255,100)}}) do
+ local changed={kind='Hinge',axis=pair[1],lower=-45,upper=45,swing=30}
+ assert(h:sync(motor,changed),'valid axis edit is reflected immediately')
+ assert(lower.Color3==pair[2] and upper.Color3==pair[2],'both handles follow the chosen local axis color')
+ assert(lowerGui.Label.Text:find('Lower '..pair[1],1,true) and upperGui.Label.Text:find('Upper '..pair[1],1,true),'both labels identify the chosen local axis')
+end
+assert(h:sync(motor,config),'restore the original Z axis')
+assert(lowerGui.Adornee==parent and (parent.CFrame:PointToWorldSpace(lowerGui.StudsOffsetWorldSpace)-(parent.CFrame*lower.CFrame).Position).Magnitude<1e-5,'label offset compensates for the adornee rotation used by the BillboardGui renderer')
+assert((parent.CFrame:PointToWorldSpace(upperGui.StudsOffsetWorldSpace)-(parent.CFrame*upper.CFrame).Position).Magnitude<1e-5,'upper label uses the same rotated-adornee correction')
 local radius=lower.Radius; h:select('lower'); assert(lower.Radius>radius,'numeric focus visibly enlarges the corresponding handle')
 h:select(nil); assert(lower.Radius==radius,'clearing field focus restores normal marker size')
 local expected=frame:PointToWorldSpace(Vector3.new(math.cos(math.rad(-45)),math.sin(math.rad(-45)),0))
@@ -25,7 +34,7 @@ local function rayAt(angle)
  return Ray.new(p+frame.LookVector*10,-frame.LookVector)
 end
 assert(h:begin('lower',rayAt(-45)))
-h:move(rayAt(0)); assert(lowerGui.Label.Text=='Lower 0.0°','label updates while dragging'); assert(#changes==1 and changes[1][1]=='lower' and math.abs(changes[1][2])<1e-4,'drag updates lower draft in joint frame')
+h:move(rayAt(0)); assert(lowerGui.Label.Text=='Lower Z 0.0°','label updates while dragging'); assert(#changes==1 and changes[1][1]=='lower' and math.abs(changes[1][2])<1e-4,'drag updates lower draft in joint frame')
 assert(focus[1]=='lower' and motor.C0==original and motor:GetAttribute('EditRigIK_LowerDegrees')==nil,'drag focuses field and does not mutate source')
 local synced={kind='Hinge',axis='Z',lower=0,upper=45,swing=30}
 assert(h:sync(motor,synced),'matching numeric field update syncs')
@@ -45,6 +54,7 @@ parent.CFrame=frame*motor.C0:Inverse()
 local bone=Instance.new('Bone'); bone.CFrame=CFrame.Angles(.3,.2,.1); bone.Parent=parent
 assert(h:set(bone,config),'Bone rest frame supported')
 local boneframe=parent.CFrame*bone.CFrame
+assert((parent.CFrame:PointToWorldSpace(lowerGui.StudsOffsetWorldSpace)-(parent.CFrame*lower.CFrame).Position).Magnitude<1e-5,'Bone labels also compensate for rotated ancestor parts')
 assert(((parent.CFrame*lower.CFrame).Position-boneframe:PointToWorldSpace(Vector3.new(math.cos(math.rad(-45)),math.sin(math.rad(-45)),0))).Magnitude<1e-5,'Bone local frame used')
 assert(h:begin('lower',Ray.new(boneframe:PointToWorldSpace(Vector3.new(1,0,10)),boneframe:VectorToWorldSpace(Vector3.new(0,0,-1)))))
 bone.Parent=nil; count=#changes; h:move(Ray.new(Vector3.new(0,0,10),Vector3.new(0,0,-1))); assert(#changes==count,'missing joint frame cancels without draft callback')

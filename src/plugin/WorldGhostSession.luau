@@ -19,24 +19,73 @@ function WorldGhostSession.new(definition,parent,components)
  assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'select a chain definition')
  assert(typeof(parent)=='Instance','ghost parent required')
  assert(type(components)=='table' and type(components.createChain)=='function','ghost chain factory required')
+ local moveForeign=components.moveForeign or function(child,destination) child.Parent=destination end
+ assert(type(moveForeign)=='function','moveForeign must be a function')
  local container=definition.Parent
  local source=container and container.Parent
  assert(container and container:IsA('Folder') and container.Name=='EditRigIKChains' and source and source:IsA('Model'),'chain must belong to a model')
  assert(unique(source,container.Name)==container and unique(container,definition.Name)==definition,'ambiguous chain path')
  assert(source.Archivable and #source:GetDescendants()<=5000,'model cannot be cloned or exceeds ghost size limit')
+ local sourceParents={[source]=source.Parent}
+ local knownSource={[source]=true}
+ for _,item in ipairs(source:GetDescendants()) do sourceParents[item]=item.Parent; knownSource[item]=true end
  local iterations=definition:GetAttribute('Iterations')
  assert(finite(iterations) and iterations%1==0 and iterations>=1 and iterations<=1000,'invalid iterations')
  local iterationCap=math.min(iterations,40)
- local clone,chain=nil,nil
+ local clone,chain,owned,ownedSet=nil,nil,nil,nil
+ local function disposeClone()
+  if clone and ownedSet then
+   -- Preserve foreign objects placed in the ghost while it was open. Source
+   -- descendants have a known original parent; other objects go outside the
+   -- temporary preview container (or become unparented if no safe parent exists).
+   local owners={clone}
+   for _,item in ipairs(owned) do table.insert(owners,item) end
+   local foreign={}
+   for _,owner in ipairs(owners) do
+    for _,child in ipairs(owner:GetChildren()) do
+     if not ownedSet[child] then table.insert(foreign,child) end
+    end
+   end
+   local function originalDepth(child)
+    if not knownSource[child] then return math.huge end
+    local depth=0
+    while sourceParents[child] and knownSource[sourceParents[child]] do
+     child=sourceParents[child]; depth+=1
+    end
+    return depth
+   end
+   table.sort(foreign,function(a,b) return originalDepth(a)<originalDepth(b) end)
+   for _,child in ipairs(foreign) do
+      local external=source.Parent
+      if external and (ownedSet[external] or external==parent or external:IsDescendantOf(parent) or external==child or external:IsDescendantOf(child)) then external=nil end
+      local destination=sourceParents[child]
+      if destination and (ownedSet[destination] or destination==parent or destination:IsDescendantOf(parent) or destination==child or destination:IsDescendantOf(child)) then destination=nil end
+      if not destination then destination=external end
+      local function moveTo(target)
+       local moved=pcall(moveForeign,child,target)
+       return moved and child.Parent==target
+      end
+      local moved=moveTo(destination)
+      if not moved and external~=destination then moved=moveTo(external) end
+      if not moved then moved=moveTo(nil) end
+      assert(moved,'could not preserve an unrelated object inside the ghost')
+   end
+  end
+  if clone then clone:Destroy() end
+  -- A user may have reparented a temporary descendant outside the clone.
+  -- The captured list contains only instances made by cloning the source.
+  if owned then for _,item in ipairs(owned) do item:Destroy() end end
+ end
  local ok,result=pcall(function()
   clone=source:Clone(); assert(clone,'could not clone model')
   clone.Archivable=false
-  local copy=unique(unique(clone,container.Name),definition.Name)
+  local clonedContainer=unique(clone,container.Name)
+  local copy=unique(clonedContainer,definition.Name)
   local refs=unique(copy,'Joints'); assert(refs:IsA('Folder'),'ghost joints missing')
   local ordered=refs:GetChildren(); assert(#ordered>0 and #ordered<=128,'invalid joint count')
   for _,ref in ipairs(ordered) do assert(ref:IsA('ObjectValue') and finite(ref:GetAttribute('Order')),'invalid joint reference') end
   table.sort(ordered,function(a,b) return a:GetAttribute('Order')<b:GetAttribute('Order') end)
-  local chainJoints={}
+  local chainJoints,expectedJoints={},{}
   for i,ref in ipairs(ordered) do
    local joint=ref.Value
    assert(ref:GetAttribute('Order')==i and joint and joint:IsDescendantOf(clone) and (joint:IsA('Motor6D') or joint:IsA('Bone')) and not chainJoints[joint],'invalid ghost joint reference')
@@ -44,10 +93,12 @@ function WorldGhostSession.new(definition,parent,components)
     assert(joint.Part0 and joint.Part1 and joint.Part0:IsDescendantOf(clone) and joint.Part1:IsDescendantOf(clone),'ghost motor references must belong to clone')
    end
    chainJoints[joint]=true
+   expectedJoints[i]={joint=joint,parent=joint.Parent,part0=if joint:IsA('Motor6D') then joint.Part0 else nil,part1=if joint:IsA('Motor6D') then joint.Part1 else nil}
   end
   local endpointRef=unique(copy,'Endpoint')
   assert(endpointRef:IsA('ObjectValue') and endpointRef.Value and endpointRef.Value.ClassName=='Attachment' and endpointRef.Value:IsDescendantOf(clone),'invalid ghost endpoint')
   local endpoint=endpointRef.Value
+  local endpointParent=endpoint.Parent
   local last=ordered[#ordered].Value
   local adjacency={}
   local function edge(from,to,relative)
@@ -76,6 +127,9 @@ function WorldGhostSession.new(definition,parent,components)
     item.Value=nil
    end
   end
+  owned=clone:GetDescendants()
+  ownedSet={[clone]=true}
+  for _,item in ipairs(owned) do ownedSet[item]=true end
   local partFrames,transforms={},{}
   local function updateParts()
    local visited,queue={},{}
@@ -114,10 +168,23 @@ function WorldGhostSession.new(definition,parent,components)
   local start=capturedFrame.Position
   local orientation=capturedFrame.Rotation
   clone.Parent=parent -- parent only after removing supported active content
-  local dead=false
+  local dead,closing=false,false
+  local function cleanup()
+   closing=true
+   if chain then pcall(function() chain:destroy() end); chain=nil end
+   disposeClone()
+   dead=true
+  end
   local api={}
   function api:isValid()
-   return not dead and clone.Parent==parent and endpoint:IsDescendantOf(clone)
+   if dead or closing or clone.Parent~=parent or clonedContainer.Parent~=clone or copy.Parent~=clonedContainer or refs.Parent~=copy or #refs:GetChildren()~=#ordered or endpointRef.Parent~=copy or endpointRef.Value~=endpoint or endpoint.Parent~=endpointParent or not endpoint:IsDescendantOf(clone) then return false end
+   for i,ref in ipairs(ordered) do
+    local entry=expectedJoints[i]
+    local joint=entry.joint
+    if ref.Parent~=refs or ref.Value~=joint or ref:GetAttribute('Order')~=i or joint.Parent~=entry.parent or not joint:IsDescendantOf(clone) then return false end
+    if joint:IsA('Motor6D') and (joint.Part0~=entry.part0 or joint.Part1~=entry.part1 or not joint.Enabled or not entry.part0:IsDescendantOf(clone) or not entry.part1:IsDescendantOf(clone)) then return false end
+   end
+   return true
   end
   function api:startTarget() assert(self:isValid(),'ghost is closed or missing'); return start end
   function api:startOrientation() assert(self:isValid(),'ghost is closed or missing'); return orientation end
@@ -149,7 +216,8 @@ function WorldGhostSession.new(definition,parent,components)
     return value
    end)
    if not solveOk then
-    dead=true; pcall(function() chain:destroy() end); chain=nil; clone:Destroy()
+    local cleaned,cleanupError=pcall(cleanup)
+    if not cleaned then error(tostring(solved)..'; preview cleanup failed: '..tostring(cleanupError)) end
     error(solved)
    end
    return solved
@@ -164,21 +232,20 @@ function WorldGhostSession.new(definition,parent,components)
     assert(chain and type(chain.solve)=='function' and type(chain.destroy)=='function','invalid ghost chain')
    end)
    if not resetOk then
-    dead=true; if chain then pcall(function() chain:destroy() end); chain=nil end
-    clone:Destroy(); error(resetError)
+    local cleaned,cleanupError=pcall(cleanup)
+    if not cleaned then error(tostring(resetError)..'; preview cleanup failed: '..tostring(cleanupError)) end
+    error(resetError)
    end
   end
   function api:destroy()
    if dead then return end
-   dead=true
-   if chain then pcall(function() chain:destroy() end); chain=nil end
-   clone:Destroy()
+   cleanup()
   end
   return api
  end)
  if not ok then
   if chain then pcall(function() chain:destroy() end) end
-  if clone then clone:Destroy() end
+  disposeClone()
   error(result)
  end
  return result

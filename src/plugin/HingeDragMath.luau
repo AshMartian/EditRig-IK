@@ -10,7 +10,10 @@ function HingeDragMath.move(state,pointer)
  assert(finite(pointer),'finite pointer angle required')
  local delta=(pointer-state.pointer+180)%360-180
  state.pointer=pointer
- state.angle+=delta
- return math.clamp(state.angle,if state.bound=='lower' then -180 else state.lower,if state.bound=='lower' then state.upper else 180)
+ -- Saturate the accumulated value itself, so movement in the reverse
+ -- direction responds immediately after overshooting a bound. This does not
+ -- enable wrapped intervals or crossing the +/-180 limit.
+ state.angle=math.clamp(state.angle+delta,if state.bound=='lower' then -180 else state.lower,if state.bound=='lower' then state.upper else 180)
+ return state.angle
 end
 return HingeDragMath

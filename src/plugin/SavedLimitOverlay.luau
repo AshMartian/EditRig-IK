@@ -40,8 +40,9 @@ function SavedLimitOverlay.new(rig,holder,config,gizmo,geometry,maxVisible)
   assert(not dead,'saved limit overlay is closed')
   if dirty then rebuild() end
   local shown=0
+  local inspectingJoint=typeof(selected)=='Instance' and (selected:IsA('Motor6D') or selected:IsA('Bone'))
   for _,entry in ipairs(entries) do
-   if entry.joint==selected or not entry.joint:IsDescendantOf(rig) then entry.guide:clear()
+   if inspectingJoint or not entry.joint:IsDescendantOf(rig) then entry.guide:clear()
    elseif entry.guide:update(entry.joint) then shown+=1 end
   end
   return shown,eligible

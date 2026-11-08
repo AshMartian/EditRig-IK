@@ -3,6 +3,8 @@
 local HingeLimitHandles={}
 local axes={X=Vector3.xAxis,Y=Vector3.yAxis,Z=Vector3.zAxis}
 local references={X=Vector3.yAxis,Y=Vector3.zAxis,Z=Vector3.xAxis}
+-- Keep colors aligned with the local axes in AxisGizmo; shape and text also identify bounds.
+local axisColors={X=Color3.fromRGB(255,75,75),Y=Color3.fromRGB(75,255,100),Z=Color3.fromRGB(80,145,255)}
 function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,onFocus)
  assert(typeof(parent)=='Instance' and mouse and type(restFrame)=='function' and type(onDraft)=='function','handle parent, mouse, rest frame and callback required')
  local lower=Instance.new('SphereHandleAdornment'); lower.Name='EditRigIKLowerHandle'; lower.Radius=.13
@@ -52,6 +54,7 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
   local part,frame=restFrame(joint)
   if not part or not frame then hide(); self:cancel(); return false end
   if not sameFrame(part,frame) then self:cancel() end
+  lower.Color3=axisColors[config.axis]; upper.Color3=axisColors[config.axis]
   local separation=(point(config.lower)-point(config.upper)).Magnitude
   local upperRadius=if separation<.4 then 1.4 else 1
   for _,entry in ipairs({{lower,config.lower,1,lowerLabel,'Lower'},{upper,config.upper,upperRadius,upperLabel,'Upper'}}) do
@@ -59,9 +62,12 @@ function HingeLimitHandles.new(parent,mouse,Config,DragMath,restFrame,onDraft,on
    entry[1].Adornee=part
    entry[1].CFrame=part.CFrame:ToObjectSpace(CFrame.new(worldPoint))
    entry[1].Visible=true
-   entry[4].Adornee=part; entry[4].StudsOffsetWorldSpace=worldPoint-part.Position
+   -- Despite its name, Studio applies this offset in the Adornee's rotated
+   -- frame. Compensate so the rendered label stays at the endpoint. Roblox
+   -- retains this behavior for compatibility: devforum topic 4527493.
+   entry[4].Adornee=part; entry[4].StudsOffsetWorldSpace=part.CFrame:VectorToObjectSpace(worldPoint-part.Position)
    local display=if math.abs(entry[2])<.05 then 0 else entry[2]
-   entry[4].Label.Text=string.format('%s %.1f°',entry[5],display); entry[4].Enabled=true
+   entry[4].Label.Text=string.format('%s %s %.1f°',entry[5],config.axis,display); entry[4].Enabled=true
   end
   return true
  end

@@ -39,8 +39,9 @@ function Runtime.createIKChain(joints, endpointLocal, options)
     return ChainAdapter.new(joints, endpointLocal, ownedOptions(options), engine)
 end
 local ChainDefinition = require(script.ChainDefinition)
+local LimitFrame = require(script.LimitFrame)
 function Runtime.createConfiguredIKChain(definition, options)
-    return ChainDefinition.new(definition, options, Runtime.createIKChain)
+    return ChainDefinition.new(definition, options, Runtime.createIKChain, LimitFrame)
 end
 local FootstepChain = require(script.FootstepChain)
 local TargetStepper = require(script.TargetStepper)

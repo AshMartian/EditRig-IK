@@ -2,8 +2,11 @@
 -- Read a saved IK chain snapshot and create an explicitly owned chain.
 local ChainDefinition={}
 local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.huge end
-function ChainDefinition.new(definition,options,createChain)
- assert(typeof(definition)=='Instance' and definition:IsA('Folder') and definition:GetAttribute('SchemaVersion')==1,'unsupported chain definition')
+function ChainDefinition.new(definition,options,createChain,limitFrame)
+ assert(typeof(definition)=='Instance' and definition:IsA('Folder'),'unsupported chain definition')
+ local schema=definition:GetAttribute('SchemaVersion')
+ assert(schema==1 or schema==2,'unsupported chain definition')
+ if schema==2 then assert(type(limitFrame)=='table' and type(limitFrame.basis)=='function','schema 2 requires the limit-frame dependency') end
  assert(definition.Parent and definition.Parent:IsA('Folder') and definition.Parent.Parent and definition.Parent.Parent:IsA('Model'),'chain definition must belong to a model')
  assert(type(options)=='table' and options.exclusive==true and type(createChain)=='function','explicit ownership and chain factory required')
  local model=definition.Parent.Parent
@@ -29,7 +32,13 @@ function ChainDefinition.new(definition,options,createChain)
   assert(finite(swing) and swing>=0 and swing<=180,'invalid swing angle')
   assert(finite(weight) and weight>=0 and weight<=1,'invalid joint influence')
   table.insert(joints,ref.Value)
-  table.insert(limits,{kind=kind,axis=axes[axis],lower=math.rad(lower),upper=math.rad(upper),swing=math.rad(swing)})
+  local jointAxis=axes[axis]
+  if schema==2 then
+   local frame={ref:GetAttribute('FrameX'),ref:GetAttribute('FrameY'),ref:GetAttribute('FrameZ'),ref:GetAttribute('FrameW')}
+   for component=1,4 do assert(finite(frame[component]),'schema 2 requires four finite frame components') end
+   jointAxis=limitFrame.basis(axis,frame).axis
+  end
+  table.insert(limits,{kind=kind,axis=jointAxis,lower=math.rad(lower),upper=math.rad(upper),swing=math.rad(swing)})
   table.insert(weights,weight)
  end
  local last=joints[#joints]; local endpoint=endpointRef.Value

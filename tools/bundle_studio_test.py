@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     'Config': 'src/shared/Config.luau',
+    'LimitFrame': 'src/shared/LimitFrame.luau',
     'ChainBuilder': 'src/plugin/ChainBuilder.luau',
     'Limits': 'src/shared/Limits.luau',
     'Solver': 'src/shared/Solver.luau',
@@ -23,6 +24,7 @@ MODULES = {
     'ViewportTargetHandle': 'src/plugin/ViewportTargetHandle.luau',
     'WorldGhostSession': 'src/plugin/WorldGhostSession.luau',
     'ChainDiscovery': 'src/plugin/ChainDiscovery.luau',
+    'ChainPathView': 'src/plugin/ChainPathView.luau',
     'AxisGizmo': 'src/plugin/AxisGizmo.luau',
     'HingeDragMath': 'src/plugin/HingeDragMath.luau',
     'HingeLimitHandles': 'src/plugin/HingeLimitHandles.luau',
@@ -30,8 +32,11 @@ MODULES = {
     'SavedLimitOverlay': 'src/plugin/SavedLimitOverlay.luau',
 }
 FIXTURES = {
+    'ChainPathView': (('ChainPathView',), 'tests/studio/ChainPathView.integration.luau'),
     'JointAuthoring': (('Config', 'InputProfileBuilder', 'JointAuthoring'), 'tests/studio/JointAuthoring.integration.luau'),
     'AxisGizmo': (('Config', 'AxisGizmo', 'LimitGeometryFactory'), 'tests/studio/AxisGizmo.spec.luau'),
+    'LimitGeometry': (('Config', 'LimitFrame', 'LimitGeometryFactory'), 'tests/studio/LimitGeometry.spec.luau'),
+    'ConfiguredLimitFrame': (('ChainDefinition', 'LimitFrame', 'Limits', 'Solver', 'ChainAdapter'), 'tests/studio/ConfiguredLimitFrame.integration.luau'),
     'HingeLimitHandles': (('Config', 'AxisGizmo', 'HingeDragMath', 'HingeLimitHandles'), 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': (('Config', 'ChainBuilder', 'ChainDefinition'), 'tests/studio/ConfiguredOrientation.integration.luau'),
     'OrientationChain': (('Limits', 'Solver', 'ChainAdapter'), 'tests/studio/OrientationChain.integration.luau'),
@@ -59,7 +64,7 @@ def main():
     print("assert(game:GetService('RunService'):IsEdit(), 'Run this fixture in Studio Edit mode')")
     for name, source in sources:
         print(f'local {name} = (function()\n{source}\nend)()')
-    if args.fixture == 'AxisGizmo':
+    if args.fixture in ('AxisGizmo', 'LimitGeometry'):
         print('local LimitGeometry = LimitGeometryFactory')
     elif args.fixture == 'SavedLimitOverlay':
         print('local LimitGeometry = LimitGeometryFactory.new(Config)')

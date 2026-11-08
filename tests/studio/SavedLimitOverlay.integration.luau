@@ -14,6 +14,10 @@ local holder=Instance.new('Folder')
 local guides=SavedLimitOverlay.new(rig,holder,Config,AxisGizmo,LimitGeometry,1)
 local shown,eligible=guides:update(nil)
 assert(shown==1 and eligible==1,'only valid saved limits are drawn')
+shown,eligible=guides:update(missing)
+assert(shown==0 and eligible==1,'selecting another joint hides every model-wide limit guide')
+shown,eligible=guides:update(rig)
+assert(shown==1 and eligible==1,'selecting the model restores its model-wide limit guide')
 local axisCount=0
 for _,item in ipairs(holder:GetDescendants()) do if item.Name=='EditRigIKAxisX' then axisCount+=1 end end
 assert(axisCount==0,'model-wide guides do not add per-joint axes')
