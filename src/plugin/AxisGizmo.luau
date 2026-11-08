@@ -1,6 +1,23 @@
 --!strict
 -- Temporary rest-axis markers. Never parent them to the edited model.
 local AxisGizmo={}
+-- Transform rotations are measured in this joint-local rest frame. The
+-- parent's animated pose belongs in the frame; the selected joint's own
+-- Transform does not. Return the ancestor part for adornment placement.
+function AxisGizmo.restFrame(joint)
+ if joint and joint:IsA('Motor6D') and joint.Part0 then
+  return joint.Part0,joint.Part0.CFrame*joint.C0
+ elseif joint and joint:IsA('Bone') then
+  local parentJoint=joint.Parent
+  if parentJoint and (parentJoint:IsA('Bone') or parentJoint:IsA('BasePart')) then
+   local frame=(if parentJoint:IsA('Bone') then parentJoint.TransformedWorldCFrame else parentJoint.CFrame)*joint.CFrame
+   local ancestor=parentJoint
+   while ancestor and not ancestor:IsA('BasePart') do ancestor=ancestor.Parent end
+   if ancestor then return ancestor,frame end
+  end
+ end
+ return nil,nil
+end
 function AxisGizmo.toWorldSegments(frame,segments)
  local result={}
  for _,segment in ipairs(segments) do
@@ -40,18 +57,7 @@ function AxisGizmo.new(parent,geometry,limitOnly)
  end
  function api:update(joint)
   assert(not dead,'axis gizmo is destroyed')
-  local part,frame=nil,nil
-  if joint and joint:IsA('Motor6D') and joint.Part0 then
-   part=joint.Part0; frame=part.CFrame*joint.C0
-  elseif joint and joint:IsA('Bone') then
-   local parentJoint=joint.Parent
-   if parentJoint and (parentJoint:IsA('Bone') or parentJoint:IsA('BasePart')) then
-    frame=(if parentJoint:IsA('Bone') then parentJoint.TransformedWorldCFrame else parentJoint.CFrame)*joint.CFrame
-    local ancestor=parentJoint
-    while ancestor and not ancestor:IsA('BasePart') do ancestor=ancestor.Parent end
-    part=ancestor
-   end
-  end
+  local part,frame=AxisGizmo.restFrame(joint)
   if not part or not frame then self:clear(); return false end
   for _,line in ipairs(lines) do
    local adornment=line.adornment

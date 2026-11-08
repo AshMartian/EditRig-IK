@@ -4,7 +4,7 @@ local LimitDraft={}
 local names={kind='EditRigIK_Kind',axis='EditRigIK_Axis',lower='EditRigIK_LowerDegrees',upper='EditRigIK_UpperDegrees',swing='EditRigIK_SwingDegrees',weight='EditRigIK_Weight'}
 function LimitDraft.new(Config)
  local api={}
- function api.classify(joint,input)
+ function api.classify(joint,input,started)
   if not joint then return 'none' end
   local inputOk,displayed=pcall(Config.validate,input)
   if not inputOk then return 'invalid' end
@@ -14,7 +14,7 @@ function LimitDraft.new(Config)
    stored[key]=joint:GetAttribute(name)
    if stored[key]~=nil then any=true end
   end
-  if not any then return 'unconfigured' end
+  if not any then return if started then 'draft' else 'unconfigured' end
   if joint:GetAttribute('EditRigIK_SchemaVersion')~=1 then return 'invalidSaved' end
   local savedOk,saved=pcall(Config.validate,stored)
   if not savedOk then return 'invalidSaved' end

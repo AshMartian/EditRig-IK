@@ -20,6 +20,12 @@
     "AxisGizmo": {
       "$path": "src/plugin/AxisGizmo.luau"
     },
+    "HingeDragMath": {
+      "$path": "src/plugin/HingeDragMath.luau"
+    },
+    "HingeLimitHandles": {
+      "$path": "src/plugin/HingeLimitHandles.luau"
+    },
     "RigOverlay": {
       "$path": "src/plugin/RigOverlay.luau"
     },

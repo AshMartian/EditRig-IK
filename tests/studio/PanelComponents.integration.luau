@@ -1,4 +1,34 @@
 assert(PanelComponents, 'panel components required')
+-- A viewport handle can select the same field without taking keyboard focus;
+-- typed input and the handle both edit the same draft, never save implicitly.
+local fields = {}
+for _, key in ipairs({'lower', 'upper', 'swing'}) do
+    fields[key] = Instance.new('TextBox')
+    fields[key].Text = '0'
+end
+local focusEvents = {}
+local binding = PanelComponents.bindLimitInputs(fields, function(key)
+    table.insert(focusEvents, key)
+end)
+assert(binding:select('lower') and binding.active == 'lower', 'handle selection identifies the matching field')
+assert(fields.lower:FindFirstChild('LimitSelection').Enabled and not fields.upper:FindFirstChild('LimitSelection').Enabled, 'only the matching field is highlighted')
+assert(binding:setValue('lower', -45.25) and fields.lower.Text == '-45.25', 'viewport edits update the linked numeric draft')
+assert(not binding:setValue('lower', math.huge) and fields.lower.Text == '-45.25', 'nonfinite handle values do not enter the draft')
+assert(not binding:select('missing') and binding.active == 'lower', 'unknown handle leaves selection unchanged')
+binding:begin('lower')
+fields.lower.Text = '-3'
+assert(binding:cancel() and fields.lower.Text == '-45.25', 'Escape restores the field value from the start of editing')
+assert(not binding:cancel(), 'cancel cannot repeatedly restore an old snapshot')
+binding:begin('upper'); fields.upper.Text = '10'
+binding:finish('upper')
+assert(not binding:cancel() and fields.upper.Text == '10', 'finished edits are not undone by later Escape')
+binding:begin('lower'); binding:abandon(); fields.lower.Text = '42'
+assert(not binding:cancel() and fields.lower.Text == '42', 'changing joint discards the previous edit snapshot')
+binding:select(nil)
+assert(not fields.lower:FindFirstChild('LimitSelection').Enabled and not fields.upper:FindFirstChild('LimitSelection').Enabled, 'selection can be cleared')
+assert(#focusEvents > 0 and focusEvents[1] == 'lower', 'selection notifies the linked viewport')
+binding:destroy(); binding:destroy()
+for _, box in pairs(fields) do assert(not box:FindFirstChild('LimitSelection'), 'destroy removes owned highlights'); box:Destroy() end
 local host = Instance.new('Frame')
 host.Size = UDim2.fromOffset(320, 420)
 local panel = PanelComponents.new(host)

@@ -22,10 +22,14 @@ MODULES = {
     'WorldGhostSession': 'src/plugin/WorldGhostSession.luau',
     'ChainDiscovery': 'src/plugin/ChainDiscovery.luau',
     'AxisGizmo': 'src/plugin/AxisGizmo.luau',
+    'HingeDragMath': 'src/plugin/HingeDragMath.luau',
+    'HingeLimitHandles': 'src/plugin/HingeLimitHandles.luau',
     'LimitGeometryFactory': 'src/plugin/LimitGeometry.luau',
     'SavedLimitOverlay': 'src/plugin/SavedLimitOverlay.luau',
 }
 FIXTURES = {
+    'AxisGizmo': (('Config', 'AxisGizmo', 'LimitGeometryFactory'), 'tests/studio/AxisGizmo.spec.luau'),
+    'HingeLimitHandles': (('Config', 'AxisGizmo', 'HingeDragMath', 'HingeLimitHandles'), 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': (('Config', 'ChainBuilder', 'ChainDefinition'), 'tests/studio/ConfiguredOrientation.integration.luau'),
     'OrientationChain': (('Limits', 'Solver', 'ChainAdapter'), 'tests/studio/OrientationChain.integration.luau'),
     'SurfaceOrientation': (('SurfaceFrame', 'SurfaceOrientation'), 'tests/studio/SurfaceOrientation.integration.luau'),
@@ -52,7 +56,9 @@ def main():
     print("assert(game:GetService('RunService'):IsEdit(), 'Run this fixture in Studio Edit mode')")
     for name, source in sources:
         print(f'local {name} = (function()\n{source}\nend)()')
-    if args.fixture == 'SavedLimitOverlay':
+    if args.fixture == 'AxisGizmo':
+        print('local LimitGeometry = LimitGeometryFactory')
+    elif args.fixture == 'SavedLimitOverlay':
         print('local LimitGeometry = LimitGeometryFactory.new(Config)')
     print(f'local result = (function()\n{test_source}\nend)()')
     print(f"print('Studio source fixture {args.fixture} passed:', result)")

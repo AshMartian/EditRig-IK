@@ -22,6 +22,11 @@ local RuntimeInstaller = require(script.RuntimeInstaller)
 local InputProfileBuilder = require(script.InputProfileBuilder)
 local GaitExampleInstaller = require(script.GaitExampleInstaller)
 local JointBatch = require(script.JointBatch)
+local PanelComponents = require(script.PanelComponents)
+local HingeLimitHandles = require(script.HingeLimitHandles)
+local HingeDragMath = require(script.HingeDragMath)
+local UserInputService = game:GetService('UserInputService')
+local panel = nil
 local toolbar = plugin:CreateToolbar('EditRig IK')
 local button = toolbar:CreateButton('Joint Limits', 'Edit IK limit metadata', '')
 local widget = plugin:CreateDockWidgetPluginGui('EditRigIKAuthoringV2', DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 460, 650, 320, 420))
@@ -176,6 +181,7 @@ for _, entry in ipairs({{'kind','Limit type'}, {'axis','Local axis'}, {'lower','
     caption.TextSize = 16
     caption.Parent = row
     local box = Instance.new('TextBox')
+    box.Name = entry[1] .. 'Input'
     box.Position = UDim2.new(0.53, 0, 0, 0)
     box.Size = UDim2.new(0.47, 0, 1, 0)
     box.BackgroundColor3 = Color3.fromRGB(60, 63, 72)
@@ -244,6 +250,27 @@ local baseline: {[string]: string}={}
 local updatingFields=false
 local limitDiscardNotice=false
 local attributeConnection: RBXScriptConnection?=nil
+local limitDraftStarted=false
+local hingeHandles,hingeFolder,hingeJoint=nil,nil,nil
+local hingeActive=false
+local hingeButton=Instance.new('TextButton')
+hingeButton.Name='EditHingeLimits3D'
+hingeButton.Size=UDim2.new(1,0,0,32); hingeButton.BackgroundColor3=Color3.fromRGB(61,109,172)
+hingeButton.TextColor3=Color3.new(1,1,1); hingeButton.Text='Edit hinge limits in 3D'
+hingeButton.Font=Enum.Font.SourceSansBold; hingeButton.TextSize=16; order(hingeButton); hingeButton.Parent=root
+local limitBinding=PanelComponents.bindLimitInputs({lower=fields.lower,upper=fields.upper,swing=fields.swing},function(key)
+    if hingeHandles then hingeHandles:select(if key=='lower' or key=='upper' then key else nil) end
+end)
+local function stopHingeEdit(message, deactivated)
+    if not hingeActive then return end
+    hingeActive=false
+    if hingeHandles then hingeHandles:destroy(); hingeHandles=nil end
+    if hingeFolder then hingeFolder:Destroy(); hingeFolder=nil end
+    hingeJoint=nil
+    hingeButton.Text='Edit hinge limits in 3D'
+    if not deactivated then plugin:Deactivate() end
+    if message then status.Text=message end
+end
 local function limitInput()
     return {kind=fields.kind.Text,axis=string.upper(fields.axis.Text),lower=tonumber(fields.lower.Text),upper=tonumber(fields.upper.Text),swing=tonumber(fields.swing.Text),weight=tonumber(fields.weight.Text)}
 end
@@ -256,10 +283,10 @@ local function limitFieldsChanged(): boolean
 end
 local function updateLimitState()
     if updatingFields then return end
-    local state=LimitDraft.classify(current,limitInput())
+    local state=LimitDraft.classify(current,limitInput(),limitDraftStarted or limitFieldsChanged())
     local messages={
         none='Limit settings: select one joint.',
-        unconfigured='Unconfigured: example limits are not saved. Yellow guide is a draft.',
+        unconfigured='Unconfigured: example values are not saved. The limit guide is hidden until configured.',
         saved='Saved limit settings. Yellow guide shows the saved values.',
         draft='Unsaved limit changes. Yellow guide shows the draft.',
         invalid='Invalid limit input. Yellow guide is hidden; nothing was saved.',
@@ -283,13 +310,16 @@ local function hideAxes()
 end
 local function updateLimitPreview()
     if not axisGizmo then return end
-    local classification=LimitDraft.classify(current,limitInput())
+    local classification=LimitDraft.classify(current,limitInput(),limitDraftStarted or limitFieldsChanged())
     -- Blank/invalid metadata never renders the numeric form's fallback values
     -- as if they were an authored limit.
     axisGizmo:setLimits(if OverlaySelection.showLimit(classification) then limitInput() else nil)
 end
 for _,key in ipairs(limitKeys) do
     fields[key]:GetPropertyChangedSignal('Text'):Connect(updateLimitPreview)
+    fields[key]:GetPropertyChangedSignal('Text'):Connect(function()
+        if hingeHandles and not updatingFields then hingeHandles:sync(current,limitInput()) end
+    end)
 end
 local function showAxes()
     if not current then return end
@@ -307,16 +337,62 @@ local function showAxes()
     status.Text='X red, Y green, Z blue; yellow shows hinge range or ball swing. Ball twist is numeric only.'
 end
 axisButton.MouseButton1Click:Connect(function()
-    if axisGizmo then overlayPolicy:hideAxes(); hideAxes(); status.Text='Joint guide hidden until selection changes or the panel reopens.'; return end
+    if axisGizmo then stopHingeEdit(nil); overlayPolicy:hideAxes(); hideAxes(); status.Text='Joint guide hidden until selection changes or the panel reopens.'; return end
     overlayPolicy:showAxes(); syncVisualSelection()
 end)
+hingeButton.Activated:Connect(function()
+    if hingeActive then stopHingeEdit('3D hinge editing stopped; draft values remain unsaved.'); return end
+    if not widget.Enabled or not RunService:IsEdit() or not current then status.Text='Select one joint in Edit mode first.'; return end
+    if not current:IsDescendantOf(workspace) then status.Text='Select a joint in Workspace to edit its viewport limits.'; return end
+    local ok,config=pcall(Config.validate,limitInput())
+    if not ok or config.kind~='Hinge' then status.Text='Enter valid hinge settings before editing in 3D.'; return end
+    local state=LimitDraft.classify(current,limitInput())
+    if state=='invalidSaved' then status.Text='Saved metadata is invalid. Review and save it before editing in 3D.'; return end
+    limitDraftStarted=state=='unconfigured' or limitDraftStarted
+    overlayPolicy:showAxes(); syncVisualSelection(); updateLimitState(); updateLimitPreview()
+    local folder=Instance.new('Folder'); folder.Name='EditRigIKHingeHandles'; folder.Parent=game:GetService('CoreGui')
+    local joint=current
+    local created,handles=pcall(function()
+        return HingeLimitHandles.new(folder,plugin:GetMouse(),Config,HingeDragMath,AxisGizmo.restFrame,function(bound,value)
+            if hingeActive and current==joint then limitBinding:select(bound); limitBinding:setValue(bound,value) end
+        end,function(bound)
+            limitBinding:select(bound)
+            if panel then
+                panel:select('Joints')
+                local page=panel.pages.Joints
+                local row=fields[bound].Parent
+                page.CanvasPosition=Vector2.new(0,math.max(0,page.CanvasPosition.Y+row.AbsolutePosition.Y-page.AbsolutePosition.Y-45))
+            end
+            status.Text='Drag the '..bound..' handle; changes are unsaved until you save limit metadata.'
+        end)
+    end)
+    if not created then folder:Destroy(); status.Text='Cannot create hinge handles: '..tostring(handles); return end
+    hingeFolder=folder; hingeHandles=handles; hingeJoint=joint
+    if not hingeHandles:set(joint,limitInput()) then hingeHandles:destroy(); hingeHandles=nil; folder:Destroy(); hingeFolder=nil; status.Text='Cannot display this joint frame.'; return end
+    hingeActive=true; hingeButton.Text='Stop editing hinge limits in 3D'
+    local activated,err=pcall(function() plugin:Activate(true) end)
+    if not activated then stopHingeEdit('Cannot activate viewport editing: '..tostring(err)); return end
+    status.Text='Drag a gold endpoint to edit its draft limit. Press Escape to cancel a drag; save to apply.'
+end)
+plugin.Deactivation:Connect(function() stopHingeEdit('3D hinge editing stopped; draft values remain unsaved.',true) end)
+UserInputService.InputBegan:Connect(function(input)
+    if hingeActive and input.KeyCode==Enum.KeyCode.Escape and not UserInputService:GetFocusedTextBox() and hingeHandles then hingeHandles:cancel(true) end
+end)
 local axisUpdate=RunService.Heartbeat:Connect(function()
+    if hingeActive then
+        if not RunService:IsEdit() or not widget.Enabled or current~=hingeJoint or not hingeJoint.Parent then
+            stopHingeEdit('3D hinge editing stopped; draft values remain unsaved.')
+        elseif hingeHandles then
+            local ok,visible=pcall(function() return hingeHandles:update() end)
+            if not ok then stopHingeEdit('3D hinge editing stopped: '..tostring(visible)) end
+        end
+    end
     if axisGizmo then
         local ok,visible=pcall(function() return axisGizmo:update(current) end)
         if not ok or not visible or not RunService:IsEdit() then hideAxes() end
     end
 end)
-plugin.Unloading:Connect(function() axisUpdate:Disconnect(); hideAxes() end)
+plugin.Unloading:Connect(function() stopHingeEdit(nil); limitBinding:destroy(); axisUpdate:Disconnect(); hideAxes() end)
 local attrs = {kind='EditRigIK_Kind', axis='EditRigIK_Axis', lower='EditRigIK_LowerDegrees', upper='EditRigIK_UpperDegrees', swing='EditRigIK_SwingDegrees',weight='EditRigIK_Weight'}
 local defaults = {kind='Hinge', axis='X', lower=-90, upper=90, swing=90,weight=1,holdKey='',reverseHoldKey='',holdValue=1,impulseKey='',impulseValue=1}
 local driveAttrs = {control='EditRigIK_Control',impulse='EditRigIK_Impulse',frequency='EditRigIK_Frequency'}
@@ -324,7 +400,8 @@ local inputAttrs = {holdKey='EditRigIK_HoldKey',reverseHoldKey='EditRigIK_Revers
 local function refresh()
     local items = Selection:Get()
     local item = if #items == 1 then items[1] else nil
-    local discarded=current~=nil and current~=item and (limitFieldsChanged() or LimitDraft.classify(current,limitInput())=='draft')
+    local discarded=current~=nil and current~=item and (limitDraftStarted or limitFieldsChanged() or LimitDraft.classify(current,limitInput())=='draft')
+    if current~=item then stopHingeEdit(nil); limitBinding:abandon(); limitBinding:select(nil); limitDraftStarted=false end
     if attributeConnection then attributeConnection:Disconnect(); attributeConnection=nil end
     updatingFields=true
     if item and (item:IsA('Motor6D') or item:IsA('Bone')) then
@@ -342,7 +419,7 @@ local function refresh()
         status.Text = ''
     end
     rememberLimitFields(); updatingFields=false; limitDiscardNotice=discarded
-    if current then attributeConnection=current.AttributeChanged:Connect(function() updateLimitState(); updateLimitPreview() end) end
+    if current then attributeConnection=current.AttributeChanged:Connect(function() stopHingeEdit('Joint metadata changed; 3D editing stopped.'); updateLimitState(); updateLimitPreview() end) end
     updateLimitState()
     updateLimitPreview()
 end
@@ -367,6 +444,7 @@ button.Click:Connect(function() widget.Enabled = not widget.Enabled end)
 widget:GetPropertyChangedSignal('Enabled'):Connect(function()
     button:SetActive(widget.Enabled)
     if widget.Enabled then refresh() end
+    if not widget.Enabled then stopHingeEdit(nil) end
     syncVisualSelection()
 end)
 Selection.SelectionChanged:Connect(function() refresh(); syncVisualSelection() end)
@@ -435,7 +513,7 @@ apply.MouseButton1Click:Connect(function()
     item:SetAttribute(inputAttrs.holdValue,holdValue); item:SetAttribute(inputAttrs.impulseValue,impulseValue)
     item:SetAttribute('EditRigIK_SchemaVersion', 1)
     ChangeHistoryService:SetWaypoint('Save EditRig IK limit metadata')
-    rememberLimitFields(); limitDiscardNotice=false; updateLimitState()
+    rememberLimitFields(); limitDraftStarted=false; limitDiscardNotice=false; updateLimitState()
     status.Text = 'Saved to ' .. item.Name .. '. Refresh actor and chain snapshots to use the changes.'
 end)
 local function batchValues()
@@ -1024,12 +1102,12 @@ plugin.Unloading:Connect(function() ghostUpdate:Disconnect(); closeGhost() end)
 
 -- The editor's existing controls are grouped into real pages; their callbacks
 -- retain the same instances and authorization/undo behavior.
-local panel=require(script.PanelComponents).new(widget)
+panel=PanelComponents.new(widget)
 panel.root.Visible=false
 for _,item in ipairs(root:GetChildren()) do
     if item:IsA('GuiObject') then
         local page
-        if item==axisButton then page=panel.pages.Joints
+        if item==axisButton or item==hingeButton then page=panel.pages.Joints
         elseif item.LayoutOrder<limitStateLabel.LayoutOrder then page=panel.pages.Rig
         elseif item.LayoutOrder<createActor.LayoutOrder then page=panel.pages.Joints
         elseif item.LayoutOrder<chainTitle.LayoutOrder then page=panel.pages.Rig
@@ -1042,6 +1120,13 @@ for _,item in ipairs(root:GetChildren()) do
         item.Parent=page
     end
 end
+-- Keep viewport editing next to the numeric hinge bounds rather than below
+-- the unrelated actor and input settings.
+for _,item in ipairs(panel.pages.Joints:GetChildren()) do
+    if item:IsA('GuiObject') then item.LayoutOrder*=10 end
+end
+hingeButton.LayoutOrder=fields.upper.Parent.LayoutOrder+1
+axisButton.LayoutOrder=fields.upper.Parent.LayoutOrder+2
 ghostTitle.LayoutOrder=1; ghostStatus.LayoutOrder=2; ghostOffsetLabel.LayoutOrder=3; ghostOffset.LayoutOrder=4
 ghostStartButton.LayoutOrder=5; ghostSetTargetButton.LayoutOrder=6; ghostResetButton.LayoutOrder=7; ghostEndButton.LayoutOrder=8
 local selectedJointLabel=selectedLabel:Clone()

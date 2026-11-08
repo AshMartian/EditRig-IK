@@ -8,6 +8,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / 'tools' / 'bundle_studio_test.py'
 FIXTURES = {
+    'AxisGizmo': ('src/shared/Config.luau', 'src/plugin/AxisGizmo.luau', 'src/plugin/LimitGeometry.luau', 'tests/studio/AxisGizmo.spec.luau'),
+    'HingeLimitHandles': ('src/shared/Config.luau', 'src/plugin/AxisGizmo.luau', 'src/plugin/HingeDragMath.luau', 'src/plugin/HingeLimitHandles.luau', 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': ('src/shared/Config.luau', 'src/plugin/ChainBuilder.luau', 'src/runtime/ChainDefinition.luau', 'tests/studio/ConfiguredOrientation.integration.luau'),
     'OrientationChain': ('src/shared/Limits.luau', 'src/shared/Solver.luau', 'src/runtime/ChainAdapter.luau', 'tests/studio/OrientationChain.integration.luau'),
     'SurfaceOrientation': ('src/runtime/SurfaceFrame.luau', 'src/runtime/SurfaceOrientation.luau', 'tests/studio/SurfaceOrientation.integration.luau'),
@@ -60,6 +62,11 @@ class BundleStudioTest(unittest.TestCase):
         result = run('SavedLimitOverlay')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('local LimitGeometry = LimitGeometryFactory.new(Config)', result.stdout)
+
+    def test_axis_gizmo_bundle_exposes_geometry_factory(self):
+        result = run('AxisGizmo')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('local LimitGeometry = LimitGeometryFactory\n', result.stdout)
 
     def test_unknown_and_missing_fixture_fail_without_luau_output(self):
         for args in ((), ('unknown',), ('../PanelComponents',)):
