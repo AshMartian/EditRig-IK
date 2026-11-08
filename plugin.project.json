@@ -124,6 +124,7 @@
       "Actor": {"$path": "src/runtime/Actor.luau"},
       "Limits": {"$path": "src/shared/Limits.luau"},
       "LimitFrame": {"$path": "src/shared/LimitFrame.luau"},
+      "CircularHinge": {"$path": "src/shared/CircularHinge.luau"},
       "Solver": {"$path": "src/shared/Solver.luau"}
     },
     "GeneratedController": {

@@ -1155,11 +1155,14 @@ ghostOffset.Text='0, 0, 0'; ghostOffset.ClearTextOnFocus=false; order(ghostOffse
 local ghost,ghostGuard,ghostTarget,ghostWorld,ghostGui,ghostAncestry=nil,nil,nil,nil,nil,nil
 local surfacePanel,surfaceGuide,surfaceSource,surfaceSnapshot=nil,nil,nil,nil
 local poseQueue,ghostDesiredOrientation,ghostJointCount,previewFallback=nil,nil,0,false
+local ghostTargetPosition,ghostCurrentOrientation,orientationSource,ghostModeButton=nil,nil,nil,nil
+local ghostMode='move'
 local pendingTarget=nil
 local function closeGhost()
     pendingTarget=nil
     if poseQueue then poseQueue:cancel(); poseQueue=nil end
-    ghostDesiredOrientation=nil; ghostJointCount=0; surfaceSnapshot=nil; previewFallback=false
+    ghostDesiredOrientation=nil; ghostTargetPosition=nil; ghostCurrentOrientation=nil; orientationSource=nil; ghostJointCount=0; surfaceSnapshot=nil; previewFallback=false
+    ghostMode='move'; if ghostModeButton then ghostModeButton.Text='Rotate target' end
     if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
     surfaceSource=nil
     if surfacePanel then surfacePanel:setContext('Start a viewport simulation for a saved chain.',false) end
@@ -1200,15 +1203,30 @@ ghostStartButton.MouseButton1Click:Connect(function()
         end})
         ghostJointCount=#definition.Joints:GetChildren()
         poseQueue=require(script.PosePreviewQueue).new(math.min(40,definition:GetAttribute('Iterations')))
-        ghostTarget=require(script.ViewportTargetHandle).new(ghostWorld,ghostGui,ghost:startTarget(),function(target)
+        ghostTargetPosition=ghost:startTarget()
+        ghostCurrentOrientation=ghost:startOrientation()
+        ghostTarget=require(script.ViewportTargetHandle).new(ghostWorld,ghostGui,ghostTargetPosition,function(target)
             if checkGhostResources() then
                 local moved,err=pcall(function()
+                    ghostTargetPosition=target
                     ghostTarget:setPosition(target); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget())
                     if ghostDesiredOrientation then poseQueue:request(target,ghostDesiredOrientation) else pendingTarget=target end
                 end)
                 if not moved then closeGhost(); ghostStatus.Text='Simulation closed after target error: '..tostring(err) end
             end
-        end)
+        end,{orientation=ghost:startOrientation(),onOrientation=function(rotation)
+            if checkGhostResources() and ghostGuard and ghostGuard:check() then
+                local rotated,err=pcall(function()
+                    ghostDesiredOrientation=rotation; orientationSource='manual'; previewFallback=false; pendingTarget=nil
+                    surfaceSnapshot=nil
+                    if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
+                    ghostTarget:setOrientation(rotation)
+                    poseQueue:request(ghostTargetPosition,rotation)
+                    if surfacePanel then surfacePanel:setResult('Manual target orientation. Check the surface again before aligning.') end
+                end)
+                if not rotated then closeGhost(); ghostStatus.Text='Simulation closed after orientation error: '..tostring(err) end
+            end
+        end})
         ghostGuard=require(script.PreviewGuard).new(definition.Parent.Parent,definition,Selection,RunService,function(reason)
             closeGhost(); ghostStatus.Text='Simulation closed: '..reason..'. Reopen the chain to try again.'
         end)
@@ -1226,6 +1244,21 @@ ghostStartButton.MouseButton1Click:Connect(function()
     ghostOffset.Text=ChainDiscovery.formatOffset(Vector3.zero)
     ghostStatus.Text='Preview uses saved chain limits. Refresh limits from joints after editing. Red: target; green: endpoint.'
 end)
+ghostModeButton=chainButton('Rotate target')
+ghostModeButton.Name='GhostTargetMode'
+ghostModeButton.MouseButton1Click:Connect(function()
+    if not ghost or not checkGhostResources() or not ghostGuard or not ghostGuard:check() then
+        ghostStatus.Text='Start viewport simulation before rotating the target.'; return
+    end
+    local ok,err=pcall(function()
+        ghostMode=if ghostMode=='move' then 'rotate' else 'move'
+        if ghostMode=='rotate' then ghostTarget:setOrientation(ghostDesiredOrientation or ghostCurrentOrientation) end
+        ghostTarget:setMode(ghostMode)
+    end)
+    if not ok then closeGhost(); ghostStatus.Text='Simulation closed after target mode error: '..tostring(err); return end
+    ghostModeButton.Text=if ghostMode=='rotate' then 'Move target' else 'Rotate target'
+    ghostStatus.Text=if ghostMode=='rotate' then 'Drag a local-axis rotation ring to orient the ghost endpoint.' else 'Drag a world-axis arrow to move the ghost target.'
+end)
 local ghostSetTargetButton=chainButton('Set viewport target offset')
 ghostSetTargetButton.MouseButton1Click:Connect(function()
     if not ghost then ghostStatus.Text='Start viewport simulation first.'; return end
@@ -1235,6 +1268,7 @@ ghostSetTargetButton.MouseButton1Click:Connect(function()
     if not ok then ghostStatus.Text='Invalid target offset: '..tostring(offset); return end
     local setOk,err=pcall(function()
         local target=ghost:startTarget()+offset
+        ghostTargetPosition=target
         ghostTarget:setPosition(target)
         if ghostDesiredOrientation then poseQueue:request(target,ghostDesiredOrientation) else pendingTarget=target end
     end)
@@ -1247,11 +1281,11 @@ ghostResetButton.MouseButton1Click:Connect(function()
     if not ghostGuard or not ghostGuard:check() then return end
     pendingTarget=nil
     if poseQueue then poseQueue:cancel() end
-    ghostDesiredOrientation=nil
+    ghostDesiredOrientation=nil; orientationSource=nil; previewFallback=false
     surfaceSnapshot=nil
     if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
     if surfacePanel then surfacePanel:setResult('Preview reset. Check the scene surface again before aligning.') end
-    local ok,err=pcall(function() ghost:reset(); local start=ghost:startTarget(); ghostTarget:setPosition(start); ghostTarget:setEndpoint(start) end)
+    local ok,err=pcall(function() ghost:reset(); local start=ghost:startTarget(); ghostTargetPosition=start; ghostCurrentOrientation=ghost:startOrientation(); ghostTarget:setPosition(start); ghostTarget:setEndpoint(start); ghostTarget:setOrientation(ghostCurrentOrientation) end)
     if not ok then closeGhost(); ghostStatus.Text='Simulation closed after reset error: '..tostring(err); return end
     ghostOffset.Text=ChainDiscovery.formatOffset(Vector3.zero)
     ghostStatus.Text='Preview reset to its starting pose.'
@@ -1261,8 +1295,8 @@ ghostEndButton.MouseButton1Click:Connect(function() closeGhost(); ghostStatus.Te
 local ghostUpdate=RunService.Heartbeat:Connect(function()
     if surfaceGuide and not surfaceGuide:isValid() then
         surfaceGuide:destroy(); surfaceGuide=nil
-        surfaceSnapshot=nil; ghostDesiredOrientation=nil
-        if poseQueue then poseQueue:cancel() end
+        surfaceSnapshot=nil
+        if orientationSource=='surface' then ghostDesiredOrientation=nil; orientationSource=nil; if poseQueue then poseQueue:cancel() end end
         if surfacePanel then surfacePanel:setResult('Contact guide was removed. Check the scene surface again.') end
     end
     if not ghost or not checkGhostResources() then return end
@@ -1271,7 +1305,7 @@ local ghostUpdate=RunService.Heartbeat:Connect(function()
     if job then
         local ok,result=pcall(function()
             local solved=ghost:solveTarget(job.target,{iterations=1,targetOrientation=job.orientation,orientationTolerance=math.rad(1)})
-            ghostTarget:setEndpoint(solved.endpointWorld); return solved
+            ghostTarget:setEndpoint(solved.endpointWorld); ghostCurrentOrientation=solved.endpointOrientationWorld; return solved
         end)
         if not ok then poseQueue:complete(job,nil); closeGhost(); ghostStatus.Text='Simulation closed after solve error: '..tostring(result); return end
         local accepted,state=poseQueue:complete(job,result)
@@ -1280,13 +1314,13 @@ local ghostUpdate=RunService.Heartbeat:Connect(function()
             local message=string.format('%s · gap %.3f studs · orientation error %.1f° · step %d',label,result.error,math.deg(result.orientationError),job.iteration)
             if previewFallback then message..=' · heading fallback' end
             ghostStatus.Text=message
-            if surfacePanel then surfacePanel:setResult(message..'\nPreview assumes support; original rig is unchanged.') end
+            if surfacePanel and orientationSource=='surface' then surfacePanel:setResult(message..'\nPreview assumes support; original rig is unchanged.') end
         end
         return
     end
     if not pendingTarget then return end
     local target=pendingTarget; pendingTarget=nil
-    local ok,result=pcall(function() local solved=ghost:solveTarget(target); ghostTarget:setEndpoint(solved.endpointWorld); return solved end)
+    local ok,result=pcall(function() local solved=ghost:solveTarget(target); ghostTarget:setEndpoint(solved.endpointWorld); ghostCurrentOrientation=solved.endpointOrientationWorld; return solved end)
     if not ok then closeGhost(); ghostStatus.Text='Simulation closed after solve error: '..tostring(result); return end
     ghostStatus.Text=string.format('%s | gap %.3f studs | %d iterations | clamped during solve: %d',if result.converged then 'Reached' else 'Not reached',result.error,result.iterations,#result.limitedJoints)
 end)
@@ -1321,7 +1355,7 @@ end
 hingeButton.LayoutOrder=fields.upper.Parent.LayoutOrder+1
 axisButton.LayoutOrder=fields.upper.Parent.LayoutOrder+2
 ghostTitle.LayoutOrder=1; ghostStatus.LayoutOrder=2; ghostOffsetLabel.LayoutOrder=3; ghostOffset.LayoutOrder=4
-ghostStartButton.LayoutOrder=5; ghostSetTargetButton.LayoutOrder=6; ghostResetButton.LayoutOrder=7; ghostEndButton.LayoutOrder=8
+ghostStartButton.LayoutOrder=5; ghostModeButton.LayoutOrder=6; ghostSetTargetButton.LayoutOrder=7; ghostResetButton.LayoutOrder=8; ghostEndButton.LayoutOrder=9
 local selectedJointLabel=selectedLabel:Clone()
 selectedJointLabel.Name='SelectedJointContext'; selectedJointLabel.LayoutOrder=0; selectedJointLabel.Parent=panel.pages.Joints
 selectedLabel:GetPropertyChangedSignal('Text'):Connect(function() selectedJointLabel.Text=selectedLabel.Text end)
@@ -1347,8 +1381,10 @@ surfacePanel=panel:contactProbe(function(options)
         return
     end
     if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
-    if poseQueue then poseQueue:cancel() end
-    ghostDesiredOrientation=nil; pendingTarget=nil
+    if orientationSource=='surface' then
+        if poseQueue then poseQueue:cancel() end
+        ghostDesiredOrientation=nil; orientationSource=nil
+    end
     surfaceSnapshot=nil
     local origin=ghost:startTarget()
     local ray=require(script.SurfaceProbe).new(workspace,surfaceSource,{ghostWorld})
@@ -1384,8 +1420,8 @@ end,function(options)
     local aligned,reason=require(script.SurfaceOrientation).align(ghost:startOrientation(),Vector3.new(u[1],u[2],u[3]),Vector3.new(f[1],f[2],f[3]),Vector3.new(n[1],n[2],n[3]),options.strength,require(script.SurfaceFrame))
     if not aligned then surfacePanel:setResult('Cannot determine the surface frame: '..tostring(reason)); return end
     local t=surfaceSnapshot.target; local target=Vector3.new(t[1],t[2],t[3])
-    ghostDesiredOrientation=aligned.rotation; previewFallback=aligned.usedFallback
-    pendingTarget=nil; ghostTarget:setPosition(target); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget())
+    ghostDesiredOrientation=aligned.rotation; orientationSource='surface'; previewFallback=aligned.usedFallback
+    pendingTarget=nil; ghostTargetPosition=target; ghostTarget:setPosition(target); ghostTarget:setOrientation(aligned.rotation); ghostOffset.Text=ChainDiscovery.formatOffset(target-ghost:startTarget())
     poseQueue:request(target,ghostDesiredOrientation)
     surfacePanel:setResult('Solving ghost alignment; preview assumes support.')
 end)
@@ -1393,9 +1429,12 @@ surfacePanel.root.LayoutOrder=3; surfacePanel.root.Parent=feetCard
 for _,field in ipairs({surfacePanel.distance,surfacePanel.slope,surfacePanel.soleOffset,surfacePanel.soleUp,surfacePanel.soleForward,surfacePanel.strength}) do
     field:GetPropertyChangedSignal('Text'):Connect(function()
         if surfaceGuide then surfaceGuide:destroy(); surfaceGuide=nil end
-        if ghostDesiredOrientation then ghostStatus.Text='Alignment preview stopped because settings changed.' end
-        surfaceSnapshot=nil; ghostDesiredOrientation=nil
-        if poseQueue then poseQueue:cancel() end
+        if orientationSource=='surface' then
+            ghostStatus.Text='Alignment preview stopped because settings changed.'
+            ghostDesiredOrientation=nil; orientationSource=nil
+            if poseQueue then poseQueue:cancel() end
+        end
+        surfaceSnapshot=nil
     end)
 end
 local feetTab=Instance.new('TextButton'); feetTab.Name='FeetTab'; feetTab.Text='Feet'; feetTab.Size=UDim2.new(.5,-2,1,0); feetTab.Parent=alignTabs

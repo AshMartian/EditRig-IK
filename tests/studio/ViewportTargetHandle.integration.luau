@@ -24,7 +24,7 @@ handle:begin(Enum.NormalId.Front); handle:move(Enum.NormalId.Front,2)
 assert((requests[3]-Vector3.new(3,2,1)).Magnitude<1e-6,'front face uses negative world Z')
 assert(not pcall(function() handle:move(Enum.NormalId.Front,0/0) end),'nonfinite distances are rejected')
 handle:destroy(); handle:destroy(); assert(#world:GetChildren()==0 and #gui:GetChildren()==0,'destroy removes target and handles')
-for _,name in ipairs({'EditRigIKPreviewTarget','EditRigIKPreviewEndpoint','EditRigIKTargetHandles','EditRigIKPreviewGap'}) do
+for _,name in ipairs({'EditRigIKPreviewTarget','EditRigIKPreviewEndpoint','EditRigIKTargetHandles','EditRigIKPreviewGap','EditRigIKPreviewOrientation','EditRigIKTargetRotationHandles'}) do
  local probe=ViewportTargetHandle.new(world,gui,Vector3.zero,function() end)
  local object=world:FindFirstChild(name) or gui:FindFirstChild(name)
  assert(object,name..' fixture missing')
@@ -34,5 +34,36 @@ for _,name in ipairs({'EditRigIKPreviewTarget','EditRigIKPreviewEndpoint','EditR
  probe:destroy()
  assert(#world:GetChildren()==0 and #gui:GetChildren()==0,'invalid handle cleanup must remove remaining temporary objects')
 end
+-- The orientation target is a separate, local-axis editing mode.  It must
+-- not rotate movement handles or touch the source chain.
+local turns={}
+local initial=CFrame.Angles(0,math.pi/2,0)
+local oriented=ViewportTargetHandle.new(world,gui,Vector3.new(4,5,6),function() end,{
+ orientation=initial,onOrientation=function(value) table.insert(turns,value) end,
+})
+local move=gui:FindFirstChild('EditRigIKTargetHandles')
+local rings=gui:FindFirstChild('EditRigIKTargetRotationHandles')
+assert(rings and rings:IsA('ArcHandles'),'rotation mode must expose native rotation rings')
+assert(move.Visible and not rings.Visible,'translation is the default mode')
+oriented:setMode('rotate')
+assert(rings.Visible and not move.Visible,'rotation mode must replace movement handles')
+oriented:beginRotation(Enum.Axis.X)
+oriented:moveRotation(Enum.Axis.X,math.pi/4)
+assert(#turns==1 and turns[1]:FuzzyEq(initial*CFrame.Angles(math.pi/4,0,0),1e-5),'rotation drag uses the start orientation and local axis')
+oriented:setOrientation(turns[1]); oriented:moveRotation(Enum.Axis.X,math.pi/2)
+assert(#turns==2 and turns[2]:FuzzyEq(initial*CFrame.Angles(math.pi/2,0,0),1e-5),'rotation drag does not accumulate when the preview updates')
+oriented:finishRotation(); oriented:moveRotation(Enum.Axis.X,math.pi)
+assert(#turns==2,'release ends the rotation drag')
+oriented:beginRotation(Enum.Axis.Y); oriented:moveRotation(Enum.Axis.Z,.5)
+assert(#turns==2,'dragging a different axis does not change the target')
+assert(not pcall(function() oriented:moveRotation(Enum.Axis.Y,0/0) end),'nonfinite rotation is rejected')
+oriented:setPosition(Vector3.new(7,8,9))
+assert((rings.Adornee.Position-Vector3.new(7,8,9)).Magnitude<1e-6,'rotation rings follow target position')
+assert(move.Adornee.CFrame.Rotation:FuzzyEq(CFrame.identity,1e-5),'position handles stay aligned to world axes')
+assert(not pcall(function() oriented:setOrientation(CFrame.new(math.huge,0,0)) end),'invalid orientation is rejected')
+assert(not pcall(function() oriented:setMode('bad') end),'unknown mode is rejected')
+oriented:setMode('move'); assert(move.Visible and not rings.Visible,'movement mode restores translation handles')
+oriented:moveRotation(Enum.Axis.Y,.5); assert(#turns==2,'changing mode cancels an active drag')
+oriented:destroy(); assert(#world:GetChildren()==0 and #gui:GetChildren()==0,'rotation resources are disposable')
 world:Destroy(); gui:Destroy()
 return 'Viewport target drag math and cleanup passed'

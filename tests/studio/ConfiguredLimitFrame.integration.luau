@@ -1,4 +1,4 @@
--- Inject ChainDefinition, LimitFrame, Limits, Solver and ChainAdapter.
+-- Inject ChainDefinition, LimitFrame, CircularHinge, Limits, Solver and ChainAdapter.
 local model=Instance.new('Model')
 local base=Instance.new('Part'); base.Parent=model
 local tip=Instance.new('Part'); tip.Parent=model
@@ -63,7 +63,49 @@ for _,entry in ipairs({{motor,tip},{bone,bone}}) do
  assert(not pcall(function() capture(def,LimitFrame) end),'missing schema 2 frame components must be rejected')
  local created=false
  assert(not pcall(function() ChainDefinition.new(def,{exclusive=true},function() created=true end,LimitFrame) end) and not created,'invalid frames must not acquire chain ownership')
+ setFrame(ref,{0,0,0,1})
  def:SetAttribute('SchemaVersion',3)
+ ref:SetAttribute('LowerDegrees',nil); ref:SetAttribute('UpperDegrees',nil)
+ ref:SetAttribute('CircularStartDegrees',170); ref:SetAttribute('CircularWidthDegrees',40)
+ local circular=capture(def,LimitFrame)
+ assert(circular.circular and circular.circular.version==1,'schema 3 must provide a versioned circular interval')
+ near(circular.circular.start,math.rad(170)); near(circular.circular.width,math.rad(40))
+ assert(circular.lower==nil and circular.upper==nil,'schema 3 must not leak conflicting linear bounds')
+ ref:SetAttribute('Axis','Z')
+ entry[1].Transform=CFrame.identity
+ local wrapped=ChainDefinition.new(def,{exclusive=true},function(joints,point,options)
+  return ChainAdapter.new(joints,point,options,Solver.new(Limits,CircularHinge.v1))
+ end,LimitFrame)
+ local reached=wrapped:solve(Vector3.new(-1,0,0))
+ assert(reached.error<.01,'wrapped chain must reach a target through 180 degrees')
+ local blocked=wrapped:solve(Vector3.xAxis)
+ assert(blocked.error>.5,'wrapped chain must enforce the forbidden range')
+ wrapped:destroy()
+ ref:SetAttribute('Axis','X')
+ for _,width in ipairs({0,360}) do
+  ref:SetAttribute('CircularWidthDegrees',width)
+  near(capture(def,LimitFrame).circular.width,math.rad(width))
+ end
+ local function rejectedWithoutOwnership()
+  local created=false
+  assert(not pcall(function() ChainDefinition.new(def,{exclusive=true},function() created=true end,LimitFrame) end) and not created,'invalid circular definition must fail before acquiring ownership')
+ end
+ for _,bad in ipairs({-1,361,math.huge}) do ref:SetAttribute('CircularWidthDegrees',bad); rejectedWithoutOwnership() end
+ ref:SetAttribute('CircularWidthDegrees',40)
+ for _,bad in ipairs({-181,180,math.huge}) do ref:SetAttribute('CircularStartDegrees',bad); rejectedWithoutOwnership() end
+ ref:SetAttribute('CircularStartDegrees',-180)
+ near(capture(def,LimitFrame).circular.start,-math.pi)
+ ref:SetAttribute('LowerDegrees',-10); rejectedWithoutOwnership(); ref:SetAttribute('LowerDegrees',nil)
+ ref:SetAttribute('CircularWidthDegrees',nil); rejectedWithoutOwnership(); ref:SetAttribute('CircularWidthDegrees',40)
+ ref:SetAttribute('CircularStartDegrees',nil); rejectedWithoutOwnership(); ref:SetAttribute('CircularStartDegrees',170)
+ ref:SetAttribute('FrameW',nil); rejectedWithoutOwnership(); ref:SetAttribute('FrameW',1)
+ ref:SetAttribute('Kind','Ball'); rejectedWithoutOwnership()
+ ref:SetAttribute('CircularStartDegrees',nil); ref:SetAttribute('CircularWidthDegrees',nil)
+ ref:SetAttribute('LowerDegrees',-10); ref:SetAttribute('UpperDegrees',20)
+ local ball=capture(def,LimitFrame)
+ assert(ball.kind=='Ball' and ball.circular==nil,'schema 3 ball must retain ordinary twist bounds')
+ near(ball.lower,math.rad(-10)); near(ball.upper,math.rad(20))
+ def:SetAttribute('SchemaVersion',4)
  assert(not pcall(function() capture(def,LimitFrame) end),'unknown schema must fail closed')
 end
 model:Destroy()

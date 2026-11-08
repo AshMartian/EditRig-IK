@@ -1,6 +1,6 @@
 --!strict
--- Experimental, opt-in circular hinge math. Not wired to saved definitions,
--- existing solver APIs, built-in constraints, or editor controls.
+-- Experimental, opt-in circular hinge math used by schema-3 configured chains.
+-- Editor authoring, ghost preview, and built-in constraints do not yet use it.
 -- Angles are radians. An interval is {start, width} traversed positively;
 -- width 0 is locked and width 2*pi is unrestricted. Quaternion order is xyzw.
 local CircularHinge={}

@@ -13,7 +13,7 @@ expected = {
     'runtime.project.json': ('ModuleScript', 'EditRigIKRuntime', {'Actor', 'ActorRig', 'ChainAdapter', 'ChainDefinition', 'JointAdapter', 'JointDrive', 'BallDrive', 'InputBindings', 'StepTrajectory', 'FootstepBehavior', 'FootstepChain', 'TargetStepper', 'Ownership', 'Limits', 'Solver', 'SurfaceContact', 'SurfaceProbe', 'SurfaceFrame', 'SurfaceOrientation'}),
 }
 expected['plugin.project.json'][2].update({'HingeDragMath', 'HingeLimitHandles', 'JointAuthoring', 'ViewportInputPolicy', 'ChainPathView', 'LimitFrame'})
-expected['runtime.project.json'][2].add('LimitFrame')
+expected['runtime.project.json'][2].update({'LimitFrame', 'CircularHinge'})
 with tempfile.TemporaryDirectory(prefix='editrig-package-test-') as tmp:
     roots = {}
     for project, (cls, name, children) in expected.items():

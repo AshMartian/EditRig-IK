@@ -51,6 +51,9 @@
     "LimitFrame": {
       "$path": "src/shared/LimitFrame.luau"
     },
+    "CircularHinge": {
+      "$path": "src/shared/CircularHinge.luau"
+    },
     "Solver": {
       "$path": "src/shared/Solver.luau"
     }

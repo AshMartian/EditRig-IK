@@ -2,7 +2,8 @@
 -- Experimental, engine-independent core. See docs/runtime.md for conventions.
 local Solver = require(script.Solver)
 local Limits = require(script.Limits)
-local engine = Solver.new(Limits)
+local CircularHinge = require(script.CircularHinge)
+local engine = Solver.new(Limits, CircularHinge.v1)
 local Runtime = {}
 Runtime.SurfaceContact = require(script.SurfaceContact)
 Runtime.SurfaceProbe = require(script.SurfaceProbe)

@@ -25,6 +25,7 @@ class RuntimePackageBundleTest(unittest.TestCase):
                 self.assertIn('RuntimeComponents[' + json.dumps(name) + ']', result.stdout)
                 self.assertIn((ROOT / value['$path']).read_text(), result.stdout)
         self.assertIn('RuntimeComponents["LimitFrame"]', result.stdout)
+        self.assertIn('RuntimeComponents["CircularHinge"]', result.stdout)
 
     def test_failed_build_writes_no_partial_luau(self):
         env = {**os.environ, 'ROJO_BIN': '/no/such/rojo'}

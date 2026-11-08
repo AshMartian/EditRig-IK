@@ -29,4 +29,19 @@ assert(solved.converged and solved.orientationConverged,'packaged runtime must s
 local frame=Runtime.SurfaceOrientation.align(CFrame.identity,Vector3.yAxis,-Vector3.zAxis,Vector3.yAxis,1)
 assert(frame and frame.rotation:FuzzyEq(CFrame.identity,1e-5),'packaged runtime must expose the surface orientation adapter')
 chain:destroy()
-return 'Packaged runtime contact and orientation passed'
+joint.Transform=CFrame.identity
+local endpoint=Instance.new('Attachment'); endpoint.Position=Vector3.xAxis; endpoint.Parent=tip
+local folder=Instance.new('Folder'); folder.Parent=source
+local definition=Instance.new('Folder'); definition.Parent=folder
+definition:SetAttribute('SchemaVersion',3); definition:SetAttribute('Iterations',40); definition:SetAttribute('Tolerance',.01)
+local endRef=Instance.new('ObjectValue'); endRef.Name='Endpoint'; endRef.Value=endpoint; endRef.Parent=definition
+local list=Instance.new('Folder'); list.Name='Joints'; list.Parent=definition
+local ref=Instance.new('ObjectValue'); ref.Value=joint; ref.Parent=list
+ref:SetAttribute('Order',1); ref:SetAttribute('Kind','Hinge'); ref:SetAttribute('Axis','Z'); ref:SetAttribute('SwingDegrees',90)
+ref:SetAttribute('FrameX',0); ref:SetAttribute('FrameY',0); ref:SetAttribute('FrameZ',0); ref:SetAttribute('FrameW',1)
+ref:SetAttribute('CircularStartDegrees',170); ref:SetAttribute('CircularWidthDegrees',40)
+local wrapped=Runtime.createConfiguredIKChain(definition,{exclusive=true})
+assert(wrapped:solve(-Vector3.xAxis).error<.01,'packaged runtime must solve through wrapped 180-degree interval')
+assert(wrapped:solve(Vector3.xAxis).error>.5,'packaged runtime must enforce wrapped interval')
+wrapped:destroy()
+return 'Packaged runtime contact, orientation and circular hinge passed'

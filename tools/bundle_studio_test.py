@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     'Config': 'src/shared/Config.luau',
     'LimitFrame': 'src/shared/LimitFrame.luau',
+    'CircularHinge': 'src/shared/CircularHinge.luau',
     'ChainBuilder': 'src/plugin/ChainBuilder.luau',
     'Limits': 'src/shared/Limits.luau',
     'Solver': 'src/shared/Solver.luau',
@@ -32,11 +33,12 @@ MODULES = {
     'SavedLimitOverlay': 'src/plugin/SavedLimitOverlay.luau',
 }
 FIXTURES = {
+    'CircularAngularSpeed': (('CircularHinge', 'Limits', 'Solver', 'ChainAdapter'), 'tests/studio/CircularAngularSpeed.integration.luau'),
     'ChainPathView': (('ChainPathView',), 'tests/studio/ChainPathView.integration.luau'),
     'JointAuthoring': (('Config', 'InputProfileBuilder', 'JointAuthoring'), 'tests/studio/JointAuthoring.integration.luau'),
     'AxisGizmo': (('Config', 'AxisGizmo', 'LimitGeometryFactory'), 'tests/studio/AxisGizmo.spec.luau'),
     'LimitGeometry': (('Config', 'LimitFrame', 'LimitGeometryFactory'), 'tests/studio/LimitGeometry.spec.luau'),
-    'ConfiguredLimitFrame': (('ChainDefinition', 'LimitFrame', 'Limits', 'Solver', 'ChainAdapter'), 'tests/studio/ConfiguredLimitFrame.integration.luau'),
+    'ConfiguredLimitFrame': (('ChainDefinition', 'LimitFrame', 'CircularHinge', 'Limits', 'Solver', 'ChainAdapter'), 'tests/studio/ConfiguredLimitFrame.integration.luau'),
     'HingeLimitHandles': (('Config', 'AxisGizmo', 'HingeDragMath', 'HingeLimitHandles'), 'tests/studio/HingeLimitHandles.integration.luau'),
     'ConfiguredOrientation': (('Config', 'ChainBuilder', 'ChainDefinition'), 'tests/studio/ConfiguredOrientation.integration.luau'),
     'OrientationChain': (('Limits', 'Solver', 'ChainAdapter'), 'tests/studio/OrientationChain.integration.luau'),

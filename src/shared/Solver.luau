@@ -65,18 +65,57 @@ local function forward(root,joints,rotations)
  end
  return positions,bases,pos,orientation
 end
-function Solver.new(limits)
+function Solver.new(limits,circularHingeV1)
  assert(type(limits)=='table' and type(limits.hinge)=='function' and type(limits.ball)=='function','limit functions required')
  local api={}
  local function constrain(rotation,limit,index,limited)
   if not limit then return rotation end
   local result
-  if limit.kind=='Hinge' then result=limits.hinge(rotation,limit.axis,limit.lower,limit.upper)
-  elseif limit.kind=='Ball' then result=limits.ball(rotation,limit.axis,limit.swing,limit.lower,limit.upper)
+  if limit.kind=='Hinge' then
+   if limit.circular~=nil then
+    assert(type(limit.circular)=='table' and limit.circular.version==1,'unsupported circular hinge version')
+    assert(limit.lower==nil and limit.upper==nil,'circular hinge cannot include linear bounds')
+    assert(type(circularHingeV1)=='table' and type(circularHingeV1.hinge)=='function' and type(circularHingeV1.clamp)=='function','circular hinge implementation required')
+    result=circularHingeV1.hinge(rotation,limit.axis,limit.circular)
+   else result=limits.hinge(rotation,limit.axis,limit.lower,limit.upper) end
+  elseif limit.kind=='Ball' then
+   assert(limit.circular==nil,'circular bounds are only supported for hinges')
+   result=limits.ball(rotation,limit.axis,limit.swing,limit.lower,limit.upper)
   else error('unknown limit kind') end
   local similarity=math.abs(rotation[1]*result[1]+rotation[2]*result[2]+rotation[3]*result[3]+rotation[4]*result[4])
   if similarity<1-1e-10 then limited[index]=true end
   return result
+ end
+ -- Work in the arc's unwrapped coordinate to prevent crossings of its gap.
+ local function circularOffset(angle,interval)
+  local turn=2*math.pi
+  local offset=(angle-interval.start)%turn
+  if offset>interval.width and turn-offset<1e-10 then return 0 end
+  return math.clamp(offset,0,interval.width)
+ end
+ local function twistAngle(q,axis)
+  return 2*math.atan2(q[1]*axis[1]+q[2]*axis[2]+q[3]*axis[3],q[4])
+ end
+ local function circularStep(candidate,original,limit,index,limited)
+  local interval=limit and limit.circular
+  if interval and interval.width<2*math.pi then
+   local axis=scale(limit.axis,1/length(limit.axis))
+   local oldAngle=twistAngle(original,axis)
+   local candidateAngle=twistAngle(candidate,axis)
+   local delta=(candidateAngle-oldAngle+math.pi)%(2*math.pi)-math.pi
+   if math.abs(delta+math.pi)<EPS then
+    local relative=quat(candidate,inverse(original))
+    if dot({relative[1],relative[2],relative[3]},axis)>0 then delta=math.pi end
+   end
+   local offset=circularOffset(oldAngle,interval)
+   local nextOffset=math.clamp(offset+delta,0,interval.width)
+   if math.abs(nextOffset-(offset+delta))>EPS then
+    local half=(interval.start+nextOffset)/2
+    candidate={axis[1]*math.sin(half),axis[2]*math.sin(half),axis[3]*math.sin(half),math.cos(half)}
+    limited[index]=true
+   end
+  end
+  return constrain(candidate,limit,index,limited)
  end
  function api.solve(chain,target,options)
   assert(type(chain)=='table' and finiteVector(chain.root) and type(chain.joints)=='table' and #chain.joints>0,'invalid chain')
@@ -125,7 +164,7 @@ function Solver.new(limits)
   local function applyCorrection(i,delta)
    local original=rotations[i]
    if not targetOrientation then
-    rotations[i]=constrain(normalize(quat(delta,original)),chain.joints[i].limit,i,limited)
+    rotations[i]=circularStep(normalize(quat(delta,original)),original,chain.joints[i].limit,i,limited)
     return
    end
    local beforePoint,_,beforeAngle=pose()
@@ -137,7 +176,7 @@ function Solver.new(limits)
     local half=fullAngle/(2*2^attempt)
     local factor=math.sin(half)/magnitude
     local step={delta[1]*factor,delta[2]*factor,delta[3]*factor,math.cos(half)}
-    rotations[i]=constrain(normalize(quat(step,original)),chain.joints[i].limit,i,limited)
+    rotations[i]=circularStep(normalize(quat(step,original)),original,chain.joints[i].limit,i,limited)
     local point,_,angle=pose()
     if objective(point,angle)<before-1e-15 then return end
    end
@@ -161,7 +200,7 @@ function Solver.new(limits)
      local half=math.min(maxStep,0.1*gain*weights[1])/2; local s=math.sin(half)
      local worldDelta={turn[1]*s,turn[2]*s,turn[3]*s,math.cos(half)}
      local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
-     rotations[1]=constrain(normalize(quat(localDelta,rotations[1])),chain.joints[1].limit,1,limited)
+     rotations[1]=circularStep(normalize(quat(localDelta,rotations[1])),rotations[1],chain.joints[1].limit,1,limited)
      endpoint,_,orientationError=pose()
     end
    end
@@ -175,6 +214,16 @@ function Solver.new(limits)
     local localDelta
     if limit and limit.kind=='Hinge' then
      localDelta=hingeDelta(limit.axis,rotate(inverse(bases[i]),from),rotate(inverse(bases[i]),to))
+     if localDelta and limit.circular and limit.circular.width<2*math.pi then
+      local axis=scale(limit.axis,1/length(limit.axis))
+      local current=twistAngle(rotations[i],axis)
+      local requested=current+twistAngle(localDelta,axis)
+      local destination=circularHingeV1.clamp(limit.circular,requested)
+      if math.abs((destination-requested+math.pi)%(2*math.pi)-math.pi)>EPS then limited[i]=true end
+      local angle=circularOffset(destination,limit.circular)-circularOffset(current,limit.circular)
+      local sn=math.sin(angle/2)
+      localDelta={axis[1]*sn,axis[2]*sn,axis[3]*sn,math.cos(angle/2)}
+     end
     else
      local change=between(from,to)
      if change then localDelta=quat(quat(inverse(bases[i]),change),bases[i]) end
@@ -227,7 +276,7 @@ function Solver.new(limits)
       local worldDelta={axis[1]*s,axis[2]*s,axis[3]*s,math.cos(half)}
       local localDelta=quat(quat(inverse(bases[1]),worldDelta),bases[1])
       local original=rotations[1]
-      rotations[1]=constrain(normalize(quat(localDelta,original)),chain.joints[1].limit,1,limited)
+      rotations[1]=circularStep(normalize(quat(localDelta,original)),original,chain.joints[1].limit,1,limited)
       local _,_,candidate=forward(chain.root,chain.joints,rotations)
       local similarity=math.abs(original[1]*rotations[1][1]+original[2]*rotations[1][2]+original[3]*rotations[1][3]+original[4]*rotations[1][4])
       local _,_,candidateAngle=pose()

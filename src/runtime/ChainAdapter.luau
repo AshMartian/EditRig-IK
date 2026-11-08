@@ -27,6 +27,18 @@ local function quaternion(cf)
  return {x,y,z,w}
 end
 local function frame(q) return CFrame.new(0,0,0,q[1],q[2],q[3],q[4]) end
+local function circularPosition(cf,limit)
+ local axis=Vector3.new(limit.axis[1],limit.axis[2],limit.axis[3]).Unit
+ local q=quaternion(cf)
+ local angle=2*math.atan2(q[1]*axis.X+q[2]*axis.Y+q[3]*axis.Z,q[4])
+ assert(cf.Rotation:FuzzyEq(CFrame.fromAxisAngle(axis,angle),1e-5),'capped circular hinge starts with off-axis rotation')
+ local interval=limit.circular
+ local turn=2*math.pi
+ local position=(angle-interval.start)%turn
+ if position>interval.width and turn-position<1e-5 then position=0 end
+ assert(position<=interval.width+1e-5,'capped circular hinge starts outside its allowed arc')
+ return math.clamp(position,0,interval.width),axis
+end
 function ChainAdapter.new(joints,endpointLocal,options,solver)
  assert(type(options)=='table' and options.exclusive==true,'explicit exclusive ownership required')
  local baseMode=if options.baseMode==nil then 'fixed' else options.baseMode
@@ -130,10 +142,23 @@ function ChainAdapter.new(joints,endpointLocal,options,solver)
    local destination=frame(q)
    if speed then
     local speedStart=if baseMode=='animated' and entries[i].written then entries[i].last else rotations[i]
-    local delta=quaternion(speedStart:Inverse()*destination)
-    local angle=2*math.atan2(math.sqrt(delta[1]^2+delta[2]^2+delta[3]^2),math.abs(delta[4]))
     local cap=speed*dt
-    if angle>cap+1e-10 then destination=speedStart:Lerp(destination,cap/angle); motionLimited=true end
+    local limit=limits[i]
+    if limit and limit.circular then
+     local current,axis=circularPosition(speedStart,limit)
+     local target=circularPosition(destination,limit)
+     local distance=target-current
+     if limit.circular.width==2*math.pi then distance=(distance+math.pi)%(2*math.pi)-math.pi end
+     if math.abs(distance)>cap+1e-10 then
+      local applied=current+math.clamp(distance,-cap,cap)
+      destination=CFrame.fromAxisAngle(axis,limit.circular.start+applied)
+      motionLimited=true
+     end
+    else
+     local delta=quaternion(speedStart:Inverse()*destination)
+     local angle=2*math.atan2(math.sqrt(delta[1]^2+delta[2]^2+delta[3]^2),math.abs(delta[4]))
+     if angle>cap+1e-10 then destination=speedStart:Lerp(destination,cap/angle); motionLimited=true end
+    end
    end
    output[i]=destination
   end

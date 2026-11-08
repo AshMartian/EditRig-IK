@@ -5,8 +5,8 @@ local function finite(n) return type(n)=='number' and n==n and math.abs(n)<math.
 function ChainDefinition.new(definition,options,createChain,limitFrame)
  assert(typeof(definition)=='Instance' and definition:IsA('Folder'),'unsupported chain definition')
  local schema=definition:GetAttribute('SchemaVersion')
- assert(schema==1 or schema==2,'unsupported chain definition')
- if schema==2 then assert(type(limitFrame)=='table' and type(limitFrame.basis)=='function','schema 2 requires the limit-frame dependency') end
+ assert(schema==1 or schema==2 or schema==3,'unsupported chain definition')
+ if schema>=2 then assert(type(limitFrame)=='table' and type(limitFrame.basis)=='function','schema 2 and 3 require the limit-frame dependency') end
  assert(definition.Parent and definition.Parent:IsA('Folder') and definition.Parent.Parent and definition.Parent.Parent:IsA('Model'),'chain definition must belong to a model')
  assert(type(options)=='table' and options.exclusive==true and type(createChain)=='function','explicit ownership and chain factory required')
  local model=definition.Parent.Parent
@@ -28,17 +28,28 @@ function ChainDefinition.new(definition,options,createChain,limitFrame)
   local lower,upper,swing=ref:GetAttribute('LowerDegrees'),ref:GetAttribute('UpperDegrees'),ref:GetAttribute('SwingDegrees')
   local weight=ref:GetAttribute('Weight'); if weight==nil then weight=1 end
   assert((kind=='Hinge' or kind=='Ball') and axes[axis],'invalid joint limit kind or axis')
-  assert(finite(lower) and finite(upper) and lower>=-180 and upper<=180 and lower<=upper,'invalid angular limits')
+  local circular
+  if schema==3 and kind=='Hinge' then
+   local start,width=ref:GetAttribute('CircularStartDegrees'),ref:GetAttribute('CircularWidthDegrees')
+   assert(lower==nil and upper==nil,'circular hinge must not include linear angular limits')
+   assert(finite(start) and start>=-180 and start<180 and finite(width) and width>=0 and width<=360,'invalid circular hinge interval')
+   circular={version=1,start=math.rad(start),width=math.rad(width)}
+  else
+   if schema==3 then assert(ref:GetAttribute('CircularStartDegrees')==nil and ref:GetAttribute('CircularWidthDegrees')==nil,'circular interval is only supported for hinge joints') end
+   assert(finite(lower) and finite(upper) and lower>=-180 and upper<=180 and lower<=upper,'invalid angular limits')
+  end
   assert(finite(swing) and swing>=0 and swing<=180,'invalid swing angle')
   assert(finite(weight) and weight>=0 and weight<=1,'invalid joint influence')
   table.insert(joints,ref.Value)
   local jointAxis=axes[axis]
-  if schema==2 then
+  if schema>=2 then
    local frame={ref:GetAttribute('FrameX'),ref:GetAttribute('FrameY'),ref:GetAttribute('FrameZ'),ref:GetAttribute('FrameW')}
    for component=1,4 do assert(finite(frame[component]),'schema 2 requires four finite frame components') end
    jointAxis=limitFrame.basis(axis,frame).axis
   end
-  table.insert(limits,{kind=kind,axis=jointAxis,lower=math.rad(lower),upper=math.rad(upper),swing=math.rad(swing)})
+  local limit={kind=kind,axis=jointAxis,swing=math.rad(swing)}
+  if circular then limit.circular=circular else limit.lower=math.rad(lower); limit.upper=math.rad(upper) end
+  table.insert(limits,limit)
   table.insert(weights,weight)
  end
  local last=joints[#joints]; local endpoint=endpointRef.Value

@@ -1,5 +1,6 @@
 -- RuntimeSource and RuntimeComponents are supplied by the source-level test harness.
 assert(type(RuntimeComponents.LimitFrame)=='string' and #RuntimeComponents.LimitFrame>0,'runtime source map must include LimitFrame')
+assert(type(RuntimeComponents.CircularHinge)=='string' and #RuntimeComponents.CircularHinge>0,'runtime source map must include CircularHinge')
 local storage=Instance.new('Folder')
 local bundle=Instance.new('ModuleScript'); bundle.Name='RuntimeBundle'; bundle.Source=RuntimeSource
 for name,source in pairs(RuntimeComponents) do
@@ -34,7 +35,18 @@ local target=CFrame.fromAxisAngle(axis,math.rad(60)):PointToWorldSpace(Vector3.x
 local result=chain:solve(target)
 local observed,angle=joint.Transform.Rotation:ToAxisAngle()
 assert(result.error>.01 and math.abs(angle-math.rad(30))<1e-3 and (observed-axis).Magnitude<1e-3,'installed runtime must enforce schema 2 tilted hinge limits')
-chain:destroy(); model:Destroy()
+chain:destroy()
+joint.Transform=CFrame.identity
+ref:SetAttribute('Axis','Z'); ref:SetAttribute('FrameZ',0); ref:SetAttribute('FrameW',1)
+ref:SetAttribute('LowerDegrees',nil); ref:SetAttribute('UpperDegrees',nil)
+ref:SetAttribute('CircularStartDegrees',170); ref:SetAttribute('CircularWidthDegrees',40)
+definition:SetAttribute('SchemaVersion',3)
+local wrapped=runtime.createConfiguredIKChain(definition,{exclusive=true})
+local wrappedResult=wrapped:solve(Vector3.new(-1,0,0))
+assert(wrappedResult.error<.01,'installed runtime must solve through the wrapped 180-degree interval')
+local blocked=wrapped:solve(Vector3.xAxis)
+assert(blocked.error>.5,'installed runtime must enforce the wrapped interval')
+wrapped:destroy(); model:Destroy()
 assert(not pcall(function() RuntimeInstaller.prepare(storage,bundle) end),'second installation must not overwrite')
 storage:Destroy(); bundle:Destroy()
 return 'Cloned runtime package loads and solves in Studio'
